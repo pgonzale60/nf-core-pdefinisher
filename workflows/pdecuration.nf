@@ -67,14 +67,15 @@ workflow PDECURATION {
     //
     // Collate and save software versions
     //
-    def topic_versions = channel.topic("versions")
+    def all_raw_versions = ch_versions
+        .mix(channel.topic("versions"))
         .distinct()
         .branch { entry ->
             versions_file: entry instanceof Path
             versions_tuple: true
         }
 
-    def topic_versions_string = topic_versions.versions_tuple
+    def topic_versions_string = all_raw_versions.versions_tuple
         .map { process, tool, version ->
             [ process[process.lastIndexOf(':')+1..-1], "  ${tool}: ${version}" ]
         }
@@ -84,7 +85,7 @@ workflow PDECURATION {
             "${process}:\n${tool_versions.join('\n')}"
         }
 
-    def ch_collated_versions = softwareVersionsToYAML(ch_versions.mix(topic_versions.versions_file))
+    def ch_collated_versions = softwareVersionsToYAML(all_raw_versions.versions_file)
         .mix(topic_versions_string)
         .collectFile(
             storeDir: "${outdir}/pipeline_info",
