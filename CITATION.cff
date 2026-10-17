@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+title: "nf-core/pdecuration: Automated genome assembly curation and validation for species with Programmed DNA Elimination"
+message: "If you use nf-core/pdecuration in your research, please cite it using the metadata from this file."
+type: software
+version: 1.0.0
+date-released: "2026-10-17"
+authors:
+  - family-names: "Gonzalez de la Rosa"
+    given-names: "Pablo M."
+    affiliation: "Wellcome Sanger Institute"
+repository-code: "https://github.com/nf-core/pdecuration"
+url: "https://nf-co.re/pdecuration"
+license: MIT
+keywords:
+  - nextflow
+  - nf-core
+  - genome-assembly
+  - assembly-curation
+  - programmed-dna-elimination
+  - chromatin-diminution
+  - nematodes
+  - telomere-to-telomere

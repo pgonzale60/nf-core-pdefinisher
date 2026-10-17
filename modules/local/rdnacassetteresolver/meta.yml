@@ -1,0 +1,113 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sanger-tol/nf-core-modules/main/modules/meta-schema.json
+name: "rdnacassetteresolver"
+description: |
+  Resolve rDNA arrays into cassette sequences by combining the blueprint, the
+  Flye assembly of rDNA reads and the telomeric unitigs, so that the arrays can
+  be represented once rather than collapsed or duplicated.
+keywords:
+  - pde
+  - rdna
+  - rrna
+  - cassette
+  - flye
+  - assembly
+tools:
+  - python:
+      description: Python interpreter used to run the rDNA cassette resolver.
+      homepage: "https://www.python.org/"
+      documentation: "https://docs.python.org/3/"
+      tool_dev_url: "https://github.com/python/cpython"
+      licence:
+        - "PSF-2.0"
+  - pde_rdna_cassette_resolver:
+      description: Resolves rDNA arrays into cassettes from the blueprint and Flye assembly.
+      homepage: "https://github.com/sanger-tol/nf-core-modules"
+      documentation: "https://github.com/sanger-tol/nf-core-modules"
+      tool_dev_url: "https://github.com/sanger-tol/nf-core-modules"
+      licence:
+        - "MIT"
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing sample information
+          e.g. `[ id:'sample1' ]`
+    - blueprint_json:
+        type: file
+        description: Curation blueprint manifest produced by curationsynthesis
+        pattern: "*.curation_manifest.json"
+        ontologies:
+          - edam: "http://edamontology.org/format_3464" # JSON
+    - ref_fasta:
+        type: file
+        description: Baseline assembly in FASTA format
+        pattern: "*.{fa,fasta,fna}{,.gz}"
+        ontologies:
+          - edam: "http://edamontology.org/format_1929" # FASTA
+    - flye_fasta:
+        type: file
+        description: Flye assembly of the reads extracted from the rDNA arrays
+        pattern: "assembly.fasta"
+        ontologies:
+          - edam: "http://edamontology.org/format_1929" # FASTA
+    - flye_info:
+        type: file
+        description: Flye contig information, including repeat graph status
+        pattern: "assembly_info.txt"
+        ontologies:
+          - edam: "http://edamontology.org/format_2330" # Text
+    - flye_paf:
+        type: file
+        description: PAF alignment of the Flye contigs against the baseline assembly
+        pattern: "*.paf"
+        ontologies:
+          - edam: "http://edamontology.org/format_2572" # PAF
+    - telomeric_unitigs:
+        type: file
+        description: De novo assembled telomeric unitigs, used to cap resolved cassettes
+        pattern: "*.fa.gz"
+        ontologies:
+          - edam: "http://edamontology.org/format_1929" # FASTA
+output:
+  manifest:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'sample1' ]`
+      - "*_rdna_cassettes":
+          type: file
+          description: Directory of resolved rDNA cassette sequences
+          pattern: "*_rdna_cassettes"
+          ontologies: []
+      - "*_rdna_manifest.tsv":
+          type: file
+          description: Manifest describing each resolved cassette and the components it replaces
+          pattern: "*_rdna_manifest.tsv"
+          ontologies:
+            - edam: "http://edamontology.org/format_3475" # TSV
+  versions_resolver:
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - python:
+          type: string
+          description: The tool name
+      - "3.10.4":
+          type: string
+          description: The version of the tool
+topics:
+  versions:
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - python:
+          type: string
+          description: The tool name
+      - "3.10.4":
+          type: string
+          description: The version of the tool
+authors:
+  - "@pgonzale60"
+maintainers:
+  - "@pgonzale60"

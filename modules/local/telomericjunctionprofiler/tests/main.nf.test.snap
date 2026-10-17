@@ -1,0 +1,59 @@
+{
+    "sarscov2 - fastq - stub": {
+        "content": [
+            {
+                "0": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.telomeric_junctions.json:md5,b8f73d632514a4625152db321422e8c8"
+                    ]
+                ],
+                "1": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.telomeric_junctions.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "2": [
+                    [
+                        "TELOMERICJUNCTIONPROFILER",
+                        "python",
+                        "3.14.7"
+                    ]
+                ],
+                "json": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.telomeric_junctions.json:md5,b8f73d632514a4625152db321422e8c8"
+                    ]
+                ],
+                "tsv": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.telomeric_junctions.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "versions_python": [
+                    [
+                        "TELOMERICJUNCTIONPROFILER",
+                        "python",
+                        "3.14.7"
+                    ]
+                ]
+            }
+        ],
+        "timestamp": "2026-09-24T09:54:57.216646",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    }
+}

@@ -1,0 +1,213 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sanger-tol/nf-core-modules/main/subworkflows/yaml-schema.json
+name: "pde_reconnaissance"
+description: "Automated pre-curation reconnaissance for Programmed DNA Elimination (PDE) assemblies, identifying neo-telomeric diminution breakpoints, repeat distribution, and depth variation."
+keywords:
+  - programmed dna elimination
+  - pde
+  - telomere
+  - diminution
+  - breakpoint
+  - coverage
+  - hifiasm
+  - delfies
+  - softclip
+components:
+  - delfies
+  - mosdepth
+  - barrnap
+  - extracttelomericreads
+  - softclipends
+  - hifiasm
+  - minimap2/align
+  - sniffles
+  - filterchromosomes
+  - red
+  - extractrdnareads
+  - identifyputativegrs
+  - extractgapevidence
+  - telomericjunctionprofiler
+
+input:
+  - ch_assembly:
+      type: file
+      description: |
+        Input channel containing reference or baseline assembly FASTA files.
+        Structure: [ val(meta), path(assembly) ]
+      pattern: "*.{fa,fasta,fa.gz,fasta.gz,fna,fna.gz}"
+  - ch_bam:
+      type: file
+      description: |
+        Input channel containing aligned BAM files and coordinate indexes (.bai).
+        Structure: [ val(meta), path(bam), path(bai) ]
+      pattern: "*.bam"
+  - val_telomere_repeat:
+      type: string
+      description: Telomeric repeat motif string to screen (e.g. 'TTAGGC').
+  - val_chromosomes:
+      type: string
+      description: Comma-separated list or Groovy list of chromosome identifiers (e.g. 'I,II,III,IV,V,X').
+
+output:
+  - chromosomes_fasta:
+      type: file
+      description: |
+        FASTA file containing only the filtered canonical chromosome sequences.
+        Structure: [ val(meta), path(fasta) ]
+      pattern: "*.chromosomes.fasta"
+  - non_chromosomal_fasta:
+      type: file
+      description: |
+        FASTA file containing non-chromosomal / unplaced sequences.
+        Structure: [ val(meta), path(fasta) ]
+      pattern: "*.non_chromosomal.fasta"
+  - red_bed:
+      type: file
+      description: |
+        BED file containing repeat intervals discovered by Red on non-chromosomal sequences.
+        Structure: [ val(meta), path(bed) ]
+      pattern: "*.bed"
+  - unplaced_paf:
+      type: file
+      description: |
+        PAF file of non-chromosomal sequences aligned against canonical chromosomes.
+        Structure: [ val(meta), path(paf) ]
+      pattern: "*.paf"
+  - delfies_bed:
+      type: file
+      description: |
+        BED file containing identified diminution breakpoint locations.
+        Structure: [ val(meta), path(bed) ]
+      pattern: "*.breakpoint_locations.bed"
+  - delfies_fasta:
+      type: file
+      description: |
+        FASTA file containing breakpoint flanking sequences.
+        Structure: [ val(meta), path(fasta) ]
+      pattern: "*.breakpoint_sequences.fasta"
+  - mosdepth_summary:
+      type: file
+      description: |
+        Summary file containing chromosome-level mean and modal sequencing depth statistics.
+        Structure: [ val(meta), path(summary_txt) ]
+      pattern: "*.summary.txt"
+  - mosdepth_regions:
+      type: file
+      description: |
+        BED file containing 1 kb window depth measurements across the assembly.
+        Structure: [ val(meta), path(regions_bed) ]
+      pattern: "*.regions.bed.gz"
+  - barrnap_gff:
+      type: file
+      description: |
+        GFF3 file containing predicted ribosomal RNA gene coordinates.
+        Structure: [ val(meta), path(gff) ]
+      pattern: "*.gff"
+  - telomeric_reads:
+      type: file
+      description: |
+        FASTQ file of extracted reads containing telomeric repeat motifs.
+        Structure: [ val(meta), path(reads) ]
+      pattern: "*.telomeric_reads.fastq.gz"
+  - terminal_softclips:
+      type: file
+      description: |
+        TSV table of softclipped reads mapped at sequence ends with extension overhang lengths.
+        Structure: [ val(meta), path(softclips) ]
+      pattern: "*.terminal_softclips.tsv"
+  - terminal_ends_summary:
+      type: file
+      description: |
+        TSV summary table per sequence end with softclip counts, max overhang, and capping status.
+        Structure: [ val(meta), path(summary) ]
+      pattern: "*.terminal_ends_summary.tsv"
+  - telo_unitigs:
+      type: file
+      description: |
+        FASTA file containing de novo assembled telomeric unitigs from reads.
+        Structure: [ val(meta), path(assembly_fasta) ]
+      pattern: "*.fa.gz"
+  - telo_paf:
+      type: file
+      description: |
+        PAF file containing alignment of telomeric unitigs to the baseline assembly.
+        Structure: [ val(meta), path(paf) ]
+      pattern: "*.paf"
+  - sniffles_vcf:
+      type: file
+      description: |
+        Compressed VCF file containing structural variants and non-germline / somatic mosaicism calls.
+        Structure: [ val(meta), path(vcf) ]
+      pattern: "*.vcf.gz"
+  - sniffles_tbi:
+      type: file
+      description: |
+        Index file for the Sniffles VCF.
+        Structure: [ val(meta), path(tbi) ]
+      pattern: "*.vcf.gz.tbi"
+  - rdna_reads:
+      type: file
+      description: |
+        FASTQ file containing reads covering 18S/28S rDNA arrays and flanking anchors.
+        Structure: [ val(meta), path(reads) ]
+      pattern: "*.rdna_reads.fastq.gz"
+  - rdna_regions_bed:
+      type: file
+      description: |
+        BED file of 18S/28S rDNA arrays expanded by flanking anchor bp.
+        Structure: [ val(meta), path(bed) ]
+      pattern: "*.rdna_regions.bed"
+  - rdna_assembly_fasta:
+      type: file
+      description: |
+        FASTA file of Flye metagenome assembly of rDNA arrays and anchors.
+        Structure: [ val(meta), path(fasta) ]
+      pattern: "assembly.fasta"
+  - rdna_assembly_gfa:
+      type: file
+      description: |
+        GFA repeat graph file from Flye assembly of rDNA arrays.
+        Structure: [ val(meta), path(gfa) ]
+      pattern: "assembly_graph.gfa"
+  - rdna_assembly_info:
+      type: file
+      description: |
+        Text file with contig info and repeat status from Flye assembly.
+        Structure: [ val(meta), path(txt) ]
+      pattern: "assembly_info.txt"
+  - rdna_assembly_paf:
+      type: file
+      description: |
+        PAF alignment of the Flye rDNA assembly contigs against the baseline assembly. Used to
+        identify the single-copy core anchor of each resolved cassette: a contig aligning to the
+        locus chromosome at high MAPQ. Also confirms the chromosome a resolved array belongs to.
+        Structure: [ val(meta), path(paf) ]
+      pattern: "*.paf"
+  - pde_segments_bed:
+      type: file
+      description: |
+        BED file partitioning chromosomes into putative_core and putative_GRS.
+        Structure: [ val(meta), path(bed) ]
+      pattern: "*.pde_segments.bed"
+  - grs_summary_tsv:
+      type: file
+      description: |
+        TSV summary of chromosome segments with classification and median depths.
+        Structure: [ val(meta), path(summary) ]
+      pattern: "*.grs_summary.tsv"
+  - telo_junction_json:
+      type: file
+      description: |
+        JSON file containing classified telomeric junction clusters (somatic diminution vs germline satellite/unique).
+        Structure: [ val(meta), path(json) ]
+      pattern: "*.telomeric_junctions.json"
+  - telo_junction_tsv:
+      type: file
+      description: |
+        TSV file containing classified telomeric junction clusters.
+        Structure: [ val(meta), path(tsv) ]
+      pattern: "*.telomeric_junctions.tsv"
+
+authors:
+  - "@pgonzale60"
+maintainers:
+  - "@pgonzale60"

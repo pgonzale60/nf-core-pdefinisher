@@ -1,0 +1,181 @@
+{
+    "sarscov2 - stub": {
+        "content": [
+            {
+                "0": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test_patches_manifest.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "1": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        [
+                            
+                        ]
+                    ]
+                ],
+                "2": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test_walker_manifest.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "3": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        [
+                            
+                        ]
+                    ]
+                ],
+                "4": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test_rdna_manifest.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "5": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        [
+                            
+                        ]
+                    ]
+                ],
+                "6": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test_trans_manifest.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "7": [
+                    [
+                        "CURATION_RESOLUTION:RDNACASSETTERESOLVER",
+                        "python",
+                        "3.10.4"
+                    ],
+                    [
+                        "CURATION_RESOLUTION:TARGETEDGAPASSEMBLY",
+                        "hifiasm",
+                        "0.24.0"
+                    ],
+                    [
+                        "CURATION_RESOLUTION:TELOMEREWALKER",
+                        "python",
+                        "3.10.4"
+                    ],
+                    [
+                        "CURATION_RESOLUTION:TRANSCHROMOSOMALLINKRESOLVER",
+                        "python",
+                        "3.10.4"
+                    ]
+                ],
+                "gap_manifest": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test_patches_manifest.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "gap_patches": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        [
+                            
+                        ]
+                    ]
+                ],
+                "rdna_cassettes": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        [
+                            
+                        ]
+                    ]
+                ],
+                "rdna_manifest": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test_rdna_manifest.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "trans_manifest": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test_trans_manifest.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "versions": [
+                    [
+                        "CURATION_RESOLUTION:RDNACASSETTERESOLVER",
+                        "python",
+                        "3.10.4"
+                    ],
+                    [
+                        "CURATION_RESOLUTION:TARGETEDGAPASSEMBLY",
+                        "hifiasm",
+                        "0.24.0"
+                    ],
+                    [
+                        "CURATION_RESOLUTION:TELOMEREWALKER",
+                        "python",
+                        "3.10.4"
+                    ],
+                    [
+                        "CURATION_RESOLUTION:TRANSCHROMOSOMALLINKRESOLVER",
+                        "python",
+                        "3.10.4"
+                    ]
+                ],
+                "walker_manifest": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test_walker_manifest.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "walker_patches": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        [
+                            
+                        ]
+                    ]
+                ]
+            }
+        ],
+        "timestamp": "2026-09-20T10:48:35.374959",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    }
+}

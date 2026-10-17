@@ -1,0 +1,87 @@
+nextflow_workflow {
+
+    name "Test Subworkflow AUTOMATED_PDE_CURATION"
+    script "../main.nf"
+    workflow "AUTOMATED_PDE_CURATION"
+    config "./nextflow.config"
+
+    tag "subworkflows"
+    tag "subworkflows_sangertol"
+    tag "subworkflows/automated_pde_curation"
+    tag "subworkflows/pde_reconnaissance"
+    tag "subworkflows/assembly_surgery"
+    tag "subworkflows/curation_resolution"
+    tag "subworkflows/curation_evaluation"
+    tag "subworkflows/curation_validation"
+    tag "pde_reconnaissance"
+    tag "curationsynthesis"
+    tag "curation_resolution"
+    tag "assembly_surgery"
+    tag "curation_evaluation"
+    tag "curation_validation"
+    tag "bgzipfasta"
+
+    setup {
+        if (!file("${baseDir}/modules/nf-core").exists()) {
+            nfcoreInitialise("${launchDir}/library/")
+            nfcoreInstall(
+                "${launchDir}/library/",
+                [
+                    "mosdepth"
+                ]
+            )
+            nfcoreLink("${launchDir}/library/", "${baseDir}/modules/")
+        }
+    }
+
+    test("pde - stub") {
+
+        // Stub only: exercises the full five stage chain, its channel wiring and the
+        // emitted outputs. No stage performs real work in stub mode, so this asserts
+        // that the orchestration joins correctly rather than the curation result.
+        options "-stub"
+
+        when {
+            params {
+                delfies_args        = '--telomere-repeat TTAGGC'
+                mosdepth_args       = '--by 500 --fast-mode'
+                hifiasm_args        = '-f0 -k 21 -w 11'
+                minimap2_align_args = '-x asm5'
+            }
+            workflow {
+                """
+                input[0] = Channel.of(
+                    [
+                        [ id: "test_sample" ],
+                        file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/genome/genome.fasta', checkIfExists: true)
+                    ]
+                )
+
+                input[1] = Channel.of(
+                    [
+                        [ id: "test_sample" ],
+                        file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/illumina/bam/test.paired_end.sorted.bam', checkIfExists: true),
+                        file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/illumina/bam/test.paired_end.sorted.bam.bai', checkIfExists: true)
+                    ]
+                )
+
+                input[2] = "TTAGGC"
+                input[3] = "MT192765.1"
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert workflow.success },
+                { assert snapshot(workflow.out).match() }
+            )
+        }
+
+        cleanup {
+            if (file("${launchDir}/library/").exists()) {
+                nfcoreUnlink("${launchDir}/library/", "${baseDir}/modules/nf-core")
+            }
+        }
+    }
+}

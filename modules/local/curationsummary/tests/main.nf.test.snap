@@ -1,0 +1,75 @@
+{
+    "cohort - stub": {
+        "content": [
+            {
+                "0": [
+                    [
+                        {
+                            "id": "cohort"
+                        },
+                        "cohort.curation_summary.md:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "1": [
+                    [
+                        {
+                            "id": "cohort"
+                        },
+                        "cohort.curation_summary.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "2": [
+                    [
+                        {
+                            "id": "cohort"
+                        },
+                        "cohort.curation_summary.json:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "3": [
+                    [
+                        "CURATIONSUMMARY",
+                        "python",
+                        "3.10.4"
+                    ]
+                ],
+                "summary_json": [
+                    [
+                        {
+                            "id": "cohort"
+                        },
+                        "cohort.curation_summary.json:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "summary_md": [
+                    [
+                        {
+                            "id": "cohort"
+                        },
+                        "cohort.curation_summary.md:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "summary_tsv": [
+                    [
+                        {
+                            "id": "cohort"
+                        },
+                        "cohort.curation_summary.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "versions_summary": [
+                    [
+                        "CURATIONSUMMARY",
+                        "python",
+                        "3.10.4"
+                    ]
+                ]
+            }
+        ],
+        "timestamp": "2026-09-28T12:46:48.462971",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    }
+}

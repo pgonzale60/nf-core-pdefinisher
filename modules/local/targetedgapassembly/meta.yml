@@ -1,0 +1,165 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sanger-tol/nf-core-modules/main/modules/meta-schema.json
+name: "targetedgapassembly"
+description: |
+  Resolve scaffolding gaps by executing the Module 2 gap cards. A card whose reads span the gap
+  is patched with the consensus of those reads' bases across the gap interval (abPOA,
+  quality-weighted), which is the taxonomy's prescription for that class. A card where reads wall
+  up at the boundaries and none spans linearly is patched by local de novo assembly of the baited
+  reads (hifiasm), with unitigs mapped back to the flanks.
+keywords:
+  - pde
+  - gap
+  - assembly
+  - consensus
+  - abpoa
+  - hifiasm
+  - curation
+  - patch
+tools:
+  - python:
+      description: Python interpreter used to orchestrate the targeted gap assembly.
+      homepage: "https://www.python.org/"
+      documentation: "https://docs.python.org/3/"
+      tool_dev_url: "https://github.com/python/cpython"
+      licence:
+        - "PSF-2.0"
+  - hifiasm:
+      description: Haplotype-resolved de novo assembler for PacBio HiFi reads.
+      homepage: "https://github.com/chhylp123/hifiasm"
+      documentation: "https://hifiasm.readthedocs.io/"
+      tool_dev_url: "https://github.com/chhylp123/hifiasm"
+      licence:
+        - "MIT"
+  - abpoa:
+      description: Adaptive-banded partial order alignment, used for the consensus of the reads spanning a gap.
+      homepage: "https://github.com/yangao07/abPOA"
+      documentation: "https://github.com/yangao07/abPOA/blob/main/README.md"
+      tool_dev_url: "https://github.com/yangao07/abPOA"
+      licence:
+        - "MIT"
+  - minimap2:
+      description: Versatile sequence alignment program for long reads.
+      homepage: "https://github.com/lh3/minimap2"
+      documentation: "https://lh3.github.io/minimap2/"
+      tool_dev_url: "https://github.com/lh3/minimap2"
+      licence:
+        - "MIT"
+  - samtools:
+      description: Tools for manipulating next-generation sequencing data.
+      homepage: "http://www.htslib.org/"
+      documentation: "http://www.htslib.org/doc/samtools.html"
+      tool_dev_url: "https://github.com/samtools/samtools"
+      licence:
+        - "MIT"
+  - pde_targeted_gap_assembly:
+      description: Extracts gap-spanning reads and assembles a patch per gap.
+      homepage: "https://github.com/sanger-tol/nf-core-modules"
+      documentation: "https://github.com/sanger-tol/nf-core-modules"
+      tool_dev_url: "https://github.com/sanger-tol/nf-core-modules"
+      licence:
+        - "MIT"
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing sample information
+          e.g. `[ id:'sample1' ]`
+    - blueprint_json:
+        type: file
+        description: Curation blueprint manifest listing the gaps to target
+        pattern: "*.curation_manifest.json"
+        ontologies:
+          - edam: "http://edamontology.org/format_3464" # JSON
+    - bam:
+        type: file
+        description: Long-read alignments against the baseline assembly
+        pattern: "*.bam"
+        ontologies:
+          - edam: "http://edamontology.org/format_2572" # BAM
+    - bai:
+        type: file
+        description: Index for the alignment
+        pattern: "*.bam.bai"
+        ontologies: []
+    - ref_fasta:
+        type: file
+        description: Baseline assembly in FASTA format
+        pattern: "*.{fa,fasta,fna}{,.gz}"
+        ontologies:
+          - edam: "http://edamontology.org/format_1929" # FASTA
+    - ref_gzi:
+        type: file
+        description: |
+          The .gzi index that bgzip writes beside a bgzipped reference. Not read directly:
+          it is staged so that `samtools faidx <ref>` can resolve regions on the assembly
+          without the engine having to decompress it first.
+        pattern: "*.fa.gz.gzi"
+        ontologies: []
+    - policy_json:
+        type: file
+        description: Curation policy JSON containing canonical thresholds and floors
+        pattern: "*.json"
+        ontologies:
+          - edam: "http://edamontology.org/format_3464" # JSON
+output:
+  manifest:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'sample1' ]`
+      - "*_gap_patches":
+          type: file
+          description: Directory of per gap assembly patches
+          pattern: "*_gap_patches"
+          ontologies: []
+      - "*_patches_manifest.tsv":
+          type: file
+          description: Manifest describing each gap patch and the gap it closes
+          pattern: "*_patches_manifest.tsv"
+          ontologies:
+            - edam: "http://edamontology.org/format_3475" # TSV
+  versions_assembly:
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - hifiasm:
+          type: string
+          description: The tool name
+      - "0.24.0":
+          type: string
+          description: The version of the tool
+  versions_consensus:
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - abpoa:
+          type: string
+          description: The tool name
+      - "1.5.7":
+          type: string
+          description: The version of the tool
+topics:
+  versions:
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - hifiasm:
+          type: string
+          description: The tool name
+      - "0.24.0":
+          type: string
+          description: The version of the tool
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - abpoa:
+          type: string
+          description: The tool name
+      - "1.5.7":
+          type: string
+          description: The version of the tool
+authors:
+  - "@pgonzale60"
+maintainers:
+  - "@pgonzale60"

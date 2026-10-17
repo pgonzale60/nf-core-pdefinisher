@@ -1,0 +1,99 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sanger-tol/nf-core-modules/main/modules/meta-schema.json
+name: "sniffles"
+description: structural-variant calling with sniffles
+keywords:
+  - sniffles
+  - structural-variant calling
+  - long-read
+  - mosaicism
+tools:
+  - sniffles:
+      description: a fast structural variant caller for long-read sequencing
+      homepage: https://github.com/fritzsedlazeck/Sniffles
+      documentation: https://github.com/fritzsedlazeck/Sniffles#readme
+      tool_dev_url: https://github.com/fritzsedlazeck/Sniffles
+      licence:
+        - "MIT"
+      identifier: biotools:sniffles
+input:
+  - - meta:
+        type: map
+        description: Groovy Map containing sample information e.g. [ id:'test' ]
+    - input:
+        type: file
+        description: A single BAM/CRAM file
+        pattern: "*.{bam,cram}"
+    - index:
+        type: file
+        description: Coordinate index of BAM/CRAM file
+        pattern: "*.{bai,crai}"
+  - - meta2:
+        type: map
+        description: Groovy Map containing reference information
+    - fasta:
+        type: file
+        description: Reference genome FASTA
+        pattern: "*.{fa,fasta,fa.gz,fasta.gz}"
+  - - meta3:
+        type: map
+        description: Groovy Map containing tandem repeat information
+    - tandem_file:
+        type: file
+        description: Tandem repeat annotations in BED format
+        pattern: "*.bed"
+  - - vcf_output:
+        type: boolean
+        description: Set to true to emit VCF file
+  - - snf_output:
+        type: boolean
+        description: Set to true to emit SNF file
+output:
+  vcf:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.vcf.gz":
+          type: file
+          description: Compressed VCF file containing structural variants
+          pattern: "*.vcf.gz"
+  tbi:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.vcf.gz.tbi":
+          type: file
+          description: Compressed VCF file index
+          pattern: "*.vcf.gz.tbi"
+  snf:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.snf":
+          type: file
+          description: Intermediate SNF file
+          pattern: "*.snf"
+  versions_sniffles:
+    - - ${task.process}:
+          type: string
+          description: The name of the process
+      - sniffles:
+          type: string
+          description: The name of the tool
+      - "2.8.0":
+          type: string
+          description: The version of the tool
+topics:
+  versions:
+    - - ${task.process}:
+          type: string
+          description: The name of the process
+      - sniffles:
+          type: string
+          description: The name of the tool
+      - "2.8.0":
+          type: string
+          description: The version of the tool
+authors:
+  - "@pgonzale60"
+maintainers:
+  - "@pgonzale60"

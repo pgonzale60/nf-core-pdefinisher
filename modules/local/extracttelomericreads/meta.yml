@@ -1,0 +1,69 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/modules/meta-schema.json
+name: "extracttelomericreads"
+description: Extract PacBio HiFi reads bearing canonical telomeric repeats from an aligned BAM file
+keywords:
+  - telomere
+  - fastq
+  - samtools
+  - seqkit
+  - extraction
+tools:
+  - samtools:
+      description: Tools for manipulating next-generation sequencing data
+      homepage: http://www.htslib.org/
+      documentation: http://www.htslib.org/doc/samtools.html
+      tool_dev_url: https://github.com/samtools/samtools
+      doi: "10.1093/bioinformatics/btp352"
+      licence:
+        - "MIT"
+      identifier: ""
+  - seqkit:
+      description: A cross-platform and ultrafast toolkit for FASTA/Q file manipulation
+      homepage: https://bioinf.shenwei.me/seqkit/
+      documentation: https://bioinf.shenwei.me/seqkit/usage/
+      tool_dev_url: https://github.com/shenwei356/seqkit
+      doi: "10.1371/journal.pone.0163962"
+      licence:
+        - "MIT"
+      identifier: ""
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing sample information
+          e.g. `[ id:'sample1' ]`
+    - bam:
+        type: file
+        description: Coordinate-sorted aligned read BAM file
+        pattern: "*.{bam}"
+        ontologies: []
+    - bai:
+        type: file
+        description: BAM index file
+        pattern: "*.{bai}"
+        ontologies: []
+  - - telomere_repeat:
+        type: string
+        description: Canonical forward telomere repeat motif (e.g. 'TTAGGC')
+output:
+  reads:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.telomeric_reads.fastq.gz":
+          type: file
+          description: Gzipped FASTQ file of extracted telomeric reads
+          pattern: "*.telomeric_reads.fastq.gz"
+          ontologies: []
+  versions_samtools:
+    - - "${task.process}"
+      - samtools
+      - "eval(\"samtools --version | head -n 1 | sed 's/samtools //'\")"
+  versions_seqkit:
+    - - "${task.process}"
+      - seqkit
+      - "eval(\"seqkit version | sed 's/seqkit //'\")"
+authors:
+  - "@pgonzale60"
+maintainers:
+  - "@pgonzale60"

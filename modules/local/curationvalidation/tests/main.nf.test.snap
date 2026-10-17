@@ -1,0 +1,73 @@
+{
+    "test - stub": {
+        "content": [
+            {
+                "0": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test.curation_validation.json:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "1": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test.curation_validation.md:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "2": [
+                    [
+                        "CURATIONVALIDATION",
+                        "python",
+                        "3.10.4"
+                    ]
+                ],
+                "3": [
+                    [
+                        "CURATIONVALIDATION",
+                        "pysam",
+                        "0.23.3"
+                    ]
+                ],
+                "validation_json": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test.curation_validation.json:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "validation_md": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test.curation_validation.md:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "versions_pysam": [
+                    [
+                        "CURATIONVALIDATION",
+                        "pysam",
+                        "0.23.3"
+                    ]
+                ],
+                "versions_python": [
+                    [
+                        "CURATIONVALIDATION",
+                        "python",
+                        "3.10.4"
+                    ]
+                ]
+            }
+        ],
+        "timestamp": "2026-10-16T16:50:00.000000",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    }
+}

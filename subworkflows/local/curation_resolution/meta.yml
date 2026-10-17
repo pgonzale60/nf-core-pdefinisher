@@ -1,0 +1,121 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sanger-tol/nf-core-modules/main/subworkflows/yaml-schema.json
+name: "curation_resolution"
+description: |
+  Orchestrate the curation resolution engines: gap assembly closes scaffolding gaps,
+  the telomere walker extends uncapped chromosome ends, the rDNA cassette resolver
+  collapses repeat arrays, and the transchromosomal link resolver settles chromosome
+  junctions. Each engine returns a manifest rather than editing the assembly, so that
+  assembly_surgery can apply every patch consistently.
+keywords:
+  - pde
+  - curation
+  - resolution
+  - gap
+  - telomere
+  - rdna
+  - chromosome
+components:
+  - targetedgapassembly
+  - telomerewalker
+  - rdnacassetteresolver
+  - transchromosomallinkresolver
+input:
+  - ch_blueprint:
+      type: file
+      description: |
+        Curation blueprint manifest listing the actions to resolve.
+        Structure: [ val(meta), path(blueprint_json) ]
+      pattern: "*.curation_manifest.json"
+  - ch_ref_fasta:
+      type: file
+      description: |
+        Baseline assembly the patches are derived from.
+        Structure: [ val(meta), path(ref_fasta) ]
+      pattern: "*.{fa,fasta,fna}{,.gz}"
+  - ch_bam:
+      type: file
+      description: |
+        Long-read alignments and their index.
+        Structure: [ val(meta), path(bam), path(bai) ]
+      pattern: "*.bam"
+  - ch_gaps_bed:
+      type: file
+      description: |
+        Assembly gap intervals, used to exclude gap signals from junction verdicts.
+        Structure: [ val(meta), path(gaps_bed) ]
+      pattern: "*.gaps.bed"
+  - ch_policy_json:
+      type: file
+      description: |
+        Curation policy thresholds overriding the defaults.
+        Structure: [ val(meta), path(policy_json) ]
+      pattern: "*.json"
+  - ch_telo_unitigs:
+      type: file
+      description: |
+        De novo assembled telomeric unitigs.
+        Structure: [ val(meta), path(telo_unitigs) ]
+      pattern: "*.fa.gz"
+  - ch_flye_assembly:
+      type: file
+      description: |
+        Flye assembly of the rDNA reads, with its contig info and alignment against
+        the baseline assembly.
+        Structure: [ val(meta), path(flye_fasta), path(flye_info), path(flye_paf) ]
+      pattern: "assembly.fasta"
+  - val_telomere_repeat:
+      type: string
+      description: Telomeric repeat motif the walker searches for, e.g. TTAGGC.
+output:
+  - gap_manifest:
+      type: file
+      description: |
+        Manifest describing each gap patch and the gap it closes.
+        Structure: [ val(meta), path(tsv) ]
+      pattern: "*_patches_manifest.tsv"
+  - gap_patches:
+      type: file
+      description: |
+        Directory of per gap assembly patches.
+        Structure: [ val(meta), path(dir) ]
+      pattern: "*_gap_patches"
+  - walker_manifest:
+      type: file
+      description: |
+        Manifest describing each telomeric extension and the end it caps.
+        Structure: [ val(meta), path(tsv) ]
+      pattern: "*_walker_manifest.tsv"
+  - walker_patches:
+      type: file
+      description: |
+        Directory of per end telomeric extension sequences.
+        Structure: [ val(meta), path(dir) ]
+      pattern: "*_telomere_extensions"
+  - rdna_manifest:
+      type: file
+      description: |
+        Manifest describing each resolved rDNA cassette and what it replaces.
+        Structure: [ val(meta), path(tsv) ]
+      pattern: "*_rdna_manifest.tsv"
+  - rdna_cassettes:
+      type: file
+      description: |
+        Directory of resolved rDNA cassette sequences.
+        Structure: [ val(meta), path(dir) ]
+      pattern: "*_rdna_cassettes"
+  - trans_manifest:
+      type: file
+      description: |
+        Manifest describing each junction verdict and the evidence behind it.
+        Structure: [ val(meta), path(tsv) ]
+      pattern: "*_trans_manifest.tsv"
+  - versions:
+      type: file
+      description: |
+        File containing software versions.
+        Structure: [ path(versions.yml) ]
+      pattern: "versions.yml"
+authors:
+  - "@pgonzale60"
+maintainers:
+  - "@pgonzale60"

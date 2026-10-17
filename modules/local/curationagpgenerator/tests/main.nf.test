@@ -1,0 +1,46 @@
+nextflow_process {
+
+    name "Test Process CURATIONAGPGENERATOR"
+    script "../main.nf"
+    process "CURATIONAGPGENERATOR"
+
+    tag "modules"
+    tag "modules_sangertol"
+    tag "curationagpgenerator"
+
+    test("gfAmaRube1 - stub") {
+
+        // Stub only: exercises the interface and the emitted outputs. The blueprint
+        // is a pipeline intermediate with no counterpart in the shared test data, so
+        // a stand-in file is used.
+        options "-stub"
+
+        when {
+            process {
+                """
+                input[0] = [
+                    [ id:'test' ],
+                    file(params.nfcore_modules_testdata_base_path + 'genomics/homo_sapiens/genome/genome.annotated_intervals.tsv', checkIfExists: true),
+                    file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/genome/genome.fasta', checkIfExists: true),
+                    [],
+                    [],
+                    [],
+                    [],
+                    [],
+                    [],
+                    []
+                ]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert process.success },
+                { assert snapshot(process.out).match() }
+            )
+        }
+
+    }
+
+}

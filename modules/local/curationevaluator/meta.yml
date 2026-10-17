@@ -1,0 +1,150 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sanger-tol/nf-core-modules/main/modules/meta-schema.json
+name: "curationevaluator"
+description: |
+  Score a completed curation by comparing the baseline and curated assemblies
+  against the blueprint and the applied patch manifests, and report what was
+  achieved against what was planned.
+keywords:
+  - pde
+  - curation
+  - evaluation
+  - qc
+  - scorecard
+  - assembly
+tools:
+  - python:
+      description: Python interpreter used to run the curation evaluator.
+      homepage: "https://www.python.org/"
+      documentation: "https://docs.python.org/3/"
+      tool_dev_url: "https://github.com/python/cpython"
+      licence:
+        - "PSF-2.0"
+  - pde_evaluate_curation:
+      description: Scores a curated assembly against the blueprint and patch manifests.
+      homepage: "https://github.com/sanger-tol/nf-core-modules"
+      documentation: "https://github.com/sanger-tol/nf-core-modules"
+      tool_dev_url: "https://github.com/sanger-tol/nf-core-modules"
+      licence:
+        - "MIT"
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing sample information
+          e.g. `[ id:'sample1' ]`
+    - pre_ref:
+        type: file
+        description: Baseline assembly in FASTA format, before curation
+        pattern: "*.{fa,fasta,fna}{,.gz}"
+        ontologies:
+          - edam: "http://edamontology.org/format_1929" # FASTA
+    - post_ref:
+        type: file
+        description: Curated assembly in FASTA format, after curation
+        pattern: "*.{fa,fasta,fna}{,.gz}"
+        ontologies:
+          - edam: "http://edamontology.org/format_1929" # FASTA
+    - blueprint_json:
+        type: file
+        description: Curation blueprint manifest produced by curationsynthesis
+        pattern: "*.curation_manifest.json"
+        ontologies:
+          - edam: "http://edamontology.org/format_3464" # JSON
+    - curated_agp:
+        type: file
+        description: Curated AGP produced by curationagpgenerator
+        pattern: "*.curated.agp"
+        ontologies:
+          - edam: "http://edamontology.org/format_3693" # AGP
+    - curation_audit:
+        type: file
+        description: Audit table of every action applied during curation
+        pattern: "*.curation_audit.tsv"
+        ontologies:
+          - edam: "http://edamontology.org/format_3475" # TSV
+    - gap_manifest:
+        type: file
+        description: Manifest describing the gap patches
+        pattern: "*_patches_manifest.tsv"
+        ontologies:
+          - edam: "http://edamontology.org/format_3475" # TSV
+    - walker_manifest:
+        type: file
+        description: Manifest describing the telomere-walker extensions
+        pattern: "*_walker_manifest.tsv"
+        ontologies:
+          - edam: "http://edamontology.org/format_3475" # TSV
+    - rdna_manifest:
+        type: file
+        description: Manifest describing the resolved rDNA cassettes
+        pattern: "*_rdna_manifest.tsv"
+        ontologies:
+          - edam: "http://edamontology.org/format_3475" # TSV
+    - terminal_summary:
+        type: file
+        description: Per sequence end summary of softclips and capping status
+        pattern: "*.terminal_ends_summary.tsv"
+        ontologies:
+          - edam: "http://edamontology.org/format_3475" # TSV
+    - trans_manifest:
+        type: file
+        description: Manifest describing transchromosomal links
+        pattern: "*_trans_manifest.tsv"
+        ontologies:
+          - edam: "http://edamontology.org/format_3475" # TSV
+    - red_bed:
+        type: file
+        description: Repeat intervals discovered by Red, used to check satellite coverage
+        pattern: "*.bed"
+        ontologies:
+          - edam: "http://edamontology.org/format_3003" # BED
+output:
+  scorecard_json:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'sample1' ]`
+      - "*.curation_scorecard.json":
+          type: file
+          description: Machine readable scorecard of the curation outcome
+          pattern: "*.curation_scorecard.json"
+          ontologies:
+            - edam: "http://edamontology.org/format_3464" # JSON
+  report_md:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'sample1' ]`
+      - "*.curation_report.md":
+          type: file
+          description: Human readable curation report
+          pattern: "*.curation_report.md"
+          ontologies:
+            - edam: "http://edamontology.org/format_2331" # Markdown
+  versions_evaluator:
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - python:
+          type: string
+          description: The tool name
+      - "3.10.4":
+          type: string
+          description: The version of the tool
+topics:
+  versions:
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - python:
+          type: string
+          description: The tool name
+      - "3.10.4":
+          type: string
+          description: The version of the tool
+authors:
+  - "@pgonzale60"
+maintainers:
+  - "@pgonzale60"

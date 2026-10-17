@@ -1,0 +1,46 @@
+nextflow_process {
+
+    name "Test Process TELOMEREWALKER"
+    script "../main.nf"
+    process "TELOMEREWALKER"
+
+    tag "modules"
+    tag "modules_sangertol"
+    tag "telomerewalker"
+
+    test("sarscov2 - bam - stub") {
+
+        // Stub only: exercises the interface and the emitted outputs. The blueprint
+        // and telomere profile are pipeline intermediates with no counterpart in
+        // the shared test data, so stand-in files are used.
+        options "-stub"
+
+        when {
+            process {
+                """
+                input[0] = [
+                    [ id:'test', chromosomes:'MT192765.1' ],
+                    file(params.nfcore_modules_testdata_base_path + 'genomics/homo_sapiens/genome/genome.annotated_intervals.tsv', checkIfExists: true),
+                    [],
+                    file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/illumina/bam/test.paired_end.sorted.bam', checkIfExists: true),
+                    file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/illumina/bam/test.paired_end.sorted.bam.bai', checkIfExists: true),
+                    file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/genome/genome.fasta', checkIfExists: true),
+                    [],
+                    [],
+                    []
+                ]
+                input[1] = 'TTAGGC'
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert process.success },
+                { assert snapshot(process.out).match() }
+            )
+        }
+
+    }
+
+}

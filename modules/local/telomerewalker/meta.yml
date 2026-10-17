@@ -1,0 +1,152 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sanger-tol/nf-core-modules/main/modules/meta-schema.json
+name: "telomerewalker"
+description: |
+  Extend uncapped chromosome ends by walking outwards from the terminal telomeric
+  array: reads whose softclip matches the telomeric motif are assembled into an
+  extension whose consensus repeat count is derived from the read evidence.
+keywords:
+  - pde
+  - telomere
+  - walker
+  - capping
+  - softclip
+  - assembly
+tools:
+  - python:
+      description: Python interpreter used to run the telomere walker.
+      homepage: "https://www.python.org/"
+      documentation: "https://docs.python.org/3/"
+      tool_dev_url: "https://github.com/python/cpython"
+      licence:
+        - "PSF-2.0"
+  - minimap2:
+      description: Versatile sequence alignment program for long reads.
+      homepage: "https://github.com/lh3/minimap2"
+      documentation: "https://lh3.github.io/minimap2/"
+      tool_dev_url: "https://github.com/lh3/minimap2"
+      licence:
+        - "MIT"
+  - samtools:
+      description: Tools for manipulating next-generation sequencing data.
+      homepage: "http://www.htslib.org/"
+      documentation: "http://www.htslib.org/doc/samtools.html"
+      tool_dev_url: "https://github.com/samtools/samtools"
+      licence:
+        - "MIT"
+  - pde_telomere_walker:
+      description: Walks outwards from a terminal telomeric array to extend a chromosome end.
+      homepage: "https://github.com/sanger-tol/nf-core-modules"
+      documentation: "https://github.com/sanger-tol/nf-core-modules"
+      tool_dev_url: "https://github.com/sanger-tol/nf-core-modules"
+      licence:
+        - "MIT"
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing sample information
+          e.g. `[ id:'sample1' ]`
+    - blueprint_json:
+        type: file
+        description: Curation blueprint manifest listing the ends to cap
+        pattern: "*.curation_manifest.json"
+        ontologies:
+          - edam: "http://edamontology.org/format_3464" # JSON
+    - telomere_profile:
+        type: file
+        description: |
+          Optional PROFILE_TELOMERES table: unitig-to-chromosome alignments carrying query and target
+          interval coordinates, used to locate a unitig's outboard interval when no blueprint is
+          supplied. No process in this pipeline produces it, so the slot is normally empty; a unitig's
+          extension interval arrives on the Module 2 card as evidence.unitig_extension_region. The
+          engine validates the header and refuses a file that is not this format -- notably the
+          soft-clipped-read terminal summary, which has a different shape and no alignment coordinates.
+        pattern: "*.tsv"
+        ontologies:
+          - edam: "http://edamontology.org/format_3475" # TSV
+    - bam:
+        type: file
+        description: Long-read alignments against the baseline assembly
+        pattern: "*.bam"
+        ontologies:
+          - edam: "http://edamontology.org/format_2572" # BAM
+    - bai:
+        type: file
+        description: Index for the alignment
+        pattern: "*.bam.bai"
+        ontologies: []
+    - ref_fasta:
+        type: file
+        description: Baseline assembly in FASTA format
+        pattern: "*.{fa,fasta,fna}{,.gz}"
+        ontologies:
+          - edam: "http://edamontology.org/format_1929" # FASTA
+    - ref_gzi:
+        type: file
+        description: |
+          The .gzi index that bgzip writes beside a bgzipped reference. Not read directly:
+          it is staged so that `samtools faidx <ref>` can resolve regions on the assembly
+          without the engine having to decompress it first.
+        pattern: "*.fa.gz.gzi"
+        ontologies: []
+    - telo_unitigs:
+        type: file
+        description: De novo assembled telomeric unitigs used as walk seeds
+        pattern: "*.fa.gz"
+        ontologies:
+          - edam: "http://edamontology.org/format_1929" # FASTA
+    - unplaced_paf:
+        type: file
+        description: |
+          Non-chromosomal sequences aligned against the chromosomes (PAF). Supplies the
+          terminal-extension candidates that Module 2 nominated, which the walker
+          materialises as extensions alongside its read-based evidence.
+        pattern: "*.paf"
+        ontologies: []
+
+  - telomere_repeat:
+      type: string
+      description: Telomeric repeat motif the walker searches for, e.g. TTAGGC
+output:
+  manifest:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'sample1' ]`
+      - "*_telomere_extensions":
+          type: file
+          description: Directory of per end telomeric extension sequences
+          pattern: "*_telomere_extensions"
+          ontologies: []
+      - "*_walker_manifest.tsv":
+          type: file
+          description: Manifest describing each extension and the end it caps
+          pattern: "*_walker_manifest.tsv"
+          ontologies:
+            - edam: "http://edamontology.org/format_3475" # TSV
+  versions_walker:
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - python:
+          type: string
+          description: The tool name
+      - "3.10.4":
+          type: string
+          description: The version of the tool
+topics:
+  versions:
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - python:
+          type: string
+          description: The tool name
+      - "3.10.4":
+          type: string
+          description: The version of the tool
+authors:
+  - "@pgonzale60"
+maintainers:
+  - "@pgonzale60"

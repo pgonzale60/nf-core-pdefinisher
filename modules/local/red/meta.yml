@@ -1,0 +1,59 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sanger-tol/nf-core-modules/main/modules/meta-schema.json
+name: "red"
+description: An automated tool to discover repeats and mask genomic sequences
+keywords:
+  - repeat
+  - repeats
+  - masking
+  - detector
+tools:
+  - red:
+      description: "Red (REpeat Detector): an automated tool to discover repeats and mask genomic sequences"
+      homepage: "http://tools.bat.infspire.org/red/"
+      documentation: "http://tools.bat.infspire.org/red/"
+      tool_dev_url: "https://github.com/nextgenusfs/red"
+      licence:
+        - "GPL v3"
+      identifier: biotools:red
+input:
+  - - meta:
+        type: map
+        description: Groovy Map containing sample information e.g. [ id:'test' ]
+    - fasta:
+        type: file
+        description: FASTA file containing sequences to detect and mask repeats
+        pattern: "*.{fa,fasta,fa.gz,fasta.gz}"
+output:
+  bed:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.bed":
+          type: file
+          description: BED file containing repeat intervals
+          pattern: "*.bed"
+  versions_red:
+    - - ${task.process}:
+          type: string
+          description: The name of the process
+      - red:
+          type: string
+          description: The name of the tool
+      - "2018.09.10":
+          type: string
+          description: The version of the tool
+topics:
+  versions:
+    - - ${task.process}:
+          type: string
+          description: The name of the process
+      - red:
+          type: string
+          description: The name of the tool
+      - "2018.09.10":
+          type: string
+          description: The version of the tool
+authors:
+  - "@pgonzale60"
+maintainers:
+  - "@pgonzale60"

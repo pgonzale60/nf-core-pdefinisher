@@ -1,0 +1,133 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sanger-tol/nf-core-modules/main/subworkflows/yaml-schema.json
+name: "automated_pde_curation"
+description: |
+  End-to-end automated curation of a Programmed DNA Elimination assembly. Chains the
+  five modules: reconnaissance of the baseline assembly, synthesis of the curation
+  blueprint, the resolution engines, assembly surgery with AGP validation, and finally
+  post-surgery evaluation producing the impact scorecard.
+keywords:
+  - pde
+  - programmed dna elimination
+  - curation
+  - assembly
+  - blueprint
+  - scorecard
+components:
+  - pde_reconnaissance
+  - curationsynthesis
+  - curation_resolution
+  - assembly_surgery
+  - curation_evaluation
+  - curation_validation
+  - bgzipfasta
+input:
+  - ch_assembly:
+      type: file
+      description: |
+        Baseline assembly to curate.
+        Structure: [ val(meta), path(assembly) ]
+      pattern: "*.{fa,fasta,fna}{,.gz}"
+  - ch_bam:
+      type: file
+      description: |
+        Long-read alignments against the baseline assembly, with their index.
+        Structure: [ val(meta), path(bam), path(bai) ]
+      pattern: "*.bam"
+  - val_telomere_repeat:
+      type: string
+      description: Telomeric repeat motif of the species, e.g. TTAGGC.
+  - val_chromosomes:
+      type: string
+      description: |
+        Comma separated list of the canonical chromosome identifiers, e.g. 'I,II,III,IV,V,X'.
+        Used to separate chromosomes from unplaced scaffolds.
+output:
+  - blueprint_json:
+      type: file
+      description: |
+        Machine readable curation blueprint.
+        Structure: [ val(meta), path(json) ]
+      pattern: "*.curation_manifest.json"
+  - blueprint_md:
+      type: file
+      description: |
+        Human readable curation blueprint.
+        Structure: [ val(meta), path(md) ]
+      pattern: "*.curation_blueprint.md"
+  - curated_agp:
+      type: file
+      description: |
+        Curated AGP that passed overlap quality control.
+        Structure: [ val(meta), path(agp) ]
+      pattern: "*.validated.agp"
+  - curated_fasta:
+      type: file
+      description: |
+        Synthesised FASTA of the curated assembly.
+        Structure: [ val(meta), path(fasta) ]
+      pattern: "*.curated.fasta"
+  - components_fasta:
+      type: file
+      description: |
+        FASTA of the components referenced by the curated AGP.
+        Structure: [ val(meta), path(fasta) ]
+      pattern: "*.components.fasta"
+  - segregated_fastas:
+      type: file
+      description: |
+        FASTA files of the sequences segregated out of the assembly, as haplotigs and
+        as purged rDNA cassettes.
+        Structure: [ val(meta), path(haplotigs), path(purged_rdna) ]
+      pattern: "*.{haplotigs,purged_rdna}.fasta"
+  - curation_audit:
+      type: file
+      description: |
+        Tab-separated audit of every action applied during curation.
+        Structure: [ val(meta), path(audit) ]
+      pattern: "*.curation_audit.tsv"
+  - scorecard_json:
+      type: file
+      description: |
+        Machine readable scorecard of the curation outcome.
+        Structure: [ val(meta), path(json) ]
+      pattern: "*.curation_scorecard.json"
+  - report_md:
+      type: file
+      description: |
+        Human readable curation report.
+        Structure: [ val(meta), path(md) ]
+      pattern: "*.curation_report.md"
+  - validation_json:
+      type: file
+      description: |
+        Machine readable validation scorecard of edited loci and assembly SVs.
+        Structure: [ val(meta), path(json) ]
+      pattern: "*.curation_validation.json"
+  - validation_md:
+      type: file
+      description: |
+        Human readable post-curation mapping and SV validation dossier.
+        Structure: [ val(meta), path(md) ]
+      pattern: "*.curation_validation.md"
+  - curated_bam:
+      type: file
+      description: |
+        HiFi reads mapped to the post-surgery curated assembly.
+        Structure: [ val(meta), path(bam) ]
+      pattern: "*.bam"
+  - curated_bai:
+      type: file
+      description: |
+        Index file for the curated assembly alignment BAM.
+        Structure: [ val(meta), path(bai) ]
+      pattern: "*.bam.bai"
+  - versions:
+      type: file
+      description: |
+        File containing software versions.
+        Structure: [ path(versions.yml) ]
+      pattern: "versions.yml"
+authors:
+  - "@pgonzale60"
+maintainers:
+  - "@pgonzale60"

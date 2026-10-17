@@ -1,0 +1,35 @@
+nextflow_process {
+
+    name "Test Process ASMFORMATQC"
+    script "../main.nf"
+    process "ASMFORMATQC"
+
+    tag "modules"
+    tag "modules_sangertol"
+    tag "asmformatqc"
+
+    test("gfAmaRube1 - agp - stub") {
+
+        options "-stub"
+
+        when {
+            process {
+                """
+                input[0] = [
+                    [ id:'test' ],
+                    file(params.modules_testdata_base_path + 'Amanita_rubescens/assembly/gfAmaRube1_pretext.agp', checkIfExists: true)
+                ]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert process.success },
+                { assert snapshot(process.out).match() }
+            )
+        }
+
+    }
+
+}

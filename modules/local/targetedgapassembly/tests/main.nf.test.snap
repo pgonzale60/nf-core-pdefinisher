@@ -1,0 +1,63 @@
+{
+    "sarscov2 - bam - stub": {
+        "content": [
+            {
+                "0": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        [
+                            
+                        ],
+                        "test_patches_manifest.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "1": [
+                    [
+                        "TARGETEDGAPASSEMBLY",
+                        "hifiasm",
+                        "0.24.0"
+                    ]
+                ],
+                "2": [
+                    [
+                        "TARGETEDGAPASSEMBLY",
+                        "abpoa",
+                        "1.5.7"
+                    ]
+                ],
+                "manifest": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        [
+                            
+                        ],
+                        "test_patches_manifest.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "versions_assembly": [
+                    [
+                        "TARGETEDGAPASSEMBLY",
+                        "hifiasm",
+                        "0.24.0"
+                    ]
+                ],
+                "versions_consensus": [
+                    [
+                        "TARGETEDGAPASSEMBLY",
+                        "abpoa",
+                        "1.5.7"
+                    ]
+                ]
+            }
+        ],
+        "timestamp": "2026-09-21T06:45:51.062617",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    }
+}

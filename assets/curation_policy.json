@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "policy_name": "Sanger_Automated_PDE_Curation_Standard",
+  "version": "1.0.0",
+  "telomere": {
+    "motif": "TTAGGC",
+    "min_repeats": 15,
+    "min_extension_bp": 200,
+    "terminal_window_bp": 10000,
+    "seed_len_bp": 2000,
+    "tract_anchor_bp": 500,
+    "walker_max_iters": 100,
+    "min_read_support_terminal_tract": 1,
+    "subtelomeric_min_overlap_bp": 500,
+    "subtelomeric_scaffold_window_bp": 25000,
+    "chimeric_terminus_min_dist_bp": 1000,
+    "chimeric_terminus_max_dist_bp": 50000,
+    "default_scaffold_gap_bp": 100,
+    "allow_subtelomeric_gapless_splicing": true
+  },
+  "mapping_and_anchors": {
+    "mapq_high_confidence": 50,
+    "mapq_anchored": 30,
+    "mapq_evidence_floor": 20,
+    "anchor_min_length_bp": 1000
+  },
+  "evidence_floors": {
+    "min_read_support_floor": 3,
+    "min_support_fraction": 0.15,
+    "high_confidence_fraction": 0.30,
+    "insertion_min_vaf": 0.70,
+    "min_insertion_bp": 50,
+    "structural_variant_min_len_bp": 500,
+    "duplication_max_len_bp": 1000000
+  },
+  "genomic_architecture": {
+    "germline_buffer_bp": 100,
+    "gap_sv_link_dist_bp": 1500,
+    "gap_assembly_flank_bp": 20000
+  },
+  "gap_patch": {
+    "consensus_max_num": 2,
+    "premise_max_excess_ratio": 2.0,
+    "min_patch_support_fraction": 0.9,
+    "max_anchor_inverted_repeat_bp": 500,
+    "min_secondary_anchor_bp": 300,
+    "min_flank_identity": 0.98,
+    "mapq_repetitive_gap_floor": 0,
+    "max_overlap_excision_bp": 50000,
+    "require_unique_anchor_for_repetitive_gap": true,
+    "min_repetitive_anchor_bp": 1000,
+    "anchor_valency_survey_enabled": true,
+    "min_valency_anchor_identity": 0.98,
+    "allow_monovalent_low_mapq_bridge": true,
+    "valency_kmer_size": 21,
+    "max_offtarget_repeat_fraction": 0.02,
+    "allow_monovalent_overhang_patch": true,
+    "min_monovalent_overhang_bp": 200,
+    "minimap2_preset": "asm20"
+  },
+  "repeat_and_rdna": {
+    "phasing_kmer_size": 25,
+    "phasing_search_window_bp": 150,
+    "rdna_dist_from_end": 25000,
+    "rdna_monomer_min_len": 5000,
+    "rdna_monomer_max_len": 18000,
+    "gatekeeper_max_contigs": 100,
+    "rdna_monomer_copies": 1,
+    "rdna_gap_size_bp": 100,
+    "rdna_gap_type": "repeat",
+    "rdna_gap_linkage": "yes",
+    "rdna_gap_evidence": "unspecified",
+    "rdna_min_anchor_mapq": 30,
+    "rdna_min_core_bp": 10000
+  },
+  "pde_segmentation": {
+    "max_grs_to_core_ratio": 0.40,
+    "min_transition_contrast": 2.0,
+    "default_grs_coverage_ratio": 0.35,
+    "min_em_component_separation": 0.45,
+    "max_terminal_arm_bp": 1500000,
+    "max_internal_grs_bp": 500000
+  }
+}
+

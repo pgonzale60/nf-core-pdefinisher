@@ -1,0 +1,59 @@
+{
+    "sarscov2 - stub": {
+        "content": [
+            {
+                "0": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test.curation_scorecard.json:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "1": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test.curation_report.md:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "2": [
+                    [
+                        "CURATION_EVALUATION:CURATIONEVALUATOR",
+                        "python",
+                        "3.10.4"
+                    ]
+                ],
+                "report_md": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test.curation_report.md:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "scorecard_json": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test.curation_scorecard.json:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "versions": [
+                    [
+                        "CURATION_EVALUATION:CURATIONEVALUATOR",
+                        "python",
+                        "3.10.4"
+                    ]
+                ]
+            }
+        ],
+        "timestamp": "2026-09-20T10:48:14.054024",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    }
+}

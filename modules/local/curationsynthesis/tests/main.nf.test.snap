@@ -1,0 +1,59 @@
+{
+    "sarscov2 - stub": {
+        "content": [
+            {
+                "0": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test.curation_manifest.json:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "1": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test.curation_blueprint.md:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "2": [
+                    [
+                        "CURATIONSYNTHESIS",
+                        "python",
+                        "3.10.4"
+                    ]
+                ],
+                "blueprint_json": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test.curation_manifest.json:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "blueprint_md": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test.curation_blueprint.md:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "versions_synthesis": [
+                    [
+                        "CURATIONSYNTHESIS",
+                        "python",
+                        "3.10.4"
+                    ]
+                ]
+            }
+        ],
+        "timestamp": "2026-09-20T10:43:47.198983",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    }
+}

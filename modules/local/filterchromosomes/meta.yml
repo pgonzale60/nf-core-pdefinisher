@@ -1,0 +1,70 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sanger-tol/nf-core-modules/main/modules/meta-schema.json
+name: "filterchromosomes"
+description: Separate canonical chromosomes from non-chromosomal / unplaced sequences using an input list of chromosome identifiers.
+keywords:
+  - filter
+  - chromosomes
+  - fasta
+  - seqkit
+tools:
+  - seqkit:
+      description: A cross-platform and ultrafast toolkit for FASTA/Q file manipulation
+      homepage: https://bioinf.shenwei.me/seqkit/
+      documentation: https://bioinf.shenwei.me/seqkit/usage/
+      tool_dev_url: https://github.com/shenwei356/seqkit
+      licence:
+        - "MIT"
+      identifier: biotools:seqkit
+input:
+  - - meta:
+        type: map
+        description: Groovy Map containing sample information e.g. [ id:'test' ]
+    - assembly:
+        type: file
+        description: Genome assembly FASTA file
+        pattern: "*.{fa,fasta,fa.gz,fasta.gz}"
+  - chr_names:
+      type: string
+      description: Comma-separated list or Groovy list of chromosome identifiers (e.g. 'I,II,III,IV,V,X' or 'chr1,chr2')
+output:
+  chromosomes:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.chromosomes.fasta":
+          type: file
+          description: FASTA containing only the specified canonical chromosome sequences
+          pattern: "*.chromosomes.fasta"
+  non_chromosomal:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.non_chromosomal.fasta":
+          type: file
+          description: FASTA containing all remaining unplaced/unlocalized contigs and scaffolds
+          pattern: "*.non_chromosomal.fasta"
+  versions_filterchromosomes:
+    - - ${task.process}:
+          type: string
+          description: The name of the process
+      - seqkit:
+          type: string
+          description: The name of the tool
+      - "2.10.0":
+          type: string
+          description: The version of the tool
+topics:
+  versions:
+    - - ${task.process}:
+          type: string
+          description: The name of the process
+      - seqkit:
+          type: string
+          description: The name of the tool
+      - "2.10.0":
+          type: string
+          description: The version of the tool
+authors:
+  - "@pgonzale60"
+maintainers:
+  - "@pgonzale60"

@@ -1,0 +1,122 @@
+name: "extractgapevidence"
+description: Extract granular per-read physical evidence around assembly gaps from a long-read alignment
+keywords:
+  - gap
+  - evidence
+  - curation
+  - assembly
+  - alignment
+tools:
+  - "python":
+      description: "Python interpreter used to run the gap evidence extraction script."
+      homepage: "https://www.python.org/"
+      documentation: "https://docs.python.org/3/"
+      tool_dev_url: "https://github.com/python/cpython"
+      licence:
+        - "PSF-2.0"
+      identifier: ""
+  - "pysam":
+      description: "Pysam is a Python module for reading, manipulating and writing genomic data sets."
+      homepage: "https://github.com/pysam-developers/pysam"
+      documentation: "https://pysam.readthedocs.io/en/latest/"
+      tool_dev_url: "https://github.com/pysam-developers/pysam"
+      licence:
+        - "MIT"
+      identifier: biotools:pysam
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing sample information
+          e.g. `[ id:'test' ]`
+    - assembly:
+        type: file
+        description: Genome assembly in FASTA format, optionally gzipped
+        pattern: "*.{fa,fasta,fna}{,.gz}"
+        ontologies: []
+    - bam:
+        type: file
+        description: Long-read alignments against the assembly
+        pattern: "*.bam"
+        ontologies: []
+    - bai:
+        type: file
+        description: Index for the BAM file
+        pattern: "*.bam.bai"
+        ontologies: []
+    - sniffles_vcf:
+        type: file
+        description: Structural variant calls in VCF format
+        pattern: "*.vcf.gz"
+        ontologies:
+          - edam: http://edamontology.org/format_3989 # GZIP format
+output:
+  gaps_bed:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'test' ]`
+      - "*.gaps.bed":
+          type: file
+          description: BED file listing the assembly gap intervals found in the FASTA
+          pattern: "*.gaps.bed"
+          ontologies: []
+  gap_evidence_json:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'test' ]`
+      - "*.gap_evidence.json":
+          type: file
+          description: Per-read physical observations (MAPQ, anchors, CIGAR operations, soft-clips) recorded around each gap
+          pattern: "*.gap_evidence.json"
+          ontologies:
+            - edam: http://edamontology.org/format_3464 # JSON
+  versions_python:
+    - - ${task.process}:
+          type: string
+          description: The name of the process
+      - python:
+          type: string
+          description: The name of the tool
+      - 3.10.4:
+          type: string
+          description: The expression to obtain the version of the tool
+
+  versions_pysam:
+    - - ${task.process}:
+          type: string
+          description: The name of the process
+      - pysam:
+          type: string
+          description: The name of the tool
+      - 0.23.3:
+          type: string
+          description: The version of the tool
+topics:
+  versions:
+    - - ${task.process}:
+          type: string
+          description: The name of the process
+      - python:
+          type: string
+          description: The name of the tool
+      - 3.10.4:
+          type: string
+          description: The expression to obtain the version of the tool
+
+    - - ${task.process}:
+          type: string
+          description: The name of the process
+      - pysam:
+          type: string
+          description: The name of the tool
+      - 0.23.3:
+          type: string
+          description: The version of the tool
+authors:
+  - "@pgonzale60"
+maintainers:
+  - "@pgonzale60"

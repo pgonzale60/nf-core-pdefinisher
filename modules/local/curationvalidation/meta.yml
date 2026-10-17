@@ -1,0 +1,140 @@
+name: "curationvalidation"
+description: Post-curation mapping and Sniffles structural variant validation focusing on edited loci and flagrant assembly errors
+keywords:
+  - validation
+  - curation
+  - structural-variants
+  - sniffles
+  - pde
+tools:
+  - python:
+      description: Python interpreter used to run the validation script.
+      homepage: "https://www.python.org/"
+      documentation: "https://docs.python.org/3/"
+      tool_dev_url: "https://github.com/python/cpython"
+      licence:
+        - "PSF-2.0"
+      identifier: ""
+  - pysam:
+      description: "Pysam is a Python module for reading, manipulating and writing genomic data sets."
+      homepage: "https://github.com/pysam-developers/pysam"
+      documentation: "https://pysam.readthedocs.io/en/latest/"
+      tool_dev_url: "https://github.com/pysam-developers/pysam"
+      licence:
+        - "MIT"
+      identifier: biotools:pysam
+  - curationvalidation:
+      description: "PDE Post-Curation Mapping and Sniffles Structural Variant Validation Engine"
+      homepage: "https://github.com/sanger-tol/nf-core-modules"
+      documentation: "https://github.com/sanger-tol/nf-core-modules"
+      tool_dev_url: "https://github.com/sanger-tol/nf-core-modules"
+      licence:
+        - "MIT"
+      identifier: ""
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing sample information
+          e.g. `[ id:'sample_id' ]`
+    - audit:
+        type: file
+        description: Curation audit TSV produced by CURATIONAGPGENERATOR
+        pattern: "*.curation_audit.tsv"
+        ontologies:
+          - edam: http://edamontology.org/format_3475 # TSV
+    - agp:
+        type: file
+        description: Curated AGP v2.1 file produced by CURATIONAGPGENERATOR
+        pattern: "*.curated.agp"
+        ontologies: []
+    - sniffles_vcf:
+        type: file
+        description: Sniffles VCF called against the curated assembly
+        pattern: "*.vcf.gz"
+        ontologies:
+          - edam: http://edamontology.org/format_3989 # GZIP format
+    - sniffles_tbi:
+        type: file
+        description: Index file for the Sniffles VCF
+        pattern: "*.vcf.gz.tbi"
+        ontologies: []
+    - bam:
+        type: file
+        description: HiFi reads mapped to the curated assembly
+        pattern: "*.bam"
+        ontologies: []
+    - bai:
+        type: file
+        description: Index file for the curated alignment BAM
+        pattern: "*.bam.bai"
+
+        ontologies: []
+output:
+  validation_json:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'sample_id' ]`
+      - "*.curation_validation.json":
+          type: file
+          description: Structured validation metrics JSON
+          pattern: "*.curation_validation.json"
+          ontologies:
+            - edam: http://edamontology.org/format_3464 # JSON
+  validation_md:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'sample_id' ]`
+      - "*.curation_validation.md":
+          type: file
+          description: Markdown executive validation report
+          pattern: "*.curation_validation.md"
+          ontologies: []
+  versions_python:
+    - - "${task.process}":
+          type: string
+          description: Process name
+      - python:
+          type: string
+          description: Tool name
+      - "3.10.4":
+          type: string
+          description: Version
+  versions_pysam:
+    - - "${task.process}":
+          type: string
+          description: Process name
+      - pysam:
+          type: string
+          description: Tool name
+      - "0.23.3":
+          type: string
+          description: Version
+
+topics:
+  versions:
+    - - "${task.process}":
+          type: string
+          description: Process name
+      - python:
+          type: string
+          description: Tool name
+      - "3.10.4":
+          type: string
+          description: Version
+    - - "${task.process}":
+          type: string
+          description: Process name
+      - pysam:
+          type: string
+          description: Tool name
+      - "0.23.3":
+          type: string
+          description: Version
+
+authors:
+  - "@pgonzale60"

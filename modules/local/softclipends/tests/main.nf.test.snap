@@ -1,0 +1,73 @@
+{
+    "sarscov2 - bam - stub": {
+        "content": [
+            {
+                "0": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.terminal_softclips.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "1": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.terminal_ends_summary.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "2": [
+                    [
+                        "SOFTCLIPENDS",
+                        "python",
+                        "3.14.6"
+                    ]
+                ],
+                "3": [
+                    [
+                        "SOFTCLIPENDS",
+                        "pysam",
+                        "0.23.3"
+                    ]
+                ],
+                "softclips": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.terminal_softclips.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "summary": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.terminal_ends_summary.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "versions_pysam": [
+                    [
+                        "SOFTCLIPENDS",
+                        "pysam",
+                        "0.23.3"
+                    ]
+                ],
+                "versions_python": [
+                    [
+                        "SOFTCLIPENDS",
+                        "python",
+                        "3.14.6"
+                    ]
+                ]
+            }
+        ],
+        "timestamp": "2026-09-16T11:23:12.742793612",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.0"
+        }
+    }
+}

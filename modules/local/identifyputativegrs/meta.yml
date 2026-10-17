@@ -1,0 +1,105 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sanger-tol/nf-core-modules/main/modules/meta-schema.json
+name: "identifyputativegrs"
+description: Classify chromosome segments into a binary two-state model (putative_core vs putative_GRS) using Delfies neo-telomeric addition breakpoints and Mosdepth coverage profiles.
+keywords:
+  - pde
+  - grs
+  - core
+  - diminution
+  - breakpoint
+  - telomere
+  - coverage
+tools:
+  - samtools:
+      description: Tools for manipulating next-generation sequencing data
+      homepage: http://www.htslib.org/
+      licence:
+        - "MIT"
+      identifier: biotools:samtools
+input:
+  - - meta:
+        type: map
+        description: Groovy Map containing sample information e.g. [ id:'test' ]
+    - assembly:
+        type: file
+        description: Chromosome assembly FASTA file
+        pattern: "*.{fa,fasta,fa.gz,fasta.gz}"
+  - - meta2:
+        type: map
+        description: Groovy Map containing sample information
+    - delfies_bed:
+        type: file
+        description: Delfies breakpoint locations BED file
+        pattern: "*.breakpoint_locations.bed"
+  - - meta3:
+        type: map
+        description: Groovy Map containing sample information
+    - regions_bed:
+        type: file
+        description: Mosdepth 1 kb window coverage BED file
+        pattern: "*.regions.bed.gz"
+  - - meta4:
+        type: map
+        description: Groovy Map containing sample information
+    - red_bed:
+        type: file
+        description: Red repeat detector intervals BED file (optional)
+        pattern: "*.bed"
+output:
+  bed:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.pde_segments.bed":
+          type: file
+          description: BED file containing segmented regions classified as putative_core or putative_GRS
+          pattern: "*.pde_segments.bed"
+  summary:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.grs_summary.tsv":
+          type: file
+          description: TSV summary table of coordinates, lengths, classifications, and median depths
+          pattern: "*.grs_summary.tsv"
+  core_coverage_tsv:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.core_coverage.tsv":
+          type: file
+          description: Per-chromosome baseline core coverage estimates
+          pattern: "*.core_coverage.tsv"
+  core_coverage:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.core_coverage.txt":
+          type: file
+          description: Global somatic core baseline coverage float value
+          pattern: "*.core_coverage.txt"
+  versions_identifyputativegrs:
+    - - ${task.process}:
+          type: string
+          description: The name of the process
+      - python:
+          type: string
+          description: The name of the tool
+      - "3.10":
+          type: string
+          description: The version of the tool
+topics:
+  versions:
+    - - ${task.process}:
+          type: string
+          description: The name of the process
+      - python:
+          type: string
+          description: The name of the tool
+      - "3.10":
+          type: string
+          description: The version of the tool
+authors:
+  - "@pgonzale60"
+maintainers:
+  - "@pgonzale60"

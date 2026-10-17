@@ -1,0 +1,174 @@
+name: "curationsynthesis"
+description: |
+  Fuse every reconnaissance signal into a single curation blueprint: coverage
+  segmentation, softclip capping status, diminution breakpoints, rDNA arrays,
+  repeat tracks, unplaced alignments and gap evidence are combined into the
+  machine readable manifest and human readable report that drive curation.
+keywords:
+  - pde
+  - blueprint
+  - synthesis
+  - curation
+  - evidence
+  - decision
+tools:
+  - python:
+      description: Python interpreter used to run the curation synthesis.
+      homepage: "https://www.python.org/"
+      documentation: "https://docs.python.org/3/"
+      tool_dev_url: "https://github.com/python/cpython"
+      licence:
+        - "PSF-2.0"
+      identifier: ""
+  - pde_curation_synthesis:
+      description: Combines reconnaissance evidence into a curation blueprint and manifest.
+      homepage: "https://github.com/sanger-tol/nf-core-modules"
+      documentation: "https://github.com/sanger-tol/nf-core-modules"
+      tool_dev_url: "https://github.com/sanger-tol/nf-core-modules"
+      licence:
+        - "MIT"
+      identifier: ""
+input:
+  - meta:
+      type: map
+      description: |
+        Groovy Map containing sample information
+        e.g. `[ id:'sample1' ]`
+  - ref_fasta:
+      type: file
+      description: Baseline assembly in FASTA format
+      pattern: "*.{fa,fasta,fna}{,.gz}"
+      ontologies:
+        - edam: "http://edamontology.org/format_1929" # FASTA
+  - grs_summary:
+      type: file
+      description: Summary of chromosome segments classified as core or putative GRS
+      pattern: "*.grs_summary.tsv"
+      ontologies:
+        - edam: "http://edamontology.org/format_3475" # TSV
+  - mosdepth_regions:
+      type: file
+      description: Per segment coverage from Mosdepth
+      pattern: "*.regions.bed.gz"
+      ontologies:
+        - edam: "http://edamontology.org/format_3003" # BED
+        - edam: http://edamontology.org/format_3989 # GZIP format
+  - terminal_ends_summary:
+      type: file
+      description: Per sequence end summary of softclip counts and capping status
+      pattern: "*.terminal_ends_summary.tsv"
+      ontologies:
+        - edam: "http://edamontology.org/format_3475" # TSV
+  - terminal_softclips:
+      type: file
+      description: Table of softclipped reads at sequence ends with overhang lengths
+      pattern: "*.terminal_softclips.tsv"
+      ontologies:
+        - edam: "http://edamontology.org/format_3475" # TSV
+  - delfies_bed:
+      type: file
+      description: Diminution breakpoint locations identified by Delfies
+      pattern: "*.breakpoint_locations.bed"
+      ontologies:
+        - edam: "http://edamontology.org/format_3003" # BED
+  - rdna_regions_bed:
+      type: file
+      description: Ribosomal RNA arrays expanded by their flanking anchors
+      pattern: "*.rdna_regions.bed"
+      ontologies:
+        - edam: "http://edamontology.org/format_3003" # BED
+  - barrnap_gff:
+      type: file
+      description: Ribosomal RNA feature calls from Barrnap
+      pattern: "*.gff"
+      ontologies:
+        - edam: "http://edamontology.org/format_2306" # GFF
+  - flye_info:
+      type: file
+      description: Flye contig information for the rDNA assembly, including repeat status
+      pattern: "assembly_info.txt"
+      ontologies:
+        - edam: "http://edamontology.org/format_2330" # Text
+  - unplaced_paf:
+      type: file
+      description: Alignment of non-chromosomal sequences against the chromosomes
+      pattern: "*.paf"
+      ontologies:
+        - edam: "http://edamontology.org/format_2572" # PAF
+  - red_bed:
+      type: file
+      description: Repeat intervals discovered by Red
+      pattern: "*.bed"
+      ontologies:
+        - edam: "http://edamontology.org/format_3003" # BED
+  - telo_paf:
+      type: file
+      description: Alignment of telomeric unitigs against the baseline assembly
+      pattern: "*.paf"
+      ontologies:
+        - edam: "http://edamontology.org/format_2572" # PAF
+  - gap_evidence_json:
+      type: file
+      description: Per read physical observations recorded around each gap
+      pattern: "*.gap_evidence.json"
+      ontologies:
+        - edam: "http://edamontology.org/format_3464" # JSON
+  - telo_junction_json:
+      type: file
+      description: Clustered subtelomeric junction catalog from TELOMERICJUNCTIONPROFILER
+      pattern: "*.telomeric_junctions.json"
+      ontologies:
+        - edam: "http://edamontology.org/format_3464" # JSON
+  - telo_motif:
+      type: string
+      description: Telomeric repeat motif the blueprint should reason about, e.g. TTAGGC
+output:
+  blueprint_json:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'sample1' ]`
+      - "*.curation_manifest.json":
+          type: file
+          description: Machine readable curation blueprint consumed by the downstream curation modules
+          pattern: "*.curation_manifest.json"
+          ontologies:
+            - edam: "http://edamontology.org/format_3464" # JSON
+  blueprint_md:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'sample1' ]`
+      - "*.curation_blueprint.md":
+          type: file
+          description: Human readable curation blueprint describing every proposed action
+          pattern: "*.curation_blueprint.md"
+          ontologies:
+            - edam: "http://edamontology.org/format_2331" # Markdown
+  versions_synthesis:
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - python:
+          type: string
+          description: The tool name
+      - "3.10.4":
+          type: string
+          description: The version of the tool
+topics:
+  versions:
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - python:
+          type: string
+          description: The tool name
+      - "3.10.4":
+          type: string
+          description: The version of the tool
+authors:
+  - "@pgonzale60"
+maintainers:
+  - "@pgonzale60"

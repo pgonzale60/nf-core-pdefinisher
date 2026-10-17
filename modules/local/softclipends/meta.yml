@@ -1,0 +1,109 @@
+name: "softclipends"
+description: Annotate softclipped alignments at reference sequence ends, calculating extension overhang and telomere repeat content
+keywords:
+  - telomere
+  - softclip
+  - bam
+  - curation
+  - overhang
+tools:
+  - pysam:
+      description: Python module for reading, manipulating and writing genomic data sets
+      homepage: https://pysam.readthedocs.io/
+      documentation: https://pysam.readthedocs.io/
+      tool_dev_url: https://github.com/pysam-developers/pysam
+      doi: "10.1093/bioinformatics/btp352"
+      licence:
+        - "MIT"
+      identifier: ""
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing sample information
+          e.g. `[ id:'sample1' ]`
+    - assembly:
+        type: file
+        description: Draft genome assembly FASTA file
+        pattern: "*.{fa,fasta,fa.gz,fasta.gz}"
+        ontologies: []
+    - bam:
+        type: file
+        description: Coordinate-sorted aligned read BAM file
+        pattern: "*.{bam}"
+        ontologies: []
+    - bai:
+        type: file
+        description: BAM index file
+        pattern: "*.{bai}"
+        ontologies: []
+  - telomere_repeat:
+      type: string
+      description: Canonical forward telomere repeat motif (e.g. 'TTAGGC')
+output:
+  softclips:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.terminal_softclips.tsv":
+          type: file
+          description: TSV table of softclipped reads at sequence ends with overhang length and telomeric repeat count
+          pattern: "*.terminal_softclips.tsv"
+          ontologies:
+            - edam: http://edamontology.org/format_3475 # TSV
+  summary:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.terminal_ends_summary.tsv":
+          type: file
+          description: TSV summary table per sequence end with softclip counts, the tract measured in the assembly's own tip sequence, and the proposed status. A status of TELOMERE_IN_OVERHANG means reads carry telomere at the tip while the draft's tip holds no tract, so the draft is not capped.
+          pattern: "*.terminal_ends_summary.tsv"
+          ontologies:
+            - edam: http://edamontology.org/format_3475 # TSV
+  versions_python:
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - python:
+          type: string
+          description: The tool name
+      - python3 --version | sed 's/Python //':
+          type: eval
+          description: The expression to obtain the version of the tool
+
+  versions_pysam:
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - pysam:
+          type: string
+          description: The tool name
+      - 0.23.3:
+          type: string
+          description: The version of the tool
+topics:
+  versions:
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - python:
+          type: string
+          description: The tool name
+      - python3 --version | sed 's/Python //':
+          type: eval
+          description: The expression to obtain the version of the tool
+
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - pysam:
+          type: string
+          description: The tool name
+      - 0.23.3:
+          type: string
+          description: The version of the tool
+authors:
+  - "@pgonzale60"
+maintainers:
+  - "@pgonzale60"

@@ -1,0 +1,73 @@
+{
+    "sarscov2 - fasta_bam - stub": {
+        "content": [
+            {
+                "0": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test.gaps.bed:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "1": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test.gap_evidence.json:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "2": [
+                    [
+                        "EXTRACTGAPEVIDENCE",
+                        "python",
+                        "3.10.4"
+                    ]
+                ],
+                "3": [
+                    [
+                        "EXTRACTGAPEVIDENCE",
+                        "pysam",
+                        "0.23.3"
+                    ]
+                ],
+                "gap_evidence_json": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test.gap_evidence.json:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "gaps_bed": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test.gaps.bed:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "versions_pysam": [
+                    [
+                        "EXTRACTGAPEVIDENCE",
+                        "pysam",
+                        "0.23.3"
+                    ]
+                ],
+                "versions_python": [
+                    [
+                        "EXTRACTGAPEVIDENCE",
+                        "python",
+                        "3.10.4"
+                    ]
+                ]
+            }
+        ],
+        "timestamp": "2026-09-20T11:04:47.637345",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    }
+}

@@ -1,0 +1,59 @@
+{
+    "nematode - bam - stub": {
+        "content": [
+            {
+                "0": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.breakpoint_locations.bed:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "1": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.breakpoint_sequences.fasta:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "2": [
+                    [
+                        "DELFIES",
+                        "delfies",
+                        ""
+                    ]
+                ],
+                "bed": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.breakpoint_locations.bed:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "fasta": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.breakpoint_sequences.fasta:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "versions_delfies": [
+                    [
+                        "DELFIES",
+                        "delfies",
+                        ""
+                    ]
+                ]
+            }
+        ],
+        "timestamp": "2026-09-16T07:54:51.775884449",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "25.10.4"
+        }
+    }
+}

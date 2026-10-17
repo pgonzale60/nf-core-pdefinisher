@@ -1,0 +1,40 @@
+nextflow_process {
+
+    name "Test Process BGZIPFASTA"
+    script "../main.nf"
+    process "BGZIPFASTA"
+
+    tag "modules"
+    tag "modules_sangertol"
+    tag "bgzipfasta"
+
+    test("sarscov2 - genome - stub") {
+
+        options "-stub"
+
+        when {
+            process {
+                """
+                input[0] = [
+                    [ id:'test' ],
+                    file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/genome/genome.fasta', checkIfExists: true)
+                ]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert process.success },
+                // The stub's outputs are empty placeholders. Assert the emitted name rather
+                // than snapshotting the path: an absolute work-directory path in a snapshot
+                // both fails on the next run (the work dir changes every time) and would
+                // publish a local filesystem path into a public repository.
+                { assert file(process.out.fasta[0][1]).name == 'test.fa.gz' },
+                { assert snapshot(process.out.gzi, process.out.fai, process.out.versions_bgzip, process.out.versions_samtools).match() }
+            )
+        }
+
+    }
+
+}

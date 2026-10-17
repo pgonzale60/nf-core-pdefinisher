@@ -1,0 +1,70 @@
+nextflow_workflow {
+
+    name "Test Subworkflow CURATION_RESOLUTION"
+    script "../main.nf"
+    workflow "CURATION_RESOLUTION"
+    config "./nextflow.config"
+
+    tag "subworkflows"
+    tag "subworkflows_sangertol"
+    tag "subworkflows/curation_resolution"
+    tag "targetedgapassembly"
+    tag "telomerewalker"
+    tag "rdnacassetteresolver"
+    tag "transchromosomallinkresolver"
+
+    test("sarscov2 - stub") {
+
+        // Stub only: exercises the channel wiring and the emitted outputs. The
+        // blueprint and the Flye assembly files are pipeline intermediates with no
+        // counterpart in the shared test data, so stand-in files are used.
+        options "-stub"
+
+        when {
+            workflow {
+                """
+                input[0] = Channel.of([ [ id:'test' ], file(params.nfcore_modules_testdata_base_path + 'genomics/homo_sapiens/genome/genome.annotated_intervals.tsv', checkIfExists: true) ])
+                input[1] = Channel.of([ [ id:'test' ], file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/genome/genome.fasta', checkIfExists: true) ])
+                input[2] = Channel.of([
+                    [ id:'test' ],
+                    file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/illumina/bam/test.paired_end.sorted.bam', checkIfExists: true),
+                    file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/illumina/bam/test.paired_end.sorted.bam.bai', checkIfExists: true)
+                ])
+                input[3] = Channel.of([ [ id:'test' ], file(params.modules_testdata_base_path + 'Allolobophora_molleri/analysis/sorted.bed', checkIfExists: true) ])
+                input[4] = Channel.of([ [ id:'test' ], file(params.modules_testdata_base_path + 'Undibacterium_unclassified/analysis/full_table.tsv', checkIfExists: true) ])
+                input[5] = Channel.of([ [ id:'test' ], file(params.modules_testdata_base_path + 'Cloeon_dipterum/assembly/release/ieCloDipt1.1/insdc/GCA_949628265.1.fasta.gz', checkIfExists: true) ])
+                // Every stand-in that reaches a single task must have a distinct file name:
+                // Nextflow rejects a task whose inputs collide on name. (The telomere-profile
+                // stand-in that used to sit here is gone: the subworkflow no longer takes a
+                // profile, because this pipeline produces no PROFILE_TELOMERES table.)
+                // One element per path the take: declaration asks for. A stand-in file whose
+                // channel is wider than the declared arity makes the joins below accumulate
+                // into a tuple no closure can destructure -- which is the "Invalid method
+                // invocation" this test used to hit.
+                input[6] = Channel.of([ [ id:'test' ], file(params.nfcore_modules_testdata_base_path + 'genomics/prokaryotes/bacteroides_fragilis/genome/genome.fna.gz', checkIfExists: true) ])
+                // A flye assembly under a distinct name: two stand-ins both called
+                // genome.fasta collide inside a downstream task that receives both.
+                input[7] = Channel.of([ [ id:'test' ], file(params.modules_testdata_base_path + 'Laetiporus_sulphureus/assembly/release/gfLaeSulp1.1/insdc/GCA_927399515.1.fasta.gz', checkIfExists: true), [], [] ])
+                // The pipeline hands these engines a bgzipped reference with the .gzi beside
+                // it (BGZIPFASTA) and there is no unindexed fallback, so the channel is shaped
+                // that way here too. Stub mode checks the wiring, not the indexing.
+                input[8] = Channel.of([
+                    [ id:'test' ],
+                    file(params.modules_testdata_base_path + 'Meles_meles/assembly/release/mMelMel3.1_paternal_haplotype/GCA_922984935.2.subset.fasta.gz', checkIfExists: true),
+                    file(params.modules_testdata_base_path + 'Meles_meles/assembly/release/mMelMel3.1_paternal_haplotype/GCA_922984935.2.subset.fasta.gz.gzi', checkIfExists: true)
+                ])
+                input[9] = 'TTAGGC'
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert workflow.success },
+                { assert snapshot(workflow.out).match() }
+            )
+        }
+
+    }
+
+}

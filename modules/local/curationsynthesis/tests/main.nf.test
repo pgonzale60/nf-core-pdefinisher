@@ -1,0 +1,53 @@
+nextflow_process {
+
+    name "Test Process CURATIONSYNTHESIS"
+    script "../main.nf"
+    process "CURATIONSYNTHESIS"
+
+    tag "modules"
+    tag "modules_sangertol"
+    tag "curationsynthesis"
+
+    test("sarscov2 - stub") {
+
+        // Stub only: exercises the interface and the emitted outputs. Most of these
+        // inputs are pipeline intermediates (coverage summaries, softclip tables,
+        // breakpoints, PAFs, gap evidence) with no counterpart in the shared test
+        // data, so stand-in files are used.
+        options "-stub"
+
+        when {
+            process {
+                """
+                input[0] = [
+                    [ id:'test' ],
+                    file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/genome/genome.fasta', checkIfExists: true),
+                    file(params.nfcore_modules_testdata_base_path + 'genomics/homo_sapiens/genome/genome.annotated_intervals.tsv', checkIfExists: true),
+                    [],
+                    [],
+                    [],
+                    file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/genome/bed/test.bed', checkIfExists: true),
+                    [],
+                    file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/genome/genome.gff3.gz', checkIfExists: true),
+                    [],
+                    [],
+                    [],
+                    [],
+                    [],
+                    []
+                ]
+                input[1] = 'TTAGGC'
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert process.success },
+                { assert snapshot(process.out).match() }
+            )
+        }
+
+    }
+
+}

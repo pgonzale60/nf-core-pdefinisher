@@ -1,0 +1,108 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sanger-tol/nf-core-modules/main/modules/meta-schema.json
+name: "curationsummary"
+description: |
+  Aggregate per-sample curation scorecards across an entire cohort or batch,
+  producing an executive summary report, KPI matrix, league table, and triage guide.
+keywords:
+  - pde
+  - curation
+  - summary
+  - cohort
+  - scorecard
+  - assembly
+  - t2t
+tools:
+  - python:
+      description: Python interpreter used to run the curation summary script.
+      homepage: "https://www.python.org/"
+      documentation: "https://docs.python.org/3/"
+      tool_dev_url: "https://github.com/python/cpython"
+      licence:
+        - "PSF-2.0"
+  - pde_curation_summary:
+      description: Aggregates sample scorecards into cohort-level reports and tables.
+      homepage: "https://github.com/sanger-tol/nf-core-modules"
+      documentation: "https://github.com/sanger-tol/nf-core-modules"
+      tool_dev_url: "https://github.com/sanger-tol/nf-core-modules"
+      licence:
+        - "MIT"
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing cohort or batch information
+          e.g. `[ id:'cohort' ]`
+    - scorecards:
+        type: file
+        description: One or more sample curation scorecard JSON files
+        pattern: "*.curation_scorecard.json"
+        ontologies:
+          - edam: "http://edamontology.org/format_3464" # JSON
+    - validations:
+        type: file
+        description: Optional sample curation validation JSON files
+        pattern: "*.curation_validation.json"
+        ontologies:
+          - edam: "http://edamontology.org/format_3464" # JSON
+output:
+  summary_md:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing cohort or batch information
+            e.g. `[ id:'cohort' ]`
+      - "*.curation_summary.md":
+          type: file
+          description: Executive Markdown report summarising curation metrics and triage
+          pattern: "*.curation_summary.md"
+          ontologies:
+            - edam: "http://edamontology.org/format_2331" # Markdown
+  summary_tsv:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing cohort or batch information
+            e.g. `[ id:'cohort' ]`
+      - "*.curation_summary.tsv":
+          type: file
+          description: Flat tab-separated matrix of per-sample curation metrics
+          pattern: "*.curation_summary.tsv"
+          ontologies:
+            - edam: "http://edamontology.org/format_3475" # TSV
+  summary_json:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing cohort or batch information
+            e.g. `[ id:'cohort' ]`
+      - "*.curation_summary.json":
+          type: file
+          description: Machine-readable JSON payload containing cohort aggregates and per-sample records
+          pattern: "*.curation_summary.json"
+          ontologies:
+            - edam: "http://edamontology.org/format_3464" # JSON
+  versions_summary:
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - python:
+          type: string
+          description: The tool name
+      - "3.10.4":
+          type: string
+          description: The version of the tool
+topics:
+  versions:
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - python:
+          type: string
+          description: The tool name
+      - "3.10.4":
+          type: string
+          description: The version of the tool
+authors:
+  - "@pgonzale60"
+maintainers:
+  - "@pgonzale60"

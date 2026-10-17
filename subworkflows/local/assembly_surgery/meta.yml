@@ -1,0 +1,112 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sanger-tol/nf-core-modules/main/subworkflows/yaml-schema.json
+name: "assembly_surgery"
+description: |
+  Build the curated AGP from the blueprint and the patch manifests produced by the
+  resolution engines, synthesise the curated assembly, and validate the AGP through
+  the Sanger ToL agp-tpf-utils quality control.
+keywords:
+  - pde
+  - agp
+  - assembly
+  - curation
+  - qc
+components:
+  - curationagpgenerator
+  - asmformatqc
+input:
+  - ch_blueprint:
+      type: file
+      description: |
+        Curation blueprint manifest describing every proposed action.
+        Structure: [ val(meta), path(blueprint_json) ]
+      pattern: "*.curation_manifest.json"
+  - ch_ref_fasta:
+      type: file
+      description: |
+        Baseline assembly the patches are applied to.
+        Structure: [ val(meta), path(ref_fasta) ]
+      pattern: "*.{fa,fasta,fna}{,.gz}"
+  - ch_gap_manifest:
+      type: file
+      description: |
+        Manifest describing the gap patches.
+        Structure: [ val(meta), path(gap_manifest) ]
+      pattern: "*_patches_manifest.tsv"
+  - ch_gap_patches:
+      type: file
+      description: |
+        Directory of gap patch sequences.
+        Structure: [ val(meta), path(gap_patches) ]
+      pattern: "*_gap_patches"
+  - ch_walker_manifest:
+      type: file
+      description: |
+        Manifest describing the telomere-walker extensions.
+        Structure: [ val(meta), path(walker_manifest) ]
+      pattern: "*_walker_manifest.tsv"
+  - ch_walker_patches:
+      type: file
+      description: |
+        Directory of telomere-walker extension sequences.
+        Structure: [ val(meta), path(walker_patches) ]
+      pattern: "*_telomere_extensions"
+  - ch_rdna_manifest:
+      type: file
+      description: |
+        Manifest describing the resolved rDNA cassettes.
+        Structure: [ val(meta), path(rdna_manifest) ]
+      pattern: "*_rdna_manifest.tsv"
+  - ch_rdna_cassettes:
+      type: file
+      description: |
+        Directory of resolved rDNA cassette sequences.
+        Structure: [ val(meta), path(rdna_cassettes) ]
+      pattern: "*_rdna_cassettes"
+  - ch_trans_manifest:
+      type: file
+      description: |
+        Manifest describing the transchromosomal link verdicts.
+        Structure: [ val(meta), path(trans_manifest) ]
+      pattern: "*_trans_manifest.tsv"
+output:
+  - curated_agp:
+      type: file
+      description: |
+        Curated AGP that passed overlap quality control.
+        Structure: [ val(meta), path(agp) ]
+      pattern: "*.validated.agp"
+  - components_fasta:
+      type: file
+      description: |
+        FASTA of the components referenced by the curated AGP.
+        Structure: [ val(meta), path(fasta) ]
+      pattern: "*.components.fasta"
+  - curated_fasta:
+      type: file
+      description: |
+        Synthesised FASTA of the curated assembly.
+        Structure: [ val(meta), path(fasta) ]
+      pattern: "*.curated.fasta"
+  - segregated_fastas:
+      type: file
+      description: |
+        FASTA files of the sequences segregated out of the assembly, as haplotigs and
+        as purged rDNA cassettes.
+        Structure: [ val(meta), path(haplotigs), path(purged_rdna) ]
+      pattern: "*.{haplotigs,purged_rdna}.fasta"
+  - audit:
+      type: file
+      description: |
+        Tab-separated audit of every action applied while generating the AGP.
+        Structure: [ val(meta), path(audit) ]
+      pattern: "*.curation_audit.tsv"
+  - versions:
+      type: file
+      description: |
+        File containing software versions.
+        Structure: [ path(versions.yml) ]
+      pattern: "versions.yml"
+authors:
+  - "@pgonzale60"
+maintainers:
+  - "@pgonzale60"

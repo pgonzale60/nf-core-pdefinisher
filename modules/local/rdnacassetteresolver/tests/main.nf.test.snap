@@ -1,0 +1,49 @@
+{
+    "mMelMel3 - fasta - stub": {
+        "content": [
+            {
+                "0": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        [
+                            
+                        ],
+                        "test_rdna_manifest.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "1": [
+                    [
+                        "RDNACASSETTERESOLVER",
+                        "python",
+                        "3.10.4"
+                    ]
+                ],
+                "manifest": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        [
+                            
+                        ],
+                        "test_rdna_manifest.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "versions_resolver": [
+                    [
+                        "RDNACASSETTERESOLVER",
+                        "python",
+                        "3.10.4"
+                    ]
+                ]
+            }
+        ],
+        "timestamp": "2026-09-20T10:44:41.577167",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    }
+}

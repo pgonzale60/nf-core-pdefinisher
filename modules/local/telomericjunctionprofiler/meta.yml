@@ -1,0 +1,93 @@
+name: "telomericjunctionprofiler"
+description: Deconvolve and cluster subtelomeric junctions from raw telomeric reads with PDE awareness
+keywords:
+  - telomere
+  - junction
+  - clustering
+  - pde
+  - curation
+tools:
+  - minimap2:
+      description: A versatile pairwise aligner for genomic and spliced nucleotide sequences
+      homepage: https://lh3.github.io/minimap2/
+      documentation: https://lh3.github.io/minimap2/minimap2.html
+      tool_dev_url: https://github.com/lh3/minimap2
+      doi: "10.1093/bioinformatics/bty191"
+      licence:
+        - "MIT"
+      identifier: ""
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing sample information
+          e.g. `[ id:'sample1' ]`
+    - reads:
+        type: file
+        description: FASTQ file of extracted telomeric reads
+        pattern: "*.{fastq,fq,fastq.gz,fq.gz}"
+        ontologies: []
+    - ref_fasta:
+        type: file
+        description: Draft genome assembly FASTA file
+        pattern: "*.{fa,fasta,fa.gz,fasta.gz}"
+        ontologies: []
+    - delfies_bed:
+        type: file
+        description: DELFIES diminution breakpoint locations BED file
+        pattern: "*.{bed}"
+        ontologies: []
+    - policy_json:
+        type: file
+        description: Curation policy JSON file
+        pattern: "*.{json}"
+        ontologies: []
+  - telomere_repeat:
+      type: string
+      description: Canonical forward telomeric repeat motif (e.g. 'TTAGGC')
+output:
+  json:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.telomeric_junctions.json":
+          type: file
+          description: JSON catalog of clustered subtelomeric junctions with read support and PDE classification
+          pattern: "*.telomeric_junctions.json"
+          ontologies:
+            - edam: http://edamontology.org/format_3464
+  tsv:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.telomeric_junctions.tsv":
+          type: file
+          description: TSV summary of clustered subtelomeric junctions
+          pattern: "*.telomeric_junctions.tsv"
+          ontologies:
+            - edam: http://edamontology.org/format_3475
+  versions_python:
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - python:
+          type: string
+          description: The tool name
+      - python3 --version | sed 's/Python //':
+          type: eval
+          description: The expression to obtain the version of the tool
+topics:
+  versions:
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - python:
+          type: string
+          description: The tool name
+      - python3 --version | sed 's/Python //':
+          type: eval
+          description: The expression to obtain the version of the tool
+authors:
+  - "@pgonzale60"
+maintainers:
+  - "@pgonzale60"

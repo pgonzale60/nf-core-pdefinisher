@@ -43,6 +43,55 @@
                 }
             }
         },
+        "pde_curation_options": {
+            "title": "PDE curation options",
+            "type": "object",
+            "fa_icon": "fas fa-dna",
+            "description": "Options controlling automated Programmed DNA Elimination (PDE) assembly curation and validation.",
+            "properties": {
+                "telomere_repeat": {
+                    "type": "string",
+                    "default": "TTAGGC",
+                    "description": "Canonical telomeric repeat monomer sequence (e.g., TTAGGC for nematodes).",
+                    "fa_icon": "fas fa-dna"
+                },
+                "chromosomes": {
+                    "type": "string",
+                    "description": "Optional comma-separated list of primary chromosome names to restrict curation to (default: auto-detected from assembly).",
+                    "fa_icon": "fas fa-list"
+                },
+                "curation_policy": {
+                    "type": "string",
+                    "format": "file-path",
+                    "description": "Path to JSON policy configuration governing gap bridging, telomere capping, and validation thresholds.",
+                    "fa_icon": "fas fa-sliders-h"
+                },
+                "delfies_args": {
+                    "type": "string",
+                    "default": "--AnalyzeReads --seq String --finding_site_mode 'eliminated' --window_size 15 --minimum_ReadAligns 3 --telomere_string 'TTAGGC'",
+                    "description": "Extra arguments passed to DELFIES neo-telomere breakpoint detection.",
+                    "hidden": true
+                },
+                "mosdepth_args": {
+                    "type": "string",
+                    "default": "--no-per-base --by 10000",
+                    "description": "Extra arguments passed to mosdepth coverage profiling.",
+                    "hidden": true
+                },
+                "hifiasm_args": {
+                    "type": "string",
+                    "default": "-l0",
+                    "description": "Extra arguments passed to hifiasm de novo read assembly.",
+                    "hidden": true
+                },
+                "minimap2_align_args": {
+                    "type": "string",
+                    "default": "-x map-hifi --secondary=no",
+                    "description": "Extra arguments passed to minimap2 long-read alignment.",
+                    "hidden": true
+                }
+            }
+        },
         "reference_genome_options": {
             "title": "Reference genome options",
             "type": "object",
@@ -53,24 +102,14 @@
                     "type": "string",
                     "description": "Name of iGenomes reference.",
                     "fa_icon": "fas fa-book",
-                    "help_text": "If using a reference genome configured in the pipeline using iGenomes, use this parameter to give the ID for the reference. This is then used to build the full paths for all required reference genome files e.g. `--genome GRCh38`. \n\nSee the [nf-core website docs](https://nf-co.re/usage/reference_genomes) for more details."
-                },
-                "fasta": {
-                    "type": "string",
-                    "format": "file-path",
-                    "exists": true,
-                    "mimetype": "text/plain",
-                    "pattern": "^\\S+\\.fn?a(sta)?(\\.gz)?$",
-                    "description": "Path to FASTA genome file.",
-                    "help_text": "This parameter is *mandatory* if `--genome` is not specified. If you don't have a BWA index available this will be generated for you automatically. Combine with `--save_reference` to save BWA index for future runs.",
-                    "fa_icon": "far fa-file-code"
+                    "hidden": true
                 },
                 "igenomes_ignore": {
                     "type": "boolean",
                     "description": "Do not load the iGenomes reference config.",
                     "fa_icon": "fas fa-ban",
-                    "hidden": true,
-                    "help_text": "Do not load `igenomes.config` when running the pipeline. You may choose this option if you observe clashes between custom parameters and those supplied in `igenomes.config`."
+                    "default": true,
+                    "hidden": true
                 },
                 "igenomes_base": {
                     "type": "string",
@@ -235,6 +274,9 @@
     "allOf": [
         {
             "$ref": "#/$defs/input_output_options"
+        },
+        {
+            "$ref": "#/$defs/pde_curation_options"
         },
         {
             "$ref": "#/$defs/reference_genome_options"

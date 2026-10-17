@@ -1,0 +1,91 @@
+{
+    "sarscov2 - fasta_bed - stub": {
+        "content": [
+            {
+                "0": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test.pde_segments.bed:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "1": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test.grs_summary.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "2": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test.core_coverage.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "3": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test.core_coverage.txt:md5,6808ca805661622ad65ae014a4b2a094"
+                    ]
+                ],
+                "4": [
+                    [
+                        "IDENTIFYPUTATIVEGRS",
+                        "python",
+                        "3.10"
+                    ]
+                ],
+                "bed": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test.pde_segments.bed:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "core_coverage": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test.core_coverage.txt:md5,6808ca805661622ad65ae014a4b2a094"
+                    ]
+                ],
+                "core_coverage_tsv": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test.core_coverage.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "summary": [
+                    [
+                        {
+                            "id": "test"
+                        },
+                        "test.grs_summary.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "versions_identifyputativegrs": [
+                    [
+                        "IDENTIFYPUTATIVEGRS",
+                        "python",
+                        "3.10"
+                    ]
+                ]
+            }
+        ],
+        "timestamp": "2026-10-10T14:17:56.381708",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    }
+}

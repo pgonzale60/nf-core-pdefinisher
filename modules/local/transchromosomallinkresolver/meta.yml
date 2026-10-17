@@ -1,0 +1,121 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sanger-tol/nf-core-modules/main/modules/meta-schema.json
+name: "transchromosomallinkresolver"
+description: |
+  Investigate the sequence at a scaffolding junction between two chromosomes and
+  decide whether a genuine transchromosomal link is present, so that the junction
+  is resolved rather than silently bridged.
+keywords:
+  - pde
+  - chromosome
+  - link
+  - junction
+  - scaffolding
+  - curation
+tools:
+  - python:
+      description: Python interpreter used to run the transchromosomal link resolver.
+      homepage: "https://www.python.org/"
+      documentation: "https://docs.python.org/3/"
+      tool_dev_url: "https://github.com/python/cpython"
+      licence:
+        - "PSF-2.0"
+  - minimap2:
+      description: Versatile sequence alignment program for long reads.
+      homepage: "https://github.com/lh3/minimap2"
+      documentation: "https://lh3.github.io/minimap2/"
+      tool_dev_url: "https://github.com/lh3/minimap2"
+      licence:
+        - "MIT"
+  - samtools:
+      description: Tools for manipulating next-generation sequencing data.
+      homepage: "http://www.htslib.org/"
+      documentation: "http://www.htslib.org/doc/samtools.html"
+      tool_dev_url: "https://github.com/samtools/samtools"
+      licence:
+        - "MIT"
+  - pde_transchromosomal_link_resolver:
+      description: Resolves whether a chromosome junction is a genuine transchromosomal link.
+      homepage: "https://github.com/sanger-tol/nf-core-modules"
+      documentation: "https://github.com/sanger-tol/nf-core-modules"
+      tool_dev_url: "https://github.com/sanger-tol/nf-core-modules"
+      licence:
+        - "MIT"
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing sample information
+          e.g. `[ id:'sample1' ]`
+    - blueprint_json:
+        type: file
+        description: Curation blueprint manifest listing the junctions to check
+        pattern: "*.curation_manifest.json"
+        ontologies:
+          - edam: "http://edamontology.org/format_3464" # JSON
+    - bam:
+        type: file
+        description: Long-read alignments against the baseline assembly
+        pattern: "*.bam"
+        ontologies:
+          - edam: "http://edamontology.org/format_2572" # BAM
+    - bai:
+        type: file
+        description: Index for the alignment
+        pattern: "*.bam.bai"
+        ontologies: []
+    - ref_fasta:
+        type: file
+        description: Baseline assembly in FASTA format
+        pattern: "*.{fa,fasta,fna}{,.gz}"
+        ontologies:
+          - edam: "http://edamontology.org/format_1929" # FASTA
+    - gaps_bed:
+        type: file
+        description: Assembly gap intervals, used to exclude junction signals that are gaps
+        pattern: "*.gaps.bed"
+        ontologies:
+          - edam: "http://edamontology.org/format_3003" # BED
+    - policy_json:
+        type: file
+        description: Optional curation policy thresholds overriding the defaults
+        pattern: "*.json"
+        ontologies:
+          - edam: "http://edamontology.org/format_3464" # JSON
+output:
+  manifest:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'sample1' ]`
+      - "*_trans_manifest.tsv":
+          type: file
+          description: Manifest describing each junction verdict and the evidence behind it
+          pattern: "*_trans_manifest.tsv"
+          ontologies:
+            - edam: "http://edamontology.org/format_3475" # TSV
+  versions_trans:
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - python:
+          type: string
+          description: The tool name
+      - "3.10.4":
+          type: string
+          description: The version of the tool
+topics:
+  versions:
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - python:
+          type: string
+          description: The tool name
+      - "3.10.4":
+          type: string
+          description: The version of the tool
+authors:
+  - "@pgonzale60"
+maintainers:
+  - "@pgonzale60"

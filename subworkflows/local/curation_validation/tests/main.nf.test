@@ -1,0 +1,38 @@
+nextflow_workflow {
+
+    name "Test Subworkflow CURATION_VALIDATION"
+    script "../main.nf"
+    workflow "CURATION_VALIDATION"
+
+    tag "subworkflows"
+    tag "subworkflows_sangertol"
+    tag "subworkflows/curation_validation"
+    tag "curationvalidation"
+    tag "minimap2/align"
+    tag "sniffles"
+
+    test("test - stub") {
+
+        options "-stub"
+
+        when {
+            workflow {
+                """
+                input[0] = Channel.of([ [ id:'test' ], file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/illumina/bam/test.paired_end.sorted.bam', checkIfExists: true) ])
+                input[1] = Channel.of([ [ id:'test' ], file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/genome/genome.fasta', checkIfExists: true) ])
+                input[2] = Channel.of([ [ id:'test' ], file(params.modules_testdata_base_path + 'Amanita_rubescens/assembly/gfAmaRube1_pretext.agp', checkIfExists: true) ])
+                input[3] = Channel.of([ [ id:'test' ], file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/genome/genome.annotated_intervals.tsv', checkIfExists: true) ])
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert workflow.success },
+                { assert snapshot(workflow.out).match() }
+            )
+        }
+
+    }
+
+}

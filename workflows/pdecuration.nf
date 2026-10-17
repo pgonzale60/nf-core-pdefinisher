@@ -3,7 +3,8 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { FASTQC                 } from '../modules/nf-core/fastqc/main'
+include { AUTOMATED_PDE_CURATION } from '../subworkflows/local/automated_pde_curation/main'
+include { CURATIONSUMMARY        } from '../modules/local/curationsummary/main'
 include { MULTIQC                } from '../modules/nf-core/multiqc/main'
 include { paramsSummaryMap       } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc   } from '../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -19,7 +20,7 @@ include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_pdec
 workflow PDECURATION {
 
     take:
-    ch_samplesheet // channel: samplesheet read in from --input
+    ch_samplesheet // channel: [ val(meta), path(assembly), path(bam), path(bai) ]
     multiqc_config
     multiqc_logo
     multiqc_methods_description
@@ -27,13 +28,41 @@ workflow PDECURATION {
 
     main:
 
-    def ch_versions = channel.empty()
+    def ch_versions      = channel.empty()
     def ch_multiqc_files = channel.empty()
+
+    ch_assembly = ch_samplesheet.map { meta, assembly, _bam, _bai -> tuple(meta, assembly) }
+    ch_bam      = ch_samplesheet.map { meta, _assembly, bam, bai  -> tuple(meta, bam, bai) }
+
     //
-    // MODULE: Run FastQC
+    // SUBWORKFLOW: Run end-to-end Automated PDE Curation
     //
-    FASTQC(ch_samplesheet)
-    ch_multiqc_files = ch_multiqc_files.mix(FASTQC.out.zip.map{ _meta, file -> file })
+    AUTOMATED_PDE_CURATION (
+        ch_assembly,
+        ch_bam,
+        params.telomere_repeat ?: 'TTAGGC',
+        params.chromosomes ?: ''
+    )
+    ch_versions = ch_versions.mix(AUTOMATED_PDE_CURATION.out.versions)
+
+    //
+    // MODULE: Cohort-level Curation Summary across all processed samples
+    //
+    ch_all_scorecards  = AUTOMATED_PDE_CURATION.out.scorecard_json.map { _meta, f -> f }.collect()
+    ch_all_validations = AUTOMATED_PDE_CURATION.out.validation_json.map { _meta, f -> f }.collect()
+
+    ch_summary_input = ch_all_scorecards
+        .combine(ch_all_validations.toList())
+        .map { List items ->
+            def scorecards  = items[0..-2]
+            def validations = items[-1]
+            tuple([ id: 'cohort' ], scorecards, validations)
+        }
+
+    CURATIONSUMMARY (
+        ch_summary_input
+    )
+    ch_versions = ch_versions.mix(CURATIONSUMMARY.out.versions_summary)
 
     //
     // Collate and save software versions
@@ -90,8 +119,16 @@ workflow PDECURATION {
             ]
         }
     )
-    emit:multiqc_report = MULTIQC.out.report.map { _meta, report -> [report] }.toList() // channel: /path/to/multiqc_report.html
-    versions       = ch_versions                 // channel: [ path(versions.yml) ]
+
+    emit:
+    curated_fasta   = AUTOMATED_PDE_CURATION.out.curated_fasta
+    curated_agp     = AUTOMATED_PDE_CURATION.out.curated_agp
+    blueprint_json  = AUTOMATED_PDE_CURATION.out.blueprint_json
+    scorecard_json  = AUTOMATED_PDE_CURATION.out.scorecard_json
+    validation_json = AUTOMATED_PDE_CURATION.out.validation_json
+    summary_md      = CURATIONSUMMARY.out.summary_md
+    multiqc_report  = MULTIQC.out.report.map { _meta, report -> [report] }.toList()
+    versions        = ch_versions
 }
 
 /*

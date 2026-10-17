@@ -2,7 +2,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://raw.githubusercontent.com/nf-core/pdecuration/master/assets/schema_input.json",
     "title": "nf-core/pdecuration pipeline - params.input schema",
-    "description": "Schema for the file provided with params.input",
+    "description": "Schema for the samplesheet provided with params.input",
     "type": "array",
     "items": {
         "type": "object",
@@ -13,21 +13,39 @@
                 "errorMessage": "Sample name must be provided and cannot contain spaces",
                 "meta": ["id"]
             },
-            "fastq_1": {
+            "assembly": {
                 "type": "string",
                 "format": "file-path",
                 "exists": true,
-                "pattern": "^([\\S\\s]*\\/)?[^\\s\\/]+\\.f(ast)?q\\.gz$",
-                "errorMessage": "FastQ file for reads 1 must be provided, cannot contain spaces and must have extension '.fq.gz' or '.fastq.gz'"
+                "pattern": "^\\S+\\.(fa|fasta|fna)(\\.gz)?$",
+                "errorMessage": "Draft genome assembly FASTA (.fa, .fasta, .fna, optionally .gz) must be provided"
             },
-            "fastq_2": {
+            "bam": {
                 "type": "string",
                 "format": "file-path",
                 "exists": true,
-                "pattern": "^([\\S\\s]*\\/)?[^\\s\\/]+\\.f(ast)?q\\.gz$",
-                "errorMessage": "FastQ file for reads 2 cannot contain spaces and must have extension '.fq.gz' or '.fastq.gz'"
+                "pattern": "^\\S+\\.bam$",
+                "errorMessage": "Aligned long-read BAM file (.bam) must be provided"
+            },
+            "bai": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "pattern": "^\\S+\\.(bai|csi)$",
+                "errorMessage": "BAM index file must have extension .bai or .csi"
+            },
+            "chromosomes": {
+                "type": "string",
+                "meta": ["chromosomes"],
+                "description": "Optional comma- or semicolon-separated list of nuclear chromosome names (e.g. 'I;II;III;IV;V;X')"
+            },
+            "telomere_repeat": {
+                "type": "string",
+                "meta": ["telomere_repeat"],
+                "pattern": "^[ACGTacgt]+$",
+                "description": "Optional per-sample canonical telomere repeat motif override (e.g. 'TTAGGC')"
             }
         },
-        "required": ["sample", "fastq_1"]
+        "required": ["sample", "assembly", "bam"]
     }
 }

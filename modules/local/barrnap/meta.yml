@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sanger-tol/nf-core-modules/main/modules/meta-schema.json
+name: "barrnap"
+description: barrnap uses a hmmer profile to find rrnas in reads or contig fasta files
+keywords:
+  - rrna
+  - sequences
+  - ribosomal
+tools:
+  - "barrnap":
+      description: "Barrnap predicts the location of ribosomal RNA genes in genomes (bacteria, archaea, metazoan mitochondria and eukaryotes)."
+      homepage: "https://github.com/tseemann/barrnap"
+      documentation: "https://github.com/tseemann/barrnap"
+      tool_dev_url: "https://github.com/tseemann/barrnap"
+      licence:
+        - "GPL v3"
+      identifier: biotools:barrnap
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing sample information
+          e.g. `[ id:'test', single_end:false ]`
+    - fasta:
+        type: file
+        description: fasta file
+        pattern: "*.{fa,fasta,fa.gz,fasta.gz}"
+    - dbname:
+        type: string
+        description: database to use (bac, arc, mito, euk)
+output:
+  gff:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'test', single_end:false ]`
+      - "*.gff":
+          type: file
+          description: gff file containing coordinates of ribosomal RNA genes
+          pattern: "*.gff"
+  versions_barrnap:
+    - - ${task.process}:
+          type: string
+          description: The name of the process
+      - barrnap:
+          type: string
+          description: The name of the tool
+      - "0.9":
+          type: string
+          description: The version of the tool
+topics:
+  versions:
+    - - ${task.process}:
+          type: string
+          description: The name of the process
+      - barrnap:
+          type: string
+          description: The name of the tool
+      - "0.9":
+          type: string
+          description: The version of the tool
+authors:
+  - "@pgonzale60"
+maintainers:
+  - "@pgonzale60"

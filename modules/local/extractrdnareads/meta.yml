@@ -1,0 +1,83 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sanger-tol/nf-core-modules/main/modules/meta-schema.json
+name: "extractrdnareads"
+description: Extract raw HiFi reads spanning Barrnap 18S/28S rDNA arrays and flanking chromosome anchoring regions.
+keywords:
+  - rdna
+  - rrna
+  - 18S
+  - 28S
+  - reads
+  - fastq
+  - samtools
+tools:
+  - samtools:
+      description: Tools for manipulating next-generation sequencing data
+      homepage: http://www.htslib.org/
+      documentation: http://www.htslib.org/doc/samtools.html
+      licence:
+        - "MIT"
+      identifier: biotools:samtools
+input:
+  - - meta:
+        type: map
+        description: Groovy Map containing sample information e.g. [ id:'test' ]
+    - gff:
+        type: file
+        description: Barrnap rRNA annotation GFF3 file
+        pattern: "*.gff"
+  - - meta2:
+        type: map
+        description: Groovy Map containing sample information
+    - bam:
+        type: file
+        description: Coordinate-sorted aligned BAM file
+        pattern: "*.bam"
+    - bai:
+        type: file
+        description: Index for BAM file
+        pattern: "*.bai"
+  - flank_bp:
+      type: integer
+      description: Flanking sequence length in bp to expand around rDNA arrays (default 50000)
+output:
+  reads:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.rdna_reads.fastq.gz":
+          type: file
+          description: FASTQ file of extracted reads overlapping rDNA array and anchors
+          pattern: "*.rdna_reads.fastq.gz"
+  bed:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.rdna_regions.bed":
+          type: file
+          description: BED file of expanded rDNA + anchor intervals
+          pattern: "*.rdna_regions.bed"
+  versions_extractrdnareads:
+    - - ${task.process}:
+          type: string
+          description: The name of the process
+      - samtools:
+          type: string
+          description: The name of the tool
+      - "1.20":
+          type: string
+          description: The version of the tool
+topics:
+  versions:
+    - - ${task.process}:
+          type: string
+          description: The name of the process
+      - samtools:
+          type: string
+          description: The name of the tool
+      - "1.20":
+          type: string
+          description: The version of the tool
+authors:
+  - "@pgonzale60"
+maintainers:
+  - "@pgonzale60"

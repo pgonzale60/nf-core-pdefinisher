@@ -1,0 +1,73 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/modules/meta-schema.json
+name: "delfies"
+description: Detect DNA breakpoints with neo-telomere addition in Programmed DNA Elimination (PDE) genomes
+keywords:
+  - telomere
+  - programmed dna elimination
+  - pde
+  - breakpoint
+  - nematode
+tools:
+  - delfies:
+      description: Detection of DNA breakpoints with neo-telomere addition
+      homepage: https://github.com/bricoletc/delfies
+      documentation: https://github.com/bricoletc/delfies
+      tool_dev_url: https://github.com/bricoletc/delfies
+      doi: "10.21105/joss.07385"
+      licence:
+        - "MIT"
+      identifier: ""
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing sample information
+          e.g. `[ id:'sample1' ]`
+    - assembly:
+        type: file
+        description: Draft genome assembly FASTA file
+        pattern: "*.{fa,fasta,fa.gz,fasta.gz}"
+        ontologies: []
+    - bam:
+        type: file
+        description: Sorted aligned read BAM file
+        pattern: "*.{bam}"
+        ontologies: []
+    - bai:
+        type: file
+        description: Index corresponding to the aligned BAM file
+        pattern: "*.{bai}"
+        ontologies: []
+output:
+  bed:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.breakpoint_locations.bed":
+          type: file
+          description: BED format file containing identified elimination breakpoints with strand and read support
+          pattern: "*.breakpoint_locations.bed"
+          ontologies: []
+  fasta:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.breakpoint_sequences.fasta":
+          type: file
+          description: FASTA format file of flanking genomic sequences at identified breakpoints
+          pattern: "*.breakpoint_sequences.fasta"
+          ontologies: []
+  versions_delfies:
+    - - "${task.process}":
+          type: string
+          description: Process name
+      - delfies:
+          type: string
+          description: Tool name
+      - "delfies --version | sed 's/delfies, version //'":
+          type: eval
+          description: Tool version string
+authors:
+  - "@pgonzale60"
+maintainers:
+  - "@pgonzale60"

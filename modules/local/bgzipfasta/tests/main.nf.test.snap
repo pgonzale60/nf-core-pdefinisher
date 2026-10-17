@@ -1,0 +1,41 @@
+{
+    "sarscov2 - genome - stub": {
+        "content": [
+            [
+                [
+                    {
+                        "id": "test"
+                    },
+                    "test.fa.gz.gzi:md5,d41d8cd98f00b204e9800998ecf8427e"
+                ]
+            ],
+            [
+                [
+                    {
+                        "id": "test"
+                    },
+                    "test.fa.gz.fai:md5,d41d8cd98f00b204e9800998ecf8427e"
+                ]
+            ],
+            [
+                [
+                    "BGZIPFASTA",
+                    "bgzip",
+                    "1.23"
+                ]
+            ],
+            [
+                [
+                    "BGZIPFASTA",
+                    "samtools",
+                    "1.23"
+                ]
+            ]
+        ],
+        "timestamp": "2026-09-21T05:52:54.124417",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    }
+}

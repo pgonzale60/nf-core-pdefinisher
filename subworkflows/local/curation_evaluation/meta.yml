@@ -1,0 +1,104 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sanger-tol/nf-core-modules/main/subworkflows/yaml-schema.json
+name: "curation_evaluation"
+description: |
+  Compare the baseline and curated assemblies against the blueprint and the patch
+  manifests to report what was achieved, producing the machine readable scorecard
+  and the human readable curation report.
+keywords:
+  - pde
+  - curation
+  - evaluation
+  - scorecard
+  - qc
+components:
+  - curationevaluator
+input:
+  - ch_pre_ref:
+      type: file
+      description: |
+        Baseline assembly, before curation.
+        Structure: [ val(meta), path(pre_ref) ]
+      pattern: "*.{fa,fasta,fna}{,.gz}"
+  - ch_post_ref:
+      type: file
+      description: |
+        Curated assembly, after curation.
+        Structure: [ val(meta), path(post_ref) ]
+      pattern: "*.{fa,fasta,fna}{,.gz}"
+  - ch_blueprint:
+      type: file
+      description: |
+        Curation blueprint manifest describing every proposed action.
+        Structure: [ val(meta), path(blueprint_json) ]
+      pattern: "*.curation_manifest.json"
+  - ch_curated_agp:
+      type: file
+      description: |
+        Curated AGP produced by assembly_surgery.
+        Structure: [ val(meta), path(curated_agp) ]
+      pattern: "*.curated.agp"
+  - ch_curation_audit:
+      type: file
+      description: |
+        Audit table of every action applied during curation.
+        Structure: [ val(meta), path(curation_audit) ]
+      pattern: "*.curation_audit.tsv"
+  - ch_gap_manifest:
+      type: file
+      description: |
+        Manifest describing the gap patches.
+        Structure: [ val(meta), path(gap_manifest) ]
+      pattern: "*_patches_manifest.tsv"
+  - ch_walker_manifest:
+      type: file
+      description: |
+        Manifest describing the telomere-walker extensions.
+        Structure: [ val(meta), path(walker_manifest) ]
+      pattern: "*_walker_manifest.tsv"
+  - ch_rdna_manifest:
+      type: file
+      description: |
+        Manifest describing the resolved rDNA cassettes.
+        Structure: [ val(meta), path(rdna_manifest) ]
+      pattern: "*_rdna_manifest.tsv"
+  - ch_terminal_summary:
+      type: file
+      description: |
+        Per sequence end summary of softclips and capping status.
+        Structure: [ val(meta), path(terminal_summary) ]
+      pattern: "*.terminal_ends_summary.tsv"
+  - ch_trans_manifest:
+      type: file
+      description: |
+        Manifest describing the transchromosomal link verdicts.
+        Structure: [ val(meta), path(trans_manifest) ]
+      pattern: "*_trans_manifest.tsv"
+  - ch_red_bed:
+      type: file
+      description: |
+        Repeat intervals discovered by Red, used to check satellite coverage.
+        Structure: [ val(meta), path(red_bed) ]
+      pattern: "*.bed"
+output:
+  - scorecard_json:
+      type: file
+      description: |
+        Machine readable scorecard of the curation outcome.
+        Structure: [ val(meta), path(json) ]
+      pattern: "*.curation_scorecard.json"
+  - report_md:
+      type: file
+      description: |
+        Human readable curation report.
+        Structure: [ val(meta), path(md) ]
+      pattern: "*.curation_report.md"
+  - versions:
+      type: file
+      description: |
+        File containing software versions.
+        Structure: [ path(versions.yml) ]
+      pattern: "versions.yml"
+authors:
+  - "@pgonzale60"
+maintainers:
+  - "@pgonzale60"

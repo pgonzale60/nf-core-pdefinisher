@@ -1,0 +1,180 @@
+name: "curationagpgenerator"
+description: |
+  Turn a curation blueprint and the patch manifests produced by the gap,
+  telomere-walker, rDNA-cassette and transchromosomal-link modules into a
+  curated AGP, and synthesise the corresponding components and curated FASTA
+  files.
+keywords:
+  - pde
+  - agp
+  - curation
+  - assembly
+  - blueprint
+tools:
+  - python:
+      description: Python interpreter used to run the curation AGP generator.
+      homepage: "https://www.python.org/"
+      documentation: "https://docs.python.org/3/"
+      tool_dev_url: "https://github.com/python/cpython"
+      licence:
+        - "PSF-2.0"
+      identifier: ""
+  - pde_generate_agp:
+      description: |
+        Generates a curated AGP from a curation blueprint and the available patch
+        manifests, and optionally synthesises the assembled components FASTA.
+      homepage: "https://github.com/sanger-tol/nf-core-modules"
+      documentation: "https://github.com/sanger-tol/nf-core-modules"
+      tool_dev_url: "https://github.com/sanger-tol/nf-core-modules"
+      licence:
+        - "MIT"
+      identifier: ""
+input:
+  - meta:
+      type: map
+      description: |
+        Groovy Map containing sample information
+        e.g. `[ id:'sample1' ]`
+  - blueprint_json:
+      type: file
+      description: Curation blueprint manifest produced by curationsynthesis
+      pattern: "*.curation_manifest.json"
+      ontologies:
+        - edam: "http://edamontology.org/format_3464" # JSON
+  - ref_fasta:
+      type: file
+      description: Baseline assembly in FASTA format
+      pattern: "*.{fa,fasta,fna}{,.gz}"
+      ontologies:
+        - edam: "http://edamontology.org/format_1929" # FASTA
+  - gap_patches:
+      type: file
+      description: Directory of gap patches, or an empty list when unavailable
+      pattern: "*_gap_patches"
+      ontologies: []
+  - gap_manifest:
+      type: file
+      description: Manifest describing the gap patches
+      pattern: "*_patches_manifest.tsv"
+      ontologies:
+        - edam: "http://edamontology.org/format_3475" # TSV
+  - walker_patches:
+      type: file
+      description: Directory of telomere-walker extensions
+      pattern: "*_telomere_extensions"
+      ontologies: []
+  - walker_manifest:
+      type: file
+      description: Manifest describing the telomere-walker extensions
+      pattern: "*_walker_manifest.tsv"
+      ontologies:
+        - edam: "http://edamontology.org/format_3475" # TSV
+  - rdna_cassettes:
+      type: file
+      description: Directory of resolved rDNA cassettes
+      pattern: "*_rdna_cassettes"
+      ontologies: []
+  - rdna_manifest:
+      type: file
+      description: Manifest describing the resolved rDNA cassettes
+      pattern: "*_rdna_manifest.tsv"
+      ontologies:
+        - edam: "http://edamontology.org/format_3475" # TSV
+  - trans_manifest:
+      type: file
+      description: Manifest describing transchromosomal links
+      pattern: "*_trans_manifest.tsv"
+      ontologies:
+        - edam: "http://edamontology.org/format_3475" # TSV
+output:
+  agp:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'sample1' ]`
+      - "*.curated.agp":
+          type: file
+          description: Curated AGP describing the corrected assembly
+          pattern: "*.curated.agp"
+          ontologies:
+            - edam: "http://edamontology.org/format_3693" # AGP
+  components_fasta:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'sample1' ]`
+      - "*.components.fasta":
+          type: file
+          description: FASTA of the individual components referenced by the curated AGP
+          pattern: "*.components.fasta"
+          ontologies:
+            - edam: "http://edamontology.org/format_1929" # FASTA
+  curated_fasta:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'sample1' ]`
+      - "*.curated.fasta":
+          type: file
+          description: Synthesised FASTA of the curated assembly
+          pattern: "*.curated.fasta"
+          ontologies:
+            - edam: "http://edamontology.org/format_1929" # FASTA
+  segregated_fastas:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'sample1' ]`
+      - "*.haplotigs.fasta":
+          type: file
+          description: FASTA of sequences segregated out as haplotigs
+          pattern: "*.haplotigs.fasta"
+          ontologies:
+            - edam: "http://edamontology.org/format_1929" # FASTA
+      - "*.purged_rdna.fasta":
+          type: file
+          description: FASTA of rDNA cassettes purged from the assembly
+          pattern: "*.purged_rdna.fasta"
+          ontologies:
+            - edam: "http://edamontology.org/format_1929" # FASTA
+  audit:
+    - - meta:
+          type: map
+          description: |
+            Groovy Map containing sample information
+            e.g. `[ id:'sample1' ]`
+      - "*.curation_audit.tsv":
+          type: file
+          description: Tab-separated audit of every action applied while generating the AGP
+          pattern: "*.curation_audit.tsv"
+          ontologies:
+            - edam: "http://edamontology.org/format_3475" # TSV
+  versions_agp:
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - python:
+          type: string
+          description: The tool name
+      - "3.10.4":
+          type: string
+          description: The version of the tool
+topics:
+  versions:
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - python:
+          type: string
+          description: The tool name
+      - "3.10.4":
+          type: string
+          description: The version of the tool
+authors:
+  - "@pgonzale60"
+maintainers:
+  - "@pgonzale60"

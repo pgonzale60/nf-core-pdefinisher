@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "${REPO_ROOT}"
+
+# Check if any Python or policy files are staged
+STAGED_PY="$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.py$' || true)"
+STAGED_POLICY="$(git diff --cached --name-only --diff-filter=ACMR | grep -E 'assets/curation_policy\.json$' || true)"
+
+if [[ -n "${STAGED_PY}" || -n "${STAGED_POLICY}" ]]; then
+    echo "[pre-commit] 1/4 Checking Python syntax & escape sequences (-W error)..."
+    if [[ -n "${STAGED_PY}" ]]; then
+        # shellcheck disable=SC2086
+        python3 -W error -m py_compile ${STAGED_PY}
+    fi
+
+    echo "[pre-commit] 2/4 Running Ruff lint checks (E9,F63,F7,F82,F401,F541)..."
+    if command -v ruff >/dev/null 2>&1; then
+        ruff check --select E9,F63,F7,F82,F401,F541 modules/local/ scripts/
+    fi
+
+    echo "[pre-commit] 3/4 Running unit & regression test suites..."
+    for test_script in modules/local/*/tests/test_*.py scripts/check_*.py; do
+        python3 "${test_script}" >/dev/null
+    done
+fi
+
+echo "[pre-commit] 4/4 Auto-stamping Nextflow module Script-SHAs..."
+python3 "${REPO_ROOT}/scripts/stamp_module_shas.py" --pre-commit
+python3 "${REPO_ROOT}/scripts/stamp_module_shas.py" --check

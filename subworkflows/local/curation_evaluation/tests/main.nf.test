@@ -1,0 +1,47 @@
+nextflow_workflow {
+
+    name "Test Subworkflow CURATION_EVALUATION"
+    script "../main.nf"
+    workflow "CURATION_EVALUATION"
+    config "./nextflow.config"
+
+    tag "subworkflows"
+    tag "subworkflows_sangertol"
+    tag "subworkflows/curation_evaluation"
+    tag "curationevaluator"
+
+    test("sarscov2 - stub") {
+
+        // Stub only: exercises the channel wiring and the emitted outputs. Most of
+        // these inputs are pipeline intermediates with no counterpart in the shared
+        // test data, so stand-in files with distinct names are used.
+        options "-stub"
+
+        when {
+            workflow {
+                """
+                input[0]  = Channel.of([ [ id:'test' ], file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/genome/genome.fasta', checkIfExists: true) ])
+                input[1]  = Channel.of([ [ id:'test' ], file(params.nfcore_modules_testdata_base_path + 'genomics/prokaryotes/bacteroides_fragilis/genome/genome.fna.gz', checkIfExists: true) ])
+                input[2]  = Channel.of([ [ id:'test' ], file(params.nfcore_modules_testdata_base_path + 'genomics/homo_sapiens/genome/genome.annotated_intervals.tsv', checkIfExists: true) ])
+                input[3]  = Channel.of([ [ id:'test' ], file(params.modules_testdata_base_path + 'Amanita_rubescens/assembly/gfAmaRube1_pretext.agp', checkIfExists: true) ])
+                input[4]  = Channel.of([ [ id:'test' ], file(params.modules_testdata_base_path + 'Undibacterium_unclassified/analysis/full_table.tsv', checkIfExists: true) ])
+                input[5]  = Channel.of([ [ id:'test' ], file(params.modules_testdata_base_path + 'resources/genomenote/ancestral_data/Merian_elements_full_table.tsv', checkIfExists: true) ])
+                input[6]  = Channel.of([ [ id:'test' ], file(params.modules_testdata_base_path + 'resources/genomenote/ancestral_data/buscopainter_complete_location.tsv', checkIfExists: true) ])
+                input[7]  = Channel.of([ [ id:'test' ], file(params.modules_testdata_base_path + 'resources/genomenote/ancestral_data/GCA_963859965.1_busco_full_table.tsv', checkIfExists: true) ])
+                input[8]  = Channel.of([ [ id:'test' ], file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/genome/genome.sizes', checkIfExists: true) ])
+                input[9]  = Channel.of([ [ id:'test' ], file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/genome/bed/test2.bed', checkIfExists: true) ])
+                input[10] = Channel.of([ [ id:'test' ], file(params.modules_testdata_base_path + 'Allolobophora_molleri/analysis/sorted.bed', checkIfExists: true) ])
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert workflow.success },
+                { assert snapshot(workflow.out).match() }
+            )
+        }
+
+    }
+
+}

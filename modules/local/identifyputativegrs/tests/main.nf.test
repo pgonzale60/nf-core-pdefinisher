@@ -1,0 +1,47 @@
+nextflow_process {
+
+    name "Test Process IDENTIFYPUTATIVEGRS"
+    script "../main.nf"
+    process "IDENTIFYPUTATIVEGRS"
+
+    tag "modules"
+    tag "modules_sangertol"
+    tag "identifyputativegrs"
+
+    test("sarscov2 - fasta_bed - stub") {
+
+        options "-stub"
+
+        when {
+            process {
+                """
+                input[0] = [
+                    [ id:'test' ],
+                    file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/genome/genome.fasta', checkIfExists: true)
+                ]
+                input[1] = [
+                    [ id:'test' ],
+                    file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/genome/bed/test.bed', checkIfExists: true)
+                ]
+                input[2] = [
+                    [ id:'test' ],
+                    []
+                ]
+                input[3] = [
+                    [ id:'test' ],
+                    []
+                ]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert process.success },
+                { assert snapshot(process.out).match() }
+            )
+        }
+
+    }
+
+}
