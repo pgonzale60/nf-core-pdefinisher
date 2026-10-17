@@ -1,0 +1,16 @@
+repository_type: pipeline
+
+nf_core_version: 4.1.1.dev0
+
+lint: {}
+
+template:
+  org: nf-core
+  name: pdecuration
+  description: Automated genome assembly curation and validation for species with
+    Programmed DNA Elimination
+  author: Pablo M. Gonzalez de la Rosa
+  version: 1.0.0
+  force: true
+  outdir: /Users/pgonzale60/Documents/research/sanger_curation/nf-core-pdecuration
+  is_nfcore: true
