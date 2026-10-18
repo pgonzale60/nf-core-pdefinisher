@@ -34,25 +34,27 @@ process TELOCLIP_EXTRACT {
         fai="${fasta}.fai"
     fi
 
-    teloclip filter \\
-        --ref-idx "\$fai" \\
-        --min-clip 100 \\
-        --max-break 50 \\
-        --motifs "${telomere_repeat}" \\
-        "${bam}" \\
-        | samtools view -bS - \\
-        | samtools sort -@ ${task.cpus} -o "${prefix}.teloclip.bam"
-
-    samtools index -@ ${task.cpus} "${prefix}.teloclip.bam"
+    samtools view -h -@ ${task.cpus} "${bam}" \\
+        | teloclip filter \\
+            --ref-idx "\$fai" \\
+            --min-clip 100 \\
+            --max-break 50 \\
+            --motifs "${telomere_repeat}" \\
+            - \\
+        > "${prefix}.teloclip.sam"
 
     mkdir -p "${prefix}_teloclip_overhangs"
     teloclip extract \\
         --ref-idx "\$fai" \\
         --min-clip 100 \\
         --extract-dir "${prefix}_teloclip_overhangs" \\
-        "${prefix}.teloclip.bam"
+        "${prefix}.teloclip.sam"
 
-    rm -f "ref.fa" "ref.fa.fai"
+    samtools view -bS -@ ${task.cpus} "${prefix}.teloclip.sam" \\
+        | samtools sort -@ ${task.cpus} -o "${prefix}.teloclip.bam"
+    samtools index -@ ${task.cpus} "${prefix}.teloclip.bam"
+
+    rm -f "${prefix}.teloclip.sam" "ref.fa" "ref.fa.fai"
     """
 
     stub:
