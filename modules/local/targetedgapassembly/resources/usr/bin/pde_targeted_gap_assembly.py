@@ -294,96 +294,104 @@ def main():
         "notes",
     ]
 
-    for idx, g in enumerate(gaps, start=1):
-        gid, chrom, g_start, g_end, g_len = g["gap_id"], g["chrom"], g["start"], g["end"], g["length"]
-        gap_work = os.path.join(outdir, gid)
-        os.makedirs(gap_work, exist_ok=True)
-        print(
-            f"[{sample_id}] [{idx}/{len(gaps)}] Processing {gid} ({chrom}:{g_start:,}-{g_end:,}, {g_len} bp Ns) as {g['action']}...",
-            flush=True,
-        )
+    scratch_dir = os.path.join(os.path.dirname(outdir) or ".", f".{os.path.basename(outdir)}_scratch")
+    os.makedirs(scratch_dir, exist_ok=True)
 
-        cons_fallback_note = ""
-        if g["action"] in CONSENSUS_ACTIONS:
-            cons_row = resolve_spanned_gap(
-                g, gap_work, outdir, args.bam, args.ref, args.threads, policy, sample_id, idx, len(gaps)
-            )
-            if cons_row[5] == "PATCH_GAP_INSERTION":
-                manifest_rows.append(cons_row)
-                continue
-            cons_fallback_note = f" [abpoa fallback: {cons_row[12]}]"
+    try:
+        for idx, g in enumerate(gaps, start=1):
+            gid, chrom, g_start, g_end, g_len = g["gap_id"], g["chrom"], g["start"], g["end"], g["length"]
+            gap_work = os.path.join(scratch_dir, gid)
+            os.makedirs(gap_work, exist_ok=True)
             print(
-                f"[{sample_id}] {gid}: Direct read consensus did not resolve gap ({cons_row[12]}); "
-                f"falling back to local hifiasm unitig assembly + valency evaluation...",
+                f"[{sample_id}] [{idx}/{len(gaps)}] Processing {gid} ({chrom}:{g_start:,}-{g_end:,}, {g_len} bp Ns) as {g['action']}...",
                 flush=True,
             )
 
-        reads_fa = os.path.join(gap_work, "baited_reads.fa")
-        n_reads = bait_reads_for_gap(args.bam, chrom, g_start, g_end, flank_len, reads_fa)
-        if n_reads < min_baited_reads:
-            manifest_rows.append(
-                [
-                    gid,
-                    chrom,
-                    g_start,
-                    g_end,
-                    g_len,
-                    "UNRESOLVED_GAP",
-                    0,
-                    0,
-                    0,
-                    0,
-                    "NONE",
-                    "NONE",
-                    f"Insufficient baited reads ({n_reads} reads, required >= {min_baited_reads}){cons_fallback_note}",
-                ]
-            )
-            continue
+            cons_fallback_note = ""
+            if g["action"] in CONSENSUS_ACTIONS:
+                cons_row = resolve_spanned_gap(
+                    g, gap_work, outdir, args.bam, args.ref, args.threads, policy, sample_id, idx, len(gaps)
+                )
+                if cons_row[5] == "PATCH_GAP_INSERTION":
+                    manifest_rows.append(cons_row)
+                    shutil.rmtree(gap_work, ignore_errors=True)
+                    continue
+                cons_fallback_note = f" [abpoa fallback: {cons_row[12]}]"
+                print(
+                    f"[{sample_id}] {gid}: Direct read consensus did not resolve gap ({cons_row[12]}); "
+                    f"falling back to local hifiasm unitig assembly + valency evaluation...",
+                    flush=True,
+                )
 
-        hifi_prefix = os.path.join(gap_work, "hifi_asm")
-        hifi_cmd = ["hifiasm", "-o", hifi_prefix, "-t", str(args.threads), "-f0", "-n", "1", reads_fa]
-        try:
-            subprocess.run(hifi_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-        except Exception as e:
-            manifest_rows.append(
-                [
-                    gid,
-                    chrom,
-                    g_start,
-                    g_end,
-                    g_len,
-                    "UNRESOLVED_GAP",
-                    0,
-                    0,
-                    0,
-                    0,
-                    "NONE",
-                    "NONE",
-                    f"Hifiasm execution error: {e}{cons_fallback_note}",
-                ]
-            )
-            continue
+            reads_fa = os.path.join(gap_work, "baited_reads.fa")
+            n_reads = bait_reads_for_gap(args.bam, chrom, g_start, g_end, flank_len, reads_fa)
+            if n_reads < min_baited_reads:
+                manifest_rows.append(
+                    [
+                        gid,
+                        chrom,
+                        g_start,
+                        g_end,
+                        g_len,
+                        "UNRESOLVED_GAP",
+                        0,
+                        0,
+                        0,
+                        0,
+                        "NONE",
+                        "NONE",
+                        f"Insufficient baited reads ({n_reads} reads, required >= {min_baited_reads}){cons_fallback_note}",
+                    ]
+                )
+                shutil.rmtree(gap_work, ignore_errors=True)
+                continue
 
-        unitigs_fa = os.path.join(gap_work, "unitigs.fa")
-        if gfa_to_fasta(f"{hifi_prefix}.bp.p_ctg.gfa", unitigs_fa) == 0:
-            manifest_rows.append(
-                [
-                    gid,
-                    chrom,
-                    g_start,
-                    g_end,
-                    g_len,
-                    "UNRESOLVED_GAP",
-                    0,
-                    0,
-                    0,
-                    0,
-                    "NONE",
-                    "NONE",
-                    f"Hifiasm emitted zero contigs{cons_fallback_note}",
-                ]
-            )
-            continue
+            hifi_prefix = os.path.join(gap_work, "hifi_asm")
+            hifi_cmd = ["hifiasm", "-o", hifi_prefix, "-t", str(args.threads), "-f0", "-n", "1", reads_fa]
+            try:
+                subprocess.run(hifi_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            except Exception as e:
+                manifest_rows.append(
+                    [
+                        gid,
+                        chrom,
+                        g_start,
+                        g_end,
+                        g_len,
+                        "UNRESOLVED_GAP",
+                        0,
+                        0,
+                        0,
+                        0,
+                        "NONE",
+                        "NONE",
+                        f"Hifiasm execution error: {e}{cons_fallback_note}",
+                    ]
+                )
+                shutil.rmtree(gap_work, ignore_errors=True)
+                continue
+
+            unitigs_fa = os.path.join(gap_work, "unitigs.fa")
+            if gfa_to_fasta(f"{hifi_prefix}.bp.p_ctg.gfa", unitigs_fa) == 0:
+                manifest_rows.append(
+                    [
+                        gid,
+                        chrom,
+                        g_start,
+                        g_end,
+                        g_len,
+                        "UNRESOLVED_GAP",
+                        0,
+                        0,
+                        0,
+                        0,
+                        "NONE",
+                        "NONE",
+                        f"Hifiasm emitted zero contigs{cons_fallback_note}",
+                    ]
+                )
+                shutil.rmtree(gap_work, ignore_errors=True)
+                continue
 
         flank_ref_fa = os.path.join(gap_work, "flank_ref.fa")
         left_coord = max(1, g_start - flank_len + 1)
@@ -488,6 +496,9 @@ def main():
                 f"{res['notes']}{cons_fallback_note}",
             ]
         )
+        shutil.rmtree(gap_work, ignore_errors=True)
+    finally:
+        shutil.rmtree(scratch_dir, ignore_errors=True)
 
     with open(manifest_path, "w") as out:
         out.write("\t".join(header) + "\n")

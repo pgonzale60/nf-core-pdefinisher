@@ -186,6 +186,7 @@ process HIFIASM_RESIDUE {
         else
             touch ${prefix}.residue_contigs.fasta
         fi
+        rm -f residue_asm.*
     fi
     """
 

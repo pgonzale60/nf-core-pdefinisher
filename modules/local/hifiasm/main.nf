@@ -95,6 +95,11 @@ process HIFIASM {
     ## gzip all GFA and BED output files
     find . -name "*.gfa" -exec bgzip -@${task.cpus} {} \\;
     find . -name "*.bed" -exec bgzip -@${task.cpus} {} \\;
+
+    ## Clean up intermediate hifiasm binaries and bulky files not required downstream
+    if [ "${task.ext.preserve_scratch ?: false}" != "true" ]; then
+        rm -f *.bin *.noseq.gfa* *.ovlp.paf* *.ec.fa* *.r_utg.* *.a_ctg.*
+    fi
     """
 
     stub:
