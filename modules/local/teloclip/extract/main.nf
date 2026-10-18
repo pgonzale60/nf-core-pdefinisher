@@ -23,9 +23,15 @@ process TELOCLIP_EXTRACT {
     def prefix = task.ext.prefix ?: "${meta.id}"
 
     """
-    fai="${fasta}.fai"
-    if [ ! -f "\$fai" ]; then
+    if [[ "${fasta}" == *.gz ]]; then
+        gzip -dc "${fasta}" > "ref.fa"
+        samtools faidx "ref.fa"
+        fai="ref.fa.fai"
+    elif [ ! -f "${fasta}.fai" ]; then
         samtools faidx "${fasta}"
+        fai="${fasta}.fai"
+    else
+        fai="${fasta}.fai"
     fi
 
     teloclip filter \\
@@ -43,8 +49,10 @@ process TELOCLIP_EXTRACT {
     teloclip extract \\
         --ref-idx "\$fai" \\
         --min-clip 100 \\
-        --out-dir "${prefix}_teloclip_overhangs" \\
+        --extract-dir "${prefix}_teloclip_overhangs" \\
         "${prefix}.teloclip.bam"
+
+    rm -f "ref.fa" "ref.fa.fai"
     """
 
     stub:
