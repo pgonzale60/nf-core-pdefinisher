@@ -34,6 +34,7 @@ process EXTRACTTELOMERICREADS {
         ${bam} \\
         | bbduk.sh \\
             in=stdin.fq \\
+            int=f \\
             outm=${prefix}.telomeric_reads.fastq.gz \\
             literal="\$fwd_repeat" \\
             k=\$k_len \\
