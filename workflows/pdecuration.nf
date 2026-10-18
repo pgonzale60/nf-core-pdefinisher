@@ -52,10 +52,8 @@ workflow PDECURATION {
     ch_all_validations = AUTOMATED_PDE_CURATION.out.validation_json.map { _meta, f -> f }.collect()
 
     ch_summary_input = ch_all_scorecards
-        .combine(ch_all_validations.toList())
-        .map { List items ->
-            def scorecards  = items[0..-2]
-            def validations = items[-1]
+        .combine(ch_all_validations)
+        .map { scorecards, validations ->
             tuple([ id: 'cohort' ], scorecards, validations)
         }
 

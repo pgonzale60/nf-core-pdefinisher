@@ -143,6 +143,7 @@ def extract_fasta_region(ref_fasta, chrom, start, end, out_fa):
     if res.returncode != 0 or not res.stdout.strip():
         err = (res.stderr or "").strip().replace("\n", " ")
         raise RuntimeError(f"could not read flank {region} from {ref_fasta}: {err}")
+    os.makedirs(os.path.dirname(os.path.abspath(out_fa)), exist_ok=True)
     with open(out_fa, "w") as out:
         out.write(res.stdout)
     return True
@@ -186,6 +187,7 @@ def write_flank_reference(
         ("RIGHT", gap_end + 1, gap_end + flank_len, False),
     )
     anchors = {}
+    os.makedirs(os.path.dirname(os.path.abspath(out_fa)), exist_ok=True)
     with open(out_fa, "w") as out:
         for name, start, end, gap_at_end in windows:
             res = subprocess.run(
@@ -236,6 +238,7 @@ def bait_reads_for_gap(bam_path, chrom, gap_start, gap_end, flank, out_reads, fm
         return 0
 
     seen = set()
+    os.makedirs(os.path.dirname(os.path.abspath(out_reads)), exist_ok=True)
     with open(out_reads, "w") as fh:
         if fmt == "fasta":
             qname = None

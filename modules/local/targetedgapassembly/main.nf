@@ -22,7 +22,7 @@ process TARGETEDGAPASSEMBLY {
     def prefix     = task.ext.prefix ?: "${meta.id}"
     def policy_opt = policy_json ? "--policy ${policy_json}" : ''
     """
-    # Tool: pde_targeted_gap_assembly.py | Script-SHA: e1f07a3629f05ff3
+    # Tool: pde_targeted_gap_assembly.py | Script-SHA: 30e0bdbfa772e492
     pde_targeted_gap_assembly.py \\
         --blueprint "${blueprint_json}" \\
         --bam "${bam}" \\

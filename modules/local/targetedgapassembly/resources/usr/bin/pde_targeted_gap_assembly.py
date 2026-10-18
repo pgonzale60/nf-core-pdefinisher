@@ -444,110 +444,111 @@ def main():
                 shutil.rmtree(gap_work, ignore_errors=True)
                 continue
 
-        flank_ref_fa = os.path.join(gap_work, "flank_ref.fa")
-        left_coord = max(1, g_start - flank_len + 1)
-        right_coord = g_end + flank_len
-        left_len = g_start - left_coord + 1
-        right_len = right_coord - g_end
-        extract_fasta_region(args.ref, chrom, left_coord, right_coord, flank_ref_fa)
+            flank_ref_fa = os.path.join(gap_work, "flank_ref.fa")
+            os.makedirs(os.path.dirname(os.path.abspath(flank_ref_fa)), exist_ok=True)
+            left_coord = max(1, g_start - flank_len + 1)
+            right_coord = g_end + flank_len
+            left_len = g_start - left_coord + 1
+            right_len = right_coord - g_end
+            extract_fasta_region(args.ref, chrom, left_coord, right_coord, flank_ref_fa)
 
-        paf_out = os.path.join(gap_work, "unitigs_to_flanks.paf")
-        mm_cmd = [
-            "minimap2",
-            "-x",
-            minimap2_preset,
-            "-c",
-            "--secondary=yes",
-            "-N",
-            "50",
-            "-p",
-            "0.1",
-            "-t",
-            str(args.threads),
-            flank_ref_fa,
-            unitigs_fa,
-        ]
-        with open(paf_out, "w") as paf_f:
-            subprocess.run(mm_cmd, stdout=paf_f, stderr=subprocess.DEVNULL)
-
-        monovalent_unitigs = set()
-        if anchor_valency_survey_enabled and os.path.exists(unitigs_fa):
-            monovalent_unitigs = survey_unitig_valencies_genome_wide(
-                args.ref,
-                chrom,
-                g_start,
-                g_end,
+            paf_out = os.path.join(gap_work, "unitigs_to_flanks.paf")
+            mm_cmd = [
+                "minimap2",
+                "-x",
+                minimap2_preset,
+                "-c",
+                "--secondary=yes",
+                "-N",
+                "50",
+                "-p",
+                "0.1",
+                "-t",
+                str(args.threads),
+                flank_ref_fa,
                 unitigs_fa,
-                threads=args.threads,
-                max_offtarget_fraction=max_offtarget_frac,
-                min_anchor_bp=min_aln_len,
-            )
-            for u_id in monovalent_unitigs:
-                print(
-                    f"[{sample_id}] {gid}: Unitig {u_id} certified as MONOVALENT across genome (P=1.0)",
-                    flush=True,
-                )
-
-        utg_records = read_fasta_records(unitigs_fa) if os.path.exists(unitigs_fa) else {}
-        ref_gap_len = max(0, g_end - g_start) if g["action"] == "INSERT_SEQUENCE" else g_len
-        res = evaluate_gap_paf(
-            paf_out,
-            left_len,
-            ref_gap_len,
-            right_len,
-            g_start=g_start,
-            g_end=g_end,
-            min_mapq=min_mapq,
-            min_aln_len=min_aln_len,
-            min_secondary_anchor=min_secondary_anchor_bp,
-            min_identity=min_flank_identity,
-            repetitive_mapq_floor=mapq_repetitive_gap_floor,
-            max_overlap_excision_bp=max_overlap_excision_bp,
-            require_unique_anchor=require_unique_anchor,
-            mapq_anchored=mapq_anchored,
-            min_repetitive_anchor=min_repetitive_anchor,
-            monovalent_unitigs=monovalent_unitigs,
-            allow_monovalent_overhang_patch=allow_monovalent_overhang,
-            min_monovalent_overhang=min_monovalent_overhang,
-            unitig_seqs=utg_records,
-        )
-        patch_file = "NONE"
-        if res["outcome"] == "PATCH_GAP_INSERTION" and os.path.exists(unitigs_fa):
-            patch_file = os.path.join(outdir, f"{gid}_patch.fa")
-            utg_seq = utg_records.get(res.get("unitig_id"), "")
-            if res.get("patch_seq"):
-                with open(patch_file, "w") as pf_out:
-                    pf_out.write(f">{gid}\n{res['patch_seq']}\n")
-            elif utg_seq and "q_patch_start" in res and "q_patch_end" in res:
-                qs, qe = res["q_patch_start"], res["q_patch_end"]
-                raw_patch = utg_seq[qs:qe] if qe > qs else ""
-                patch_seq = revcomp(raw_patch) if res.get("strand") == "-" else raw_patch
-                with open(patch_file, "w") as pf_out:
-                    pf_out.write(f">{gid}\n{patch_seq}\n")
-            elif res.get("unitig_id") in utg_records:
-                with open(patch_file, "w") as pf_out:
-                    pf_out.write(f">{gid}\n{utg_records[res['unitig_id']]}\n")
-            else:
-                shutil.copyfile(unitigs_fa, patch_file)
-
-        manifest_rows.append(
-            [
-                gid,
-                chrom,
-                g_start,
-                g_end,
-                g_len,
-                res["outcome"],
-                res["left_anchor"],
-                res["right_anchor"],
-                res["patch_len"],
-                res["excised_len"],
-                res["unitig_id"] or "NONE",
-                patch_file,
-                f"{res['notes']}{cons_fallback_note}",
             ]
-        )
-        shutil.rmtree(gap_work, ignore_errors=True)
+            with open(paf_out, "w") as paf_f:
+                subprocess.run(mm_cmd, stdout=paf_f, stderr=subprocess.DEVNULL)
+
+            monovalent_unitigs = set()
+            if anchor_valency_survey_enabled and os.path.exists(unitigs_fa):
+                monovalent_unitigs = survey_unitig_valencies_genome_wide(
+                    args.ref,
+                    chrom,
+                    g_start,
+                    g_end,
+                    unitigs_fa,
+                    threads=args.threads,
+                    max_offtarget_fraction=max_offtarget_frac,
+                    min_anchor_bp=min_aln_len,
+                )
+                for u_id in monovalent_unitigs:
+                    print(
+                        f"[{sample_id}] {gid}: Unitig {u_id} certified as MONOVALENT across genome (P=1.0)",
+                        flush=True,
+                    )
+
+            utg_records = read_fasta_records(unitigs_fa) if os.path.exists(unitigs_fa) else {}
+            ref_gap_len = max(0, g_end - g_start) if g["action"] == "INSERT_SEQUENCE" else g_len
+            res = evaluate_gap_paf(
+                paf_out,
+                left_len,
+                ref_gap_len,
+                right_len,
+                g_start=g_start,
+                g_end=g_end,
+                min_mapq=min_mapq,
+                min_aln_len=min_aln_len,
+                min_secondary_anchor=min_secondary_anchor_bp,
+                min_identity=min_flank_identity,
+                repetitive_mapq_floor=mapq_repetitive_gap_floor,
+                max_overlap_excision_bp=max_overlap_excision_bp,
+                require_unique_anchor=require_unique_anchor,
+                mapq_anchored=mapq_anchored,
+                min_repetitive_anchor=min_repetitive_anchor,
+                monovalent_unitigs=monovalent_unitigs,
+                allow_monovalent_overhang_patch=allow_monovalent_overhang,
+                min_monovalent_overhang=min_monovalent_overhang,
+                unitig_seqs=utg_records,
+            )
+            patch_file = "NONE"
+            if res["outcome"] == "PATCH_GAP_INSERTION" and os.path.exists(unitigs_fa):
+                patch_file = os.path.join(outdir, f"{gid}_patch.fa")
+                utg_seq = utg_records.get(res.get("unitig_id"), "")
+                if res.get("patch_seq"):
+                    with open(patch_file, "w") as pf_out:
+                        pf_out.write(f">{gid}\n{res['patch_seq']}\n")
+                elif utg_seq and "q_patch_start" in res and "q_patch_end" in res:
+                    qs, qe = res["q_patch_start"], res["q_patch_end"]
+                    raw_patch = utg_seq[qs:qe] if qe > qs else ""
+                    patch_seq = revcomp(raw_patch) if res.get("strand") == "-" else raw_patch
+                    with open(patch_file, "w") as pf_out:
+                        pf_out.write(f">{gid}\n{patch_seq}\n")
+                elif res.get("unitig_id") in utg_records:
+                    with open(patch_file, "w") as pf_out:
+                        pf_out.write(f">{gid}\n{utg_records[res['unitig_id']]}\n")
+                else:
+                    shutil.copyfile(unitigs_fa, patch_file)
+
+            manifest_rows.append(
+                [
+                    gid,
+                    chrom,
+                    g_start,
+                    g_end,
+                    g_len,
+                    res["outcome"],
+                    res["left_anchor"],
+                    res["right_anchor"],
+                    res["patch_len"],
+                    res["excised_len"],
+                    res["unitig_id"] or "NONE",
+                    patch_file,
+                    f"{res['notes']}{cons_fallback_note}",
+                ]
+            )
+            shutil.rmtree(gap_work, ignore_errors=True)
     finally:
         shutil.rmtree(scratch_dir, ignore_errors=True)
 
