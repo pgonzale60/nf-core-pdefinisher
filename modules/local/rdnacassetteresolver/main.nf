@@ -23,7 +23,7 @@ process RDNACASSETTERESOLVER {
     def telo_arg = telomeric_unitigs ? "--telomeric-unitigs \"${telomeric_unitigs}\"" : ""
     def gfa_arg  = rdna_gfa ? "--rdna-gfa \"${rdna_gfa}\"" : ""
     """
-    # Tool: pde_rdna_cassette_resolver.py | Script-SHA: e7f6d2d715713101
+    # Tool: pde_rdna_cassette_resolver.py | Script-SHA: 74b61d408a4b8681
     pde_rdna_cassette_resolver.py \\
         --blueprint "${blueprint_json}" \\
         --ref "${ref_fasta}" \\
