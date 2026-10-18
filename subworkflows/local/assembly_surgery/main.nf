@@ -5,6 +5,7 @@
 
 include { CURATIONAGPGENERATOR } from '../../../modules/local/curationagpgenerator/main'
 include { ASMFORMATQC          } from '../../../modules/local/asmformatqc/main'
+include { RAGTAG_AGPCHECK      } from '../../../modules/local/ragtag/agpcheck/main'
 
 workflow ASSEMBLY_SURGERY {
 
@@ -36,6 +37,12 @@ workflow ASSEMBLY_SURGERY {
         ch_generator_input
     )
     ch_versions = ch_versions.mix(CURATIONAGPGENERATOR.out.versions_agp)
+
+    // Validate AGP syntax via RagTag agpcheck
+    RAGTAG_AGPCHECK (
+        CURATIONAGPGENERATOR.out.agp
+    )
+    ch_versions = ch_versions.mix(RAGTAG_AGPCHECK.out.versions_ragtag)
 
     // Validate and QC AGP through official Sanger TOL agp-tpf-utils
     ASMFORMATQC (

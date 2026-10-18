@@ -4,6 +4,9 @@ channels:
   - conda-forge
   - bioconda
 dependencies:
+  - bioconda::abpoa=1.5.7
+  - bioconda::gfatools=0.5
+  - bioconda::hifiasm=0.24.0
   - bioconda::minimap2=2.28
-  - bioconda::samtools=1.20
+  - bioconda::samtools=1.21
   - conda-forge::python=3.10

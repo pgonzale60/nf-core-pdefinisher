@@ -33,6 +33,12 @@ from .flank_io import (
     reverse_complement,
     write_flank_reference,
 )
+from .dentist_guard import (
+    dentist_max_improper,
+    count_flank_improper_alignments,
+    evaluate_dentist_guard,
+)
+from .mindthegap_fill import run_mindthegap_fill
 from .unitig_valency import (
     evaluate_gap_paf,
     parse_cigar_ops,

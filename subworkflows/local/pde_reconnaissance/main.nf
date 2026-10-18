@@ -21,6 +21,7 @@ include { FILTERCHROMOSOMES               } from '../../../modules/local/filterc
 include { RED                             } from '../../../modules/local/red/main'
 include { IDENTIFYPUTATIVEGRS             } from '../../../modules/local/identifyputativegrs/main'
 include { EXTRACTGAPEVIDENCE            } from '../../../modules/local/extractgapevidence/main'
+include { TELOCLIP_EXTRACT              } from '../../../modules/local/teloclip/extract/main'
 
 workflow PDE_RECONNAISSANCE {
 
@@ -129,13 +130,26 @@ workflow PDE_RECONNAISSANCE {
     )
 
     //
+    // MODULE: TELOCLIP_EXTRACT — Dedicated teloclip filtering and soft-clipped overhang extraction
+    //
+    ch_teloclip_input = ch_bam
+        .join(ch_assembly, by: 0)
+        .map { meta, bam, bai, fasta ->
+            tuple(meta, bam, bai, fasta)
+        }
+
+    TELOCLIP_EXTRACT (
+        ch_teloclip_input,
+        val_telomere_repeat
+    )
+
+    //
     // MODULE: TELOMERICJUNCTIONPROFILER — PDE-aware subtelomeric junction deconvolution
     //
     def policy_candidates = [
         params.curation_policy,
         "${projectDir}/assets/curation_policy.json",
-        "${workflow.projectDir}/assets/curation_policy.json",
-        "/nfs/users/nfs_p/pg17/tests/nf-core-modules/assets/curation_policy.json"
+        "${workflow.projectDir}/assets/curation_policy.json"
     ]
     def resolved_policy = policy_candidates.find { it && file(it).exists() }
     if (!resolved_policy) {
@@ -350,6 +364,7 @@ workflow PDE_RECONNAISSANCE {
     telomeric_reads            = EXTRACTTELOMERICREADS.out.reads
     terminal_softclips         = SOFTCLIPENDS.out.softclips
     terminal_ends_summary      = SOFTCLIPENDS.out.summary
+    teloclip_overhangs         = TELOCLIP_EXTRACT.out.overhangs
     telo_unitigs               = HIFIASM.out.assembly_fasta
     telo_paf                   = MINIMAP2_ALIGN.out.paf
     telo_junction_json         = TELOMERICJUNCTIONPROFILER.out.json

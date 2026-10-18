@@ -2,5 +2,6 @@ channels:
   - conda-forge
   - bioconda
 dependencies:
+  - bioconda::bbmap=39.08
   - bioconda::samtools=1.21
-  - bioconda::seqkit=2.10.0
+  - conda-forge::pigz=2.8

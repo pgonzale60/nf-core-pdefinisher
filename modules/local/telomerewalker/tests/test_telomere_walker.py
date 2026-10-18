@@ -89,6 +89,30 @@ class TestTelomereWalker(unittest.TestCase):
         self.assertEqual(res_soma["status"], "ZERO_EXTENDING_READS")
         self.assertIn("somatic diminution breaksite", res_soma["notes"])
 
+    def test_abpoa_overhang_consensus(self):
+        """Verifies abpoa computes SIMD-POA consensus from multiple soft-clipped overhangs."""
+        import shutil
+        from telocapping import overhang_capper
+        if not shutil.which("abpoa"):
+            self.skipTest("abpoa not available in test environment")
+
+        mock_lines = [
+            "read1\t0\tchrI\t9950\t60\t50M100S\t*\t0\t0\t" + ("A" * 50) + ("TTAGGC" * 15 + "AAAA") + "\t*",
+            "read2\t0\tchrI\t9950\t60\t50M100S\t*\t0\t0\t" + ("A" * 50) + ("TTAGGC" * 15 + "AAAT") + "\t*",
+        ]
+        # Monkey patch terminal_window_lines
+        orig_twl = overhang_capper.terminal_window_lines
+        overhang_capper.terminal_window_lines = lambda *args, **kwargs: mock_lines
+        try:
+            res = overhang_capper.maximal_tip_overhang("dummy.bam", "chrI", "3p", 10000, window=1000, chrom_start=0)
+            self.assertIsNotNone(res)
+            label, clip_len, cons_seq = res
+            self.assertIn("abpoa_consensus", label)
+            self.assertIn("TTAGGC" * 10, cons_seq)
+            self.assertGreaterEqual(clip_len, 90)
+        finally:
+            overhang_capper.terminal_window_lines = orig_twl
+
 
 if __name__ == "__main__":
     unittest.main()

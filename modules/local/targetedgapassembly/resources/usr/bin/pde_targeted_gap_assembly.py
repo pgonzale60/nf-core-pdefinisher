@@ -29,6 +29,8 @@ from gapassembly import (
     bait_reads_for_gap,
     choose_anchor,
     collect_spanning_read_candidates,
+    dentist_max_improper,
+    evaluate_dentist_guard,
     evaluate_gap_paf,
     extract_fasta_region,
     gfa_to_fasta,
@@ -39,6 +41,7 @@ from gapassembly import (
     resolve_spanned_gap,
     revcomp,
     reverse_complement,
+    run_mindthegap_fill,
     survey_unitig_valencies_genome_wide,
 )
 
@@ -211,6 +214,12 @@ def run_self_test():
         assert res_dual["patch_len"] == 800, f"Expected 300 + 200 + 300 = 800 bp merged patch, got {res_dual}"
         assert res_dual["patch_seq"] == ("C" * 300) + shared_ovl + ("G" * 300)
 
+        # Dentist's Improper-Alignment Guard formula verification
+        assert dentist_max_improper(0) == 4, f"Expected I_max(0) == 4, got {dentist_max_improper(0)}"
+        assert dentist_max_improper(8) == 5, f"Expected I_max(8) == 5, got {dentist_max_improper(8)}"
+        assert dentist_max_improper(20) == 10, f"Expected I_max(20) == 10, got {dentist_max_improper(20)}"
+        assert dentist_max_improper(30) == 15, f"Expected I_max(30) == 15, got {dentist_max_improper(30)}"
+
     print("Self-test PASS")
     sys.exit(0)
 
@@ -323,6 +332,26 @@ def main():
                     flush=True,
                 )
 
+            # Dentist's Improper-Alignment Guard: veto repeat boundaries with excessive diverging alignments
+            dentist_enabled = policy.get("gap_patch", {}).get("dentist_guard_enabled", True)
+            if dentist_enabled and args.bam and os.path.exists(args.bam):
+                is_vetoed, l_stat, r_stat = evaluate_dentist_guard(
+                    args.bam, chrom, g_start, g_end, min_mapq=min_mapq, min_clip_bp=100
+                )
+                if is_vetoed:
+                    veto_msg = (
+                        f"REPEAT_BOUNDARY_VETO: Diverging improper alignments exceed Dentist I_max "
+                        f"(LEFT: {l_stat['improper']} > {l_stat['i_max']} [depth={l_stat['depth']}]; "
+                        f"RIGHT: {r_stat['improper']} > {r_stat['i_max']} [depth={r_stat['depth']}])"
+                    )
+                    print(f"[{sample_id}] {gid}: {veto_msg}", flush=True)
+                    manifest_rows.append([
+                        gid, chrom, g_start, g_end, g_len,
+                        "REPEAT_BOUNDARY_VETO", 0, 0, 0, 0, "NONE", "NONE", veto_msg
+                    ])
+                    shutil.rmtree(gap_work, ignore_errors=True)
+                    continue
+
             reads_fa = os.path.join(gap_work, "baited_reads.fa")
             n_reads = bait_reads_for_gap(args.bam, chrom, g_start, g_end, flank_len, reads_fa)
             if n_reads < min_baited_reads:
@@ -345,6 +374,28 @@ def main():
                 )
                 shutil.rmtree(gap_work, ignore_errors=True)
                 continue
+
+            # Tier-2: MindTheGap fill for bounded de Bruijn graph path traversal
+            if shutil.which("mindthegap"):
+                left_flank_fa = os.path.join(gap_work, "flank_left.fa")
+                right_flank_fa = os.path.join(gap_work, "flank_right.fa")
+                extract_fasta_region(args.ref, chrom, max(1, g_start - 2000), g_start, left_flank_fa)
+                extract_fasta_region(args.ref, chrom, g_end, g_end + 2000, right_flank_fa)
+                l_seq = "".join(read_fasta_records(left_flank_fa).values())
+                r_seq = "".join(read_fasta_records(right_flank_fa).values())
+                mtg_patch = run_mindthegap_fill(reads_fa, l_seq, r_seq, gap_work, kmer_size=63, max_nodes=500)
+                if mtg_patch:
+                    patch_file = os.path.join(outdir, f"{gid}_patch.fa")
+                    with open(patch_file, "w") as pf_out:
+                        pf_out.write(f">{gid}\n{mtg_patch}\n")
+                    manifest_rows.append([
+                        gid, chrom, g_start, g_end, g_len,
+                        "PATCH_GAP_INSERTION", len(l_seq), len(r_seq), len(mtg_patch), g_len,
+                        "MindTheGap_fill", patch_file,
+                        f"Tier-2 de Bruijn graph path resolved by MindTheGap fill ({len(mtg_patch)} bp)"
+                    ])
+                    shutil.rmtree(gap_work, ignore_errors=True)
+                    continue
 
             hifi_prefix = os.path.join(gap_work, "hifi_asm")
             hifi_cmd = ["hifiasm", "-o", hifi_prefix, "-t", str(args.threads), "-f0", "-n", "1", reads_fa]

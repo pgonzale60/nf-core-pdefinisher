@@ -40,7 +40,7 @@ process CURATIONAGPGENERATOR {
     def rdna_arg    = rdna_manifest ? "--rdna-manifest \"${rdna_manifest}\"" : ""
     def trans_arg   = trans_manifest ? "--trans-manifest \"${trans_manifest}\"" : ""
     """
-    # Tool: pde_generate_agp.py | Script-SHA: 16861c6f8fdaf5c0
+    # Tool: pde_generate_agp.py | Script-SHA: 8d7d12b2fec32630
     pde_generate_agp.py \\
         --blueprint "${blueprint_json}" \\
         --ref "${ref_fasta}" \\

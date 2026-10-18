@@ -3,7 +3,7 @@ process EXTRACTTELOMERICREADS {
     label 'process_low'
 
     conda "${moduleDir}/environment.yml"
-    container 'community.wave.seqera.io/library/samtools_seqkit_gawk:5f1679612f236815'
+    container 'community.wave.seqera.io/library/samtools_bbmap_pigz:c8f695696758ff77'
 
     input:
     tuple val(meta), path(bam), path(bai)
@@ -12,7 +12,7 @@ process EXTRACTTELOMERICREADS {
     output:
     tuple val(meta), path("*.telomeric_reads.fastq.gz"), emit: reads
     tuple val("${task.process}"), val('samtools'), eval("samtools --version | head -n 1 | sed 's/samtools //'"), topic: versions, emit: versions_samtools
-    tuple val("${task.process}"), val('seqkit'), eval("seqkit version | sed 's/seqkit //'"), topic: versions, emit: versions_seqkit
+    tuple val("${task.process}"), val('bbmap'), eval("bbduk.sh --version 2>&1 | head -n 1 | sed 's/BBMap version //'"), topic: versions, emit: versions_bbmap
 
     when:
     task.ext.when == null || task.ext.when
@@ -23,14 +23,23 @@ process EXTRACTTELOMERICREADS {
 
     """
     fwd_repeat=\$(printf "%0.s${telomere_repeat}" {1..3})
-    rev_repeat=\$(echo "\$fwd_repeat" | tr 'ACGTacgt' 'TGCAtgca' | rev)
+    k_len=\${#fwd_repeat}
+    if [ "\$k_len" -gt 18 ]; then
+        k_len=18
+    fi
 
     samtools fastq \\
         -@ ${task.cpus} \\
         ${args} \\
         ${bam} \\
-        | seqkit grep -j ${task.cpus} -s -i -p "\$fwd_repeat" -p "\$rev_repeat" \\
-        | gzip -c > ${prefix}.telomeric_reads.fastq.gz
+        | bbduk.sh \\
+            in=stdin.fq \\
+            outm=${prefix}.telomeric_reads.fastq.gz \\
+            literal="\$fwd_repeat" \\
+            k=\$k_len \\
+            rcomp=t \\
+            hdist=0 \\
+            threads=${task.cpus}
     """
 
     stub:

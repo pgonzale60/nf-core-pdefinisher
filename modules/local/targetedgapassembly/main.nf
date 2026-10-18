@@ -3,7 +3,7 @@ process TARGETEDGAPASSEMBLY {
     label 'process_high'
 
     conda "${moduleDir}/environment.yml"
-    container 'community.wave.seqera.io/library/hifiasm_abpoa_minimap2_samtools_python:7a9feac98901a9ac'
+    container 'community.wave.seqera.io/library/hifiasm_abpoa_minimap2_samtools_mindthegap_python:4e99aa7a05e907bf'
 
     input:
     tuple val(meta), path(blueprint_json), path(bam), path(bai), path(ref_fasta), path(ref_gzi), path(policy_json)
@@ -12,6 +12,7 @@ process TARGETEDGAPASSEMBLY {
     tuple val(meta), path("*_gap_patches"), path("*_patches_manifest.tsv"), emit: manifest
     tuple val("${task.process}"), val('hifiasm'), val('0.24.0'), emit: versions_assembly, topic: versions
     tuple val("${task.process}"), val('abpoa'), val('1.5.7'), emit: versions_consensus, topic: versions
+    tuple val("${task.process}"), val('mindthegap'), val('2.3.0'), emit: versions_mindthegap, topic: versions
 
     when:
     task.ext.when == null || task.ext.when
@@ -21,7 +22,7 @@ process TARGETEDGAPASSEMBLY {
     def prefix     = task.ext.prefix ?: "${meta.id}"
     def policy_opt = policy_json ? "--policy ${policy_json}" : ''
     """
-    # Tool: pde_targeted_gap_assembly.py | Script-SHA: a44bc023a0ab820c
+    # Tool: pde_targeted_gap_assembly.py | Script-SHA: e1f07a3629f05ff3
     pde_targeted_gap_assembly.py \\
         --blueprint "${blueprint_json}" \\
         --bam "${bam}" \\

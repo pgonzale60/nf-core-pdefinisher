@@ -13,6 +13,7 @@ import argparse
 import gzip
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -156,59 +157,133 @@ def find_terminal_tracts(seq, motif, min_repeats=15, tip_tolerance_bp=100, gap_t
     return None
 
 
-def sequence_distance(seq1, seq2, max_mismatches=3):
-    """Calculate simple mismatch count between two sequences of length L."""
-    length = min(len(seq1), len(seq2))
-    if length == 0:
-        return 999
-    mismatches = abs(len(seq1) - len(seq2))
-    for a, b in zip(seq1[:length], seq2[:length]):
-        if a != b:
-            mismatches += 1
-            if mismatches > max_mismatches:
-                return mismatches
-    return mismatches
+def cluster_junction_flanks(read_observations, threads=1, id_threshold=0.97, core_flank_len=60):
+    """Cluster junction flanks using vsearch --cluster_fast and compute MSA consensus sequences.
 
+    Requires vsearch to be available in PATH (no silent fallbacks).
+    """
+    if not read_observations:
+        return []
 
-def cluster_junction_flanks(read_observations, core_flank_len=60, max_mismatches=3):
-    """Cluster junction flanks based on the first core_flank_len bp."""
-    clusters = []  # list of dicts: {'rep_core': str, 'reads': list of tuples}
+    vsearch_bin = shutil.which("vsearch")
+    if not vsearch_bin:
+        raise RuntimeError("vsearch binary not found in PATH. vsearch is required for telomeric junction flank clustering.")
 
-    for obs in read_observations:
-        qname, orient, tract_len, junc_pos, flank_away, motif_var = obs
-        core_seq = flank_away[:core_flank_len]
-        if len(core_seq) < core_flank_len:
-            continue
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        raw_flanks_path = os.path.join(tmp_dir, "raw_flanks.fasta")
+        cons_path = os.path.join(tmp_dir, "clusters_cons.fasta")
+        uc_path = os.path.join(tmp_dir, "clusters.uc")
 
-        assigned = False
-        for cl in clusters:
-            if sequence_distance(cl["rep_core"], core_seq, max_mismatches) <= max_mismatches:
-                cl["reads"].append(obs)
-                assigned = True
-                break
+        valid_obs = []
+        with open(raw_flanks_path, "w", encoding="utf-8") as f:
+            for obs in read_observations:
+                flank_away = obs[4]
+                if len(flank_away) < 40:
+                    continue
+                valid_obs.append(obs)
+                seq_id = f"obs_{len(valid_obs) - 1}"
+                f.write(f">{seq_id}\n{flank_away}\n")
 
-        if not assigned:
+        if not valid_obs:
+            return []
+
+        cmd = [
+            vsearch_bin,
+            "--cluster_fast", raw_flanks_path,
+            "--id", str(id_threshold),
+            "--iddef", "0",
+            "--qmask", "none",
+            "--strand", "plus",
+            "--consout", cons_path,
+            "--uc", uc_path,
+            "--sizeout",
+            "--threads", str(threads),
+        ]
+        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if proc.returncode != 0:
+            raise RuntimeError(f"vsearch clustering failed:\n{proc.stderr}")
+
+        # Parse clusters.uc to assign observations to cluster index
+        cluster_members = defaultdict(list)
+        cluster_centroids = {}
+        if os.path.exists(uc_path):
+            with open(uc_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    parts = line.strip().split("\t")
+                    if not parts:
+                        continue
+                    rec_type = parts[0]
+                    if rec_type in ("S", "H"):
+                        cluster_nr = int(parts[1])
+                        seq_id = parts[8]
+                        idx = int(seq_id.replace("obs_", ""))
+                        cluster_members[cluster_nr].append(valid_obs[idx])
+                        if rec_type == "S":
+                            cluster_centroids[cluster_nr] = seq_id
+
+        # Parse clusters_cons.fasta
+        consensus_seqs = {}
+        if os.path.exists(cons_path):
+            curr_header = None
+            curr_seq = []
+            with open(cons_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith(">"):
+                        if curr_header is not None:
+                            consensus_seqs[curr_header] = "".join(curr_seq)
+                        curr_header = line[1:]
+                        curr_seq = []
+                    else:
+                        curr_seq.append(line)
+                if curr_header is not None:
+                    consensus_seqs[curr_header] = "".join(curr_seq)
+
+        centroid_to_cons = {}
+        for h, seq in consensus_seqs.items():
+            c_id = None
+            for token in h.split(";"):
+                if token.startswith("centroid="):
+                    c_id = token.split("=", 1)[1]
+                    break
+            if not c_id:
+                c_id = h.split(";")[0]
+            centroid_to_cons[c_id] = seq
+
+        clusters = []
+        for cluster_nr in sorted(cluster_members.keys()):
+            reads = cluster_members[cluster_nr]
+            c_id = cluster_centroids.get(cluster_nr, f"obs_{cluster_nr}")
+            cons = centroid_to_cons.get(c_id)
+            if not cons:
+                flanks = [obs[4] for obs in reads]
+                flanks.sort(key=len)
+                cons = flanks[len(flanks) // 2]
+            rep_core = cons[:core_flank_len]
             clusters.append({
-                "rep_core": core_seq,
-                "reads": [obs]
+                "cluster_nr": cluster_nr,
+                "rep_core": rep_core,
+                "rep_ext": cons,
+                "reads": reads,
             })
 
-    return clusters
+        return clusters
 
 
 def align_clusters_minimap2(clusters, ref_fasta, threads=1):
-    """Align cluster extended flanks to reference assembly using minimap2."""
+    """Align cluster extended flanks (MSA consensus) to reference assembly using minimap2."""
     if not clusters or not ref_fasta or not os.path.exists(ref_fasta):
         return {}
 
     with tempfile.NamedTemporaryFile("w", suffix=".fa", delete=False) as tmp_fa:
         tmp_fa_path = tmp_fa.name
         for i, cl in enumerate(clusters):
-            # Select the median-length extended flank as representative
-            flanks = [obs[4] for obs in cl["reads"]]
-            flanks.sort(key=len)
-            rep_ext = flanks[len(flanks) // 2]
-            cl["rep_ext"] = rep_ext
+            rep_ext = cl.get("rep_ext")
+            if not rep_ext:
+                flanks = [obs[4] for obs in cl["reads"]]
+                flanks.sort(key=len)
+                rep_ext = flanks[len(flanks) // 2]
+                cl["rep_ext"] = rep_ext
             tmp_fa.write(f">cl_{i}\n{rep_ext}\n")
 
     alignments = defaultdict(list)
@@ -352,21 +427,52 @@ def classify_junction_cluster(cluster_id, cluster_data, alignments, delfies_poin
     return result
 
 
+def run_self_test():
+    """Internal self-test verifying vsearch clustering and consensus generation."""
+    vsearch_bin = shutil.which("vsearch")
+    assert vsearch_bin is not None, "vsearch binary not found in PATH"
+
+    test_seq1 = "A" * 60 + "C" * 40
+    test_seq2 = "A" * 60 + "C" * 39 + "G"
+    test_seq3 = "T" * 60 + "G" * 40
+
+    obs1 = ("read1", "5p", 100, 100, test_seq1, "TTAGGC")
+    obs2 = ("read2", "5p", 120, 100, test_seq2, "TTAGGC")
+    obs3 = ("read3", "3p", 80, 50, test_seq3, "TTAGGC")
+
+    clusters = cluster_junction_flanks([obs1, obs2, obs3], threads=1, id_threshold=0.97)
+    assert len(clusters) == 2, f"Expected 2 clusters, got {len(clusters)}"
+    cl_sizes = sorted([len(c["reads"]) for c in clusters])
+    assert cl_sizes == [1, 2], f"Expected cluster sizes [1, 2], got {cl_sizes}"
+    for c in clusters:
+        assert len(c["rep_ext"]) >= 60, "Consensus sequence too short"
+        assert len(c["rep_core"]) == 60, "rep_core must be 60 bp"
+    print("TELOMERICJUNCTIONPROFILER self-test PASS")
+    sys.exit(0)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Telomeric Junction Profiler: PDE-aware clustering and deconvolution of subtelomeric junctions."
     )
-    parser.add_argument("--reads", required=True, help="Path to telomeric reads FASTQ (.fastq or .fastq.gz)")
-    parser.add_argument("--ref", required=True, help="Path to reference genome assembly FASTA")
+    parser.add_argument("--reads", help="Path to telomeric reads FASTQ (.fastq or .fastq.gz)")
+    parser.add_argument("--ref", help="Path to reference genome assembly FASTA")
     parser.add_argument("--delfies-bed", default=None, help="Path to DELFIES diminution breakpoints BED")
-    parser.add_argument("--policy", required=True, help="Path to curation_policy.json")
-    parser.add_argument("--motif", required=True, help="Canonical forward telomeric repeat motif (e.g. TTAGGC)")
+    parser.add_argument("--policy", help="Path to curation_policy.json")
+    parser.add_argument("--motif", help="Canonical forward telomeric repeat motif (e.g. TTAGGC)")
     parser.add_argument("--sample", default="sample", help="Sample identifier prefix")
     parser.add_argument("--threads", type=int, default=1, help="Number of alignment threads")
-    parser.add_argument("--output-json", required=True, help="Path to output catalog JSON")
+    parser.add_argument("--output-json", help="Path to output catalog JSON")
     parser.add_argument("--output-tsv", default=None, help="Path to output summary TSV")
+    parser.add_argument("--self-test", action="store_true", help="Run self-test and exit")
 
     args = parser.parse_args()
+
+    if args.self_test:
+        run_self_test()
+
+    if not (args.reads and args.ref and args.policy and args.motif and args.output_json):
+        parser.error("--reads, --ref, --policy, --motif, and --output-json are required when not running --self-test")
 
     # 1. Read Policy
     policy = read_curation_policy(args.policy)
@@ -395,7 +501,7 @@ def main():
     )
 
     # 4. Cluster junction flanks
-    raw_clusters = cluster_junction_flanks(read_observations, core_flank_len=60, max_mismatches=3)
+    raw_clusters = cluster_junction_flanks(read_observations, threads=args.threads, core_flank_len=60)
     sys.stderr.write(f"Deconvolved into {len(raw_clusters)} distinct junction clusters.\n")
 
     # Filter clusters by policy floor

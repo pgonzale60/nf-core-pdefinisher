@@ -16,21 +16,82 @@ import argparse
 import json
 import os
 import sys
+import tempfile
 from collections import defaultdict
+
+
+def parse_hifiasm_gfa_depths(gfa_path):
+    """Parse hifiasm native unitig read depths (rd:i:<depth>) from GFA S-lines.
+
+    Returns dict {utg_name: {'length': int, 'depth': float, 'seq': str}}.
+    """
+    unitigs = {}
+    if not gfa_path or not os.path.exists(gfa_path):
+        return unitigs
+
+    with open(gfa_path, "r", encoding="utf-8") as f:
+        for line in f:
+            if not line.startswith("S\t"):
+                continue
+            parts = line.strip().split("\t")
+            if len(parts) < 3:
+                continue
+            name = parts[1]
+            seq = parts[2]
+            length = len(seq)
+            depth = None
+            for tag in parts[3:]:
+                if tag.startswith("LN:i:"):
+                    length = int(tag[5:])
+                elif tag.startswith("rd:i:"):
+                    depth = float(tag[5:])
+            unitigs[name] = {
+                "length": length,
+                "depth": depth if depth is not None else 1.0,
+                "seq": seq if seq != "*" else "",
+            }
+    return unitigs
+
+
+def run_self_test():
+    """Verify GFA rd:i depth parsing and rDNA monomer multiplicity calculation."""
+    sample_gfa = (
+        "H\tVN:Z:1.0\n"
+        "S\tutg000001l\tACGT\tLN:i:4\trd:i:30\n"
+        "S\tutg000002l\tGGCC\tLN:i:4\trd:i:150\n"
+    )
+    with tempfile.NamedTemporaryFile("w", suffix=".gfa", delete=False) as tf:
+        tf.write(sample_gfa)
+        tf_path = tf.name
+    try:
+        depths = parse_hifiasm_gfa_depths(tf_path)
+        assert "utg000001l" in depths and "utg000002l" in depths
+        d_anchor = depths["utg000001l"]["depth"]
+        d_monomer = depths["utg000002l"]["depth"]
+        assert d_anchor == 30.0 and d_monomer == 150.0
+        m_b = max(1, int(d_monomer / d_anchor + 0.5))
+        assert m_b == 5, f"Expected M_B == 5, got {m_b}"
+    finally:
+        if os.path.exists(tf_path):
+            os.remove(tf_path)
+    print("RDNACASSETTERESOLVER self-test PASS")
+    sys.exit(0)
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Module 3 Engine C: Ribosomal RNA Cassette Resolver")
-    parser.add_argument("--blueprint", required=True, help="Module 2 Curation Blueprint JSON (curation_manifest.json)")
-    parser.add_argument("--ref", required=True, help="Reference FASTA (chromosomes)")
-    parser.add_argument("--flye-fasta", required=True, nargs="+", help="Assembly FASTA (assembly.fasta or unitigs.fa)")
-    parser.add_argument("--flye-info", required=False, default=None, help="Assembly info (assembly_info.txt, optional)")
-    parser.add_argument("--flye-paf", required=True, help="PAF alignment of contigs to reference genome")
-    parser.add_argument("--telomeric-unitigs", required=False, default=None, help="Pre-assembled telomeric unitigs FASTA")
-    parser.add_argument("--sample", required=True, help="Sample/strain prefix")
-    parser.add_argument("--outdir", required=True, help="Output directory for resolved cassettes")
-    parser.add_argument("--manifest", required=True, help="Output manifest TSV")
+    parser.add_argument("--blueprint", help="Module 2 Curation Blueprint JSON (curation_manifest.json)")
+    parser.add_argument("--ref", help="Reference FASTA (chromosomes)")
+    parser.add_argument("--flye-fasta", nargs="+", help="Assembly FASTA (assembly.fasta or unitigs.fa)")
+    parser.add_argument("--flye-info", default=None, help="Assembly info (assembly_info.txt, optional)")
+    parser.add_argument("--flye-paf", help="PAF alignment of contigs to reference genome")
+    parser.add_argument("--telomeric-unitigs", default=None, help="Pre-assembled telomeric unitigs FASTA")
+    parser.add_argument("--rdna-gfa", default=None, help="Path to hifiasm rDNA GFA graph (.p_utg.gfa)")
+    parser.add_argument("--sample", default="sample", help="Sample/strain prefix")
+    parser.add_argument("--outdir", default=None, help="Output directory for resolved cassettes")
+    parser.add_argument("--manifest", default=None, help="Output manifest TSV")
     parser.add_argument("--monomer-copies", type=int, default=None, help="Number of canonical monomer copies to insert (fallback if not in blueprint policy)")
+    parser.add_argument("--self-test", action="store_true", help="Run self-test and exit")
     return parser.parse_args()
 
 
@@ -362,6 +423,13 @@ def phase_monomer_to_distal_unitig(monomer_seq, distal_unitig_seq, k=25):
 
 def main():
     args = parse_args()
+    if args.self_test:
+        run_self_test()
+
+    if not (args.blueprint and args.ref and args.flye_fasta and args.flye_paf and args.outdir and args.manifest):
+        sys.stderr.write("ERROR: Missing required arguments when not running --self-test.\n")
+        sys.exit(1)
+
     os.makedirs(args.outdir, exist_ok=True)
 
     if not os.path.exists(args.blueprint):
@@ -526,18 +594,34 @@ def main():
         rdna_gap_size = int(rdna_policy.get("rdna_gap_size_bp", 100))
         gap_seq = "N" * rdna_gap_size
 
+        gfa_depths = parse_hifiasm_gfa_depths(args.rdna_gfa) if getattr(args, "rdna_gfa", None) else {}
+        gfa_copies = None
+        if gfa_depths and anchor_id in gfa_depths and monomer_id in gfa_depths:
+            d_anchor = gfa_depths[anchor_id]["depth"]
+            d_monomer = gfa_depths[monomer_id]["depth"]
+            if d_anchor > 0:
+                gfa_copies = max(1, int(d_monomer / d_anchor + 0.5))
+
         if is_entity:
             monomer_copies = 1
             monomer_array = raw_monomer_seq
         else:
+            monomer_copies = gfa_copies if gfa_copies is not None else int(card.get("monomer_copies", args.monomer_copies or 2))
             oriented_monomer, j_ovlp = align_and_orient_monomer(
                 anchor_seq, raw_monomer_seq, k=phasing_kmer, search_window=phasing_window
             )
             if distal_seq:
                 phased_distal_mono = phase_monomer_to_distal_unitig(oriented_monomer, distal_seq, k=phasing_kmer)
-                monomer_array = oriented_monomer + gap_seq + phased_distal_mono
+                if monomer_copies > 2:
+                    intermediate_copies = (gap_seq + oriented_monomer) * (monomer_copies - 2)
+                    monomer_array = oriented_monomer + intermediate_copies + gap_seq + phased_distal_mono
+                else:
+                    monomer_array = oriented_monomer + gap_seq + phased_distal_mono
             else:
-                monomer_array = oriented_monomer + gap_seq + oriented_monomer
+                if monomer_copies > 1:
+                    monomer_array = gap_seq.join([oriented_monomer] * monomer_copies)
+                else:
+                    monomer_array = oriented_monomer
 
 
         cassette_seq = anchor_seq + monomer_array + distal_seq

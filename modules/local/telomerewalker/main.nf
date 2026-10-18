@@ -3,7 +3,7 @@ process TELOMEREWALKER {
     label 'process_medium'
 
     conda "${moduleDir}/environment.yml"
-    container 'community.wave.seqera.io/library/samtools_minimap2_python:c9b2a6b2ba2d6d79'
+    container 'community.wave.seqera.io/library/hifiasm_abpoa_minimap2_samtools_gfatools_python:b88b84d24c308348'
 
     input:
     tuple val(meta), path(blueprint_json), path(telomere_profile), path(bam), path(bai), path(ref_fasta), path(ref_gzi), path(telo_unitigs), path(unplaced_paf)
@@ -12,6 +12,7 @@ process TELOMEREWALKER {
     output:
     tuple val(meta), path("*_telomere_extensions"), path("*_walker_manifest.tsv"), emit: manifest
     tuple val("${task.process}"), val('python'), val('3.10.4'), emit: versions_walker, topic: versions
+    tuple val("${task.process}"), val('abpoa'), eval("abpoa --version | head -n 1"), topic: versions, emit: versions_abpoa
 
     when:
     task.ext.when == null || task.ext.when
@@ -36,7 +37,7 @@ process TELOMEREWALKER {
 
     def blueprint_arg = blueprint_json ? "--blueprint \"${blueprint_json}\"" : ""
     """
-    # Tool: pde_telomere_walker.py | Script-SHA: b0e21b2882847f71
+    # Tool: pde_telomere_walker.py | Script-SHA: ab1570a7047b922f
     pde_telomere_walker.py \\
         --ref "${ref_fasta}" \\
         --bam "${bam}" \\

@@ -79,8 +79,8 @@ workflow CURATION_RESOLUTION {
         .join(ch_ref_fasta, by: 0)
         .join(ch_flye_assembly, by: 0)
         .join(ch_telo_unitigs, by: 0)
-        .map { meta, blueprint, ref, flye_fa, flye_info, flye_paf, telo_utgs ->
-            tuple(meta, blueprint, ref, flye_fa, flye_info, flye_paf, telo_utgs)
+        .map { meta, blueprint, ref, flye_fa, flye_info, flye_paf, flye_gfa, telo_utgs ->
+            tuple(meta, blueprint, ref, flye_fa, flye_info, flye_paf, telo_utgs, flye_gfa)
         }
 
     RDNACASSETTERESOLVER (

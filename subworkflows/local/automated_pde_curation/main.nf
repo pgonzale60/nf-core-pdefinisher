@@ -124,8 +124,9 @@ workflow AUTOMATED_PDE_CURATION {
     ch_flye_evidence = PDE_RECONNAISSANCE.out.rdna_assembly_fasta
         .join(PDE_RECONNAISSANCE.out.rdna_assembly_info, by: 0)
         .join(PDE_RECONNAISSANCE.out.rdna_assembly_paf, by: 0)
-        .map { meta, fa, info, paf ->
-            tuple(meta, fa, info, paf)
+        .join(PDE_RECONNAISSANCE.out.rdna_assembly_gfa, by: 0)
+        .map { meta, fa, info, paf, gfa ->
+            tuple(meta, fa, info, paf, gfa)
         }
 
     ch_gaps_bed      = PDE_RECONNAISSANCE.out.gaps_bed

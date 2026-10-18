@@ -4,8 +4,11 @@ Handles single-read overhang extraction, soft-clip validation, and terminal cand
 British spelling standard enforced.
 """
 
+import os
 import re
+import shutil
 import subprocess
+import tempfile
 from telotract.tract_detector import count_telomeric_bp, revcomp
 
 
@@ -69,14 +72,43 @@ def terminal_window_lines(bam_path, chrom, terminus, chrom_len, window, chrom_st
     return res.stdout.splitlines()
 
 
-def maximal_tip_overhang(bam_path, chrom, terminus, chrom_len, window=10000, chrom_start=0):
-    """The read whose alignment stops at this tip with the longest outward overhang."""
-    best = None
+def maximal_tip_overhang(bam_path, chrom, terminus, chrom_len, window=10000, chrom_start=0, min_clip_bp=50):
+    """Compute the outward overhang across terminal soft-clips using abpoa for multi-read consensus."""
+    candidates = []
     for line in terminal_window_lines(bam_path, chrom, terminus, chrom_len, window, chrom_start=chrom_start):
-        clip, overhang = overhang_of_read(line, terminus, chrom_len, chrom_start=chrom_start)
-        if clip and (best is None or clip > best[1]):
-            best = (line.split("\t")[0], clip, overhang)
-    return best
+        clip, overhang = overhang_of_read(line, terminus, chrom_len, min_clip_bp=min_clip_bp, chrom_start=chrom_start)
+        if clip and overhang:
+            qname = line.split("\t")[0]
+            candidates.append((qname, clip, overhang))
+
+    if not candidates:
+        return None
+
+    if len(candidates) == 1:
+        return candidates[0]
+
+    abpoa_bin = shutil.which("abpoa")
+    if not abpoa_bin:
+        raise RuntimeError("abpoa binary not found in PATH. abpoa is required for multi-read overhang consensus generation.")
+
+    with tempfile.NamedTemporaryFile("w", suffix=".fa", delete=False) as tmp_fa:
+        tmp_fa_path = tmp_fa.name
+        for idx, (qname, clip, seq) in enumerate(candidates):
+            tmp_fa.write(f">seq_{idx}_{qname}\n{seq}\n")
+
+    try:
+        cmd = [abpoa_bin, tmp_fa_path, "-r", "0"]
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+        cons_lines = [line.strip() for line in res.stdout.splitlines() if line.strip() and not line.startswith(">")]
+        consensus_seq = "".join(cons_lines)
+        if consensus_seq:
+            top_qname = max(candidates, key=lambda x: x[1])[0]
+            label = f"abpoa_consensus_{len(candidates)}reads_{top_qname}"
+            return (label, len(consensus_seq), consensus_seq)
+        return max(candidates, key=lambda x: x[1])
+    finally:
+        if os.path.exists(tmp_fa_path):
+            os.remove(tmp_fa_path)
 
 
 def named_read_overhang(bam_path, qname, chrom, terminus, chrom_len, window=10000, chrom_start=0):

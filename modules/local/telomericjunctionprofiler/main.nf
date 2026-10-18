@@ -3,7 +3,7 @@ process TELOMERICJUNCTIONPROFILER {
     label 'process_medium'
 
     conda "${moduleDir}/environment.yml"
-    container 'community.wave.seqera.io/library/samtools_minimap2_python:c9b2a6b2ba2d6d79'
+    container 'community.wave.seqera.io/library/samtools_minimap2_vsearch_python:1aa370c14225a820'
 
     input:
     tuple val(meta), path(reads), path(ref_fasta), path(delfies_bed), path(policy_json)
@@ -13,6 +13,7 @@ process TELOMERICJUNCTIONPROFILER {
     tuple val(meta), path("*.telomeric_junctions.json"), emit: json
     tuple val(meta), path("*.telomeric_junctions.tsv") , emit: tsv
     tuple val("${task.process}"), val('python'), eval("python3 --version | sed 's/Python //'"), topic: versions, emit: versions_python
+    tuple val("${task.process}"), val('vsearch'), eval("vsearch --version 2>&1 | head -n 1 | sed 's/vsearch //' | sed 's/,.*//'"), topic: versions, emit: versions_vsearch
 
     when:
     task.ext.when == null || task.ext.when
@@ -23,7 +24,7 @@ process TELOMERICJUNCTIONPROFILER {
     def delfies_arg = delfies_bed ? "--delfies-bed \"${delfies_bed}\"" : ""
 
     """
-    # Tool: pde_telomeric_junction_profiler.py | Script-SHA: c2295a79d9399aa6
+    # Tool: pde_telomeric_junction_profiler.py | Script-SHA: e1485524244791fd
     pde_telomeric_junction_profiler.py \\
         --reads "${reads}" \\
         --ref "${ref_fasta}" \\

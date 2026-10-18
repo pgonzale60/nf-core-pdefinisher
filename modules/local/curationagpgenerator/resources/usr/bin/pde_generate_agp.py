@@ -41,18 +41,125 @@ def safe_int(val, default=0):
     return int(cleaned) if cleaned else default
 
 
+def strip_terminal_gaps(blocks, components_pool):
+    """
+    Strips leading and trailing N blocks (type == "N") and trims terminal N characters
+    from boundary W blocks to guarantee no chromosome or scaffold begins or ends
+    with an N-gap (e.g. when cleaved at PDE breakpoints or scaffolding gaps).
+    """
+    changed = True
+    while changed and blocks:
+        changed = False
+        # Strip leading N blocks
+        while blocks and blocks[0].type == "N":
+            blocks.pop(0)
+            changed = True
+        # Trim leading Ns from first W block
+        if blocks and blocks[0].type == "W" and blocks[0].source_seq:
+            seq = blocks[0].source_seq
+            trimmed_seq = seq.lstrip("Nn")
+            if len(trimmed_seq) < len(seq):
+                cid = blocks[0].component_id
+                if not trimmed_seq:
+                    blocks.pop(0)
+                    components_pool.pop(cid, None)
+                else:
+                    blocks[0] = AGPBlock(
+                        type="W", component_id=cid, length=len(trimmed_seq),
+                        orientation=blocks[0].orientation, source_seq=trimmed_seq
+                    )
+                    components_pool[cid] = trimmed_seq
+                changed = True
+
+        # Strip trailing N blocks
+        while blocks and blocks[-1].type == "N":
+            blocks.pop()
+            changed = True
+        # Trim trailing Ns from last W block
+        if blocks and blocks[-1].type == "W" and blocks[-1].source_seq:
+            seq = blocks[-1].source_seq
+            trimmed_seq = seq.rstrip("Nn")
+            if len(trimmed_seq) < len(seq):
+                cid = blocks[-1].component_id
+                if not trimmed_seq:
+                    blocks.pop()
+                    components_pool.pop(cid, None)
+                else:
+                    blocks[-1] = AGPBlock(
+                        type="W", component_id=cid, length=len(trimmed_seq),
+                        orientation=blocks[-1].orientation, source_seq=trimmed_seq
+                    )
+                    components_pool[cid] = trimmed_seq
+                changed = True
+    return blocks
+
+
+def run_self_test():
+    """
+    Validates terminal N-gap stripping and AGP block integrity under breakpoint cleavage.
+    """
+    comp_pool = {
+        "c_lead_trail_n": "NNNNATCGATCGNNNN",
+        "c_mid": "GGCCAATT",
+        "c_pure_n": "NNNNNNNN",
+    }
+    test_blocks = [
+        AGPBlock(type="N", component_id="gap_start", length=100, orientation=None, source_seq="N" * 100),
+        AGPBlock(type="W", component_id="c_lead_trail_n", length=16, orientation="+", source_seq=comp_pool["c_lead_trail_n"]),
+        AGPBlock(type="N", component_id="gap_mid", length=50, orientation=None, source_seq="N" * 50),
+        AGPBlock(type="W", component_id="c_mid", length=8, orientation="+", source_seq=comp_pool["c_mid"]),
+        AGPBlock(type="N", component_id="gap_end", length=200, orientation=None, source_seq="N" * 200),
+    ]
+
+    stripped = strip_terminal_gaps(test_blocks, comp_pool)
+    assert len(stripped) == 3, f"Expected 3 blocks, got {len(stripped)}"
+    assert stripped[0].type == "W" and stripped[0].component_id == "c_lead_trail_n"
+    assert stripped[0].length == 12, f"Expected length 12 after leading N trim, got {stripped[0].length}"
+    assert comp_pool["c_lead_trail_n"] == "ATCGATCGNNNN", f"Expected 'ATCGATCGNNNN', got {comp_pool['c_lead_trail_n']}"
+    assert stripped[1].type == "N" and stripped[1].component_id == "gap_mid"
+    assert stripped[2].type == "W" and stripped[2].component_id == "c_mid"
+
+    # Test trailing W block with trailing Ns followed by pure N block
+    comp_pool2 = {
+        "c_mid2": "GGCCAATT",
+        "c_trail_n": "ATCGNNNN",
+        "c_pure_n": "NNNNNNNN",
+    }
+    test_blocks2 = [
+        AGPBlock(type="W", component_id="c_mid2", length=8, orientation="+", source_seq=comp_pool2["c_mid2"]),
+        AGPBlock(type="W", component_id="c_trail_n", length=8, orientation="+", source_seq=comp_pool2["c_trail_n"]),
+        AGPBlock(type="W", component_id="c_pure_n", length=8, orientation="+", source_seq=comp_pool2["c_pure_n"]),
+        AGPBlock(type="N", component_id="gap_end2", length=100, orientation=None, source_seq="N" * 100),
+    ]
+    stripped2 = strip_terminal_gaps(test_blocks2, comp_pool2)
+    assert len(stripped2) == 2, f"Expected 2 blocks, got {len(stripped2)}"
+    assert stripped2[0].component_id == "c_mid2"
+    assert stripped2[1].component_id == "c_trail_n"
+    assert stripped2[1].length == 4, f"Expected length 4, got {stripped2[1].length}"
+    assert comp_pool2["c_trail_n"] == "ATCG"
+    assert "c_pure_n" not in comp_pool2
+
+    print("CURATIONAGPGENERATOR self-test PASS")
+    sys.exit(0)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Module 4: Master Curated AGP Generator")
-    parser.add_argument("--blueprint", required=True, help="Module 2 Curation Blueprint JSON")
-    parser.add_argument("--ref", required=True, help="Reference FASTA (chromosomes + unplaced scaffolds)")
+    parser.add_argument("--blueprint", required=False, help="Module 2 Curation Blueprint JSON")
+    parser.add_argument("--ref", required=False, help="Reference FASTA (chromosomes + unplaced scaffolds)")
     parser.add_argument("--gap-manifest", required=False, default=None, help="Engine A patches manifest TSV")
     parser.add_argument("--walker-manifest", required=False, default=None, help="Engine B telomere manifest TSV")
     parser.add_argument("--rdna-manifest", required=False, default=None, help="Engine C rDNA manifest TSV")
     parser.add_argument("--trans-manifest", required=False, default=None, help="Engine D trans-chromosomal manifest TSV")
-    parser.add_argument("--sample", required=True, help="Sample/strain prefix")
-    parser.add_argument("--outdir", required=True, help="Output directory")
+    parser.add_argument("--sample", required=False, help="Sample/strain prefix")
+    parser.add_argument("--outdir", required=False, help="Output directory")
     parser.add_argument("--synthesize-fasta", action="store_true", help="Synthesize curated.fasta directly using pysam/internal engine")
-    return parser.parse_args()
+    parser.add_argument("--self-test", action="store_true", help="Run internal self-test and exit")
+    args = parser.parse_args()
+    if not args.self_test:
+        if not (args.blueprint and args.ref and args.sample and args.outdir):
+            parser.error("--blueprint, --ref, --sample, and --outdir are required when not running --self-test")
+    return args
 
 
 def load_fasta(fasta_path):
@@ -108,6 +215,9 @@ def parse_tsv_manifest(tsv_path):
 
 def main():
     args = parse_args()
+    if args.self_test:
+        run_self_test()
+
     os.makedirs(args.outdir, exist_ok=True)
 
     # 1. Load Reference Genome
@@ -830,6 +940,9 @@ def main():
                 extra["applied_delta"] = 0
                 extra["note"] = "SKIPPED_DUPLICATE_TELO_3P"
 
+        # Strip terminal N-gap blocks and trim terminal Ns from boundary W blocks
+        blocks = strip_terminal_gaps(blocks, components_pool)
+
         # Emit AGP Lines for Chromosome (Stateless Accumulator)
         curr_pos = 1
         valid_part = 1
@@ -938,12 +1051,17 @@ def main():
         if assigned and clen > 0 and cid:
             if cid not in components_pool:
                 components_pool[cid] = "N" * clen
-            agp_lines.append(f"{assigned}\t1\t{clen}\t1\tW\t{cid}\t1\t{clen}\t+")
-            audit_rows.append({
-                "sample": args.sample, "chrom": assigned, "card_id": r.get("card_id", "TRANS"),
-                "action": "SEVER_TO_UNPLACED", "edit_type": "UNPLACED_SCAFFOLD_CREATION",
-                "orig_start": 0, "orig_end": clen, "delta_bp": clen
-            })
+            seq = components_pool[cid]
+            trimmed_seq = seq.strip("Nn")
+            if len(trimmed_seq) > 0:
+                components_pool[cid] = trimmed_seq
+                tlen = len(trimmed_seq)
+                agp_lines.append(f"{assigned}\t1\t{tlen}\t1\tW\t{cid}\t1\t{tlen}\t+")
+                audit_rows.append({
+                    "sample": args.sample, "chrom": assigned, "card_id": r.get("card_id", "TRANS"),
+                    "action": "SEVER_TO_UNPLACED", "edit_type": "UNPLACED_SCAFFOLD_CREATION",
+                    "orig_start": 0, "orig_end": clen, "delta_bp": tlen
+                })
 
     # 4. Write Output AGP
     with open(agp_path, "w") as f:

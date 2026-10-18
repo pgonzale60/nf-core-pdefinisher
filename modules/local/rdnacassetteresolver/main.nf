@@ -8,7 +8,7 @@ process RDNACASSETTERESOLVER {
         'quay.io/biocontainers/python:3.10.4' }"
 
     input:
-    tuple val(meta), path(blueprint_json), path(ref_fasta), path(flye_fasta, stageAs: "rdna_asm/*"), path(flye_info), path(flye_paf), path(telomeric_unitigs, stageAs: "telo_utg/*")
+    tuple val(meta), path(blueprint_json), path(ref_fasta), path(flye_fasta, stageAs: "rdna_asm/*"), path(flye_info), path(flye_paf), path(telomeric_unitigs, stageAs: "telo_utg/*"), path(rdna_gfa)
 
     output:
     tuple val(meta), path("*_rdna_cassettes"), path("*_rdna_manifest.tsv"), emit: manifest
@@ -21,8 +21,9 @@ process RDNACASSETTERESOLVER {
     def args     = task.ext.args ?: ''
     def prefix   = task.ext.prefix ?: "${meta.id}"
     def telo_arg = telomeric_unitigs ? "--telomeric-unitigs \"${telomeric_unitigs}\"" : ""
+    def gfa_arg  = rdna_gfa ? "--rdna-gfa \"${rdna_gfa}\"" : ""
     """
-    # Tool: pde_rdna_cassette_resolver.py | Script-SHA: 697077972e7da2e9
+    # Tool: pde_rdna_cassette_resolver.py | Script-SHA: e7f6d2d715713101
     pde_rdna_cassette_resolver.py \\
         --blueprint "${blueprint_json}" \\
         --ref "${ref_fasta}" \\
@@ -30,6 +31,7 @@ process RDNACASSETTERESOLVER {
         --flye-info "${flye_info}" \\
         --flye-paf "${flye_paf}" \\
         ${telo_arg} \\
+        ${gfa_arg} \\
         --sample "${prefix}" \\
         --outdir "${prefix}_rdna_cassettes" \\
         --manifest "${prefix}_rdna_manifest.tsv" \\
