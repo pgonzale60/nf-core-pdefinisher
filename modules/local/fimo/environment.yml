@@ -1,0 +1,6 @@
+name: fimo
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - bioconda::meme=5.5.5

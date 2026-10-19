@@ -1,0 +1,67 @@
+name: "bipartiteprofiler"
+description: "Core motif masking, Tier-2 auxiliary MEME grid search, bipartite spacing profiling, and markdown summary report"
+keywords:
+  - meme
+  - fimo
+  - auxiliary-motif
+  - bipartite
+  - spacing
+  - cleavage-offset
+tools:
+  - "meme":
+      description: "Multiple Em for Motif Elicitation"
+      homepage: "https://meme-suite.org"
+  - "fimo":
+      description: "Find Individual Motif Occurrences"
+      homepage: "https://meme-suite.org"
+input:
+  - - meta:
+        type: map
+        description: Groovy Map containing sample information
+    - break_windows_fasta:
+        type: file
+        description: FASTA containing 300 bp break windows centered at Position 0
+    - best_core_motif:
+        type: file
+        description: Best core motif in MEME format
+    - census_json:
+        type: file
+        description: Coverage and chromosome census JSON
+    - core_metrics_json:
+        type: file
+        description: Core motif metrics JSON
+output:
+  - best_auxiliary_motif:
+      - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.best_auxiliary_motif.meme":
+          type: file
+          description: Best auxiliary motif in MEME format (if significant)
+  - bipartite_spacing_tsv:
+      - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.bipartite_spacing_summary.tsv":
+          type: file
+          description: TSV summarizing inter-motif edge-to-edge spacers and cleavage offsets
+  - discovery_report_md:
+      - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.cbm_discovery_report.md":
+          type: file
+          description: Markdown report of discovered CBM architecture and census
+  - masked_fasta:
+      - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.core_masked.fasta":
+          type: file
+          description: Core-masked 300 bp break windows FASTA
+  - versions:
+      - versions.yml:
+          type: file
+          description: File containing software versions
+authors:
+  - "@pgonzale60"

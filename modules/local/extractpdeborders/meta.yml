@@ -1,0 +1,83 @@
+name: "extractpdeborders"
+description: "Extracts verified PDE GRS/Core border junctions directly from classified segments and slices oriented flank sequences from assembly FASTA"
+keywords:
+  - pde
+  - breakpoint
+  - border
+  - flanks
+  - grs
+  - core
+tools:
+  - "python":
+      description: "Python 3 standard library script"
+      homepage: "https://www.python.org/"
+      documentation: "https://docs.python.org/3/"
+      tool_dev_url: "https://github.com/sanger-tol"
+      licence: ["MIT"]
+      identifier: ""
+
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing sample information
+          e.g. `[ id:'sample1' ]`
+    - pde_segments_bed:
+        type: file
+        description: Classified PDE segments BED from IDENTIFYPUTATIVEGRS
+        pattern: "*.pde_segments.bed"
+    - breakpoints_bed:
+        type: file
+        description: Candidate breakpoints BED from PDEBREAKPOINTFILTER
+        pattern: "*.bed"
+    - assembly:
+        type: file
+        description: Draft or curated genome assembly FASTA
+        pattern: "*.{fa,fasta,fa.gz,fasta.gz}"
+  - - window_small:
+        type: integer
+        description: Half-window size in bp for small flanks (e.g. 150)
+  - - window_large:
+        type: integer
+        description: Half-window size in bp for large flanks (e.g. 350)
+
+output:
+  - border_breakpoints:
+      - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.pde_border_breakpoints.bed":
+          type: file
+          description: Verified GRS/Core transition breakpoint coordinates
+          pattern: "*.pde_border_breakpoints.bed"
+  - flanks_150bp:
+      - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.pde_border_flanks_150bp.fasta":
+          type: file
+          description: Oriented ±150 bp flanking sequences around verified borders
+          pattern: "*.pde_border_flanks_150bp.fasta"
+  - flanks_350bp:
+      - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.pde_border_flanks_350bp.fasta":
+          type: file
+          description: Oriented ±350 bp flanking sequences around verified borders
+          pattern: "*.pde_border_flanks_350bp.fasta"
+  - flanks_bed:
+      - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.pde_border_flanks.bed":
+          type: file
+          description: Genomic coordinates of extracted border flanks
+          pattern: "*.pde_border_flanks.bed"
+  - versions_python:
+      - - ${task.process}
+        - python
+        - python3 --version | sed 's/Python //'
+
+authors:
+  - "@pgonzale60"

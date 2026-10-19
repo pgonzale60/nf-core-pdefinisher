@@ -1,0 +1,79 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sanger-tol/nf-core-modules/main/modules/yaml-schema.json
+name: "pdemotifprofiler"
+description: "Profile genome-wide FIMO motif occurrences across PDE compartments and evaluate localization vs satellite/TE dispersion"
+keywords:
+  - motif
+  - fimo
+  - pde
+  - programmed dna elimination
+  - breakpoint
+  - satellite
+tools:
+  - pdemotifprofiler:
+      description: "PDE Motif Genome-Wide Profiler & Spatial Distribution Analyzer"
+      homepage: "https://github.com/sanger-tol"
+      documentation: "https://github.com/sanger-tol"
+      tool_dev_url: "https://github.com/sanger-tol"
+      licence:
+        - "MIT"
+      identifier: ""
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing sample information
+          e.g. `[ id:'sample1' ]`
+    - fimo_tsv:
+        type: file
+        description: TSV table of whole-genome FIMO hits
+        pattern: "*.{tsv,txt}"
+    - breakpoints_bed:
+        type: file
+        description: BED format file containing high-confidence breakpoints
+        pattern: "*.{bed}"
+    - pde_segments_bed:
+        type: file
+        description: BED format file segmenting assembly into putative core vs putative GRS
+        pattern: "*.{bed}"
+  - - flank_tolerance:
+        type: integer
+        description: Window in bp around breakpoints considered authentic break sites (default: 500)
+output:
+  - annotated_hits:
+      - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.fimo_annotated_hits.tsv":
+          type: file
+          description: TSV table of FIMO hits annotated with genomic compartment and distance to nearest breakpoint
+          pattern: "*.fimo_annotated_hits.tsv"
+  - summary_tsv:
+      - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.motif_distribution_summary.tsv":
+          type: file
+          description: Tabular metrics of compartment enrichment, satellite periodicity, and distribution diagnosis
+          pattern: "*.motif_distribution_summary.tsv"
+  - report_md:
+      - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.motif_distribution_report.md":
+          type: file
+          description: Markdown report assessing whether the motif is strictly localized to break sites or broadly distributed
+          pattern: "*.motif_distribution_report.md"
+  - versions_python:
+      - - "${task.process}":
+            type: string
+            description: Process name
+        - python:
+            type: string
+            description: Tool name
+        - eval("python3 --version | sed 's/Python //'"):
+            type: string
+            description: Tool version
+authors:
+  - "@pg17"
+maintainers:
+  - "@pg17"

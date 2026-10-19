@@ -72,6 +72,18 @@
                     "description": "Skip post-curation BAM re-mapping and Sniffles structural variant validation to accelerate run completion.",
                     "fa_icon": "fas fa-forward"
                 },
+                "run_motif_discovery": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Run MEME core motif parameter grid search, auxiliary bipartite profiling, and whole-genome FIMO scanning.",
+                    "fa_icon": "fas fa-search"
+                },
+                "fimo_pvalue_threshold": {
+                    "type": "number",
+                    "default": 0.0001,
+                    "description": "P-value significance threshold for whole-genome FIMO scanning (default: 1e-4).",
+                    "fa_icon": "fas fa-filter"
+                },
                 "delfies_args": {
                     "type": "string",
                     "default": "--AnalyzeReads --seq String --finding_site_mode 'eliminated' --window_size 15 --minimum_ReadAligns 3 --telomere_string 'TTAGGC'",

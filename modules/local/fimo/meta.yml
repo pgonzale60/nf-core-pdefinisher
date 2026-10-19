@@ -1,0 +1,46 @@
+name: "fimo"
+description: "Scan sequences with a sequence motif using FIMO"
+keywords:
+  - motif
+  - fimo
+  - meme
+tools:
+  - fimo:
+      description: "Find Individual Motif Occurrences"
+      homepage: "https://meme-suite.org/meme/doc/fimo.html"
+      documentation: "https://meme-suite.org/meme/doc/fimo.html"
+      licence: ["custom"]
+input:
+  - - meta:
+        type: map
+        description: Sample metadata
+    - motif_meme:
+        type: file
+        description: MEME motif file
+    - assembly:
+        type: file
+        description: Target genome assembly FASTA
+  - - pvalue_thresh:
+        type: float
+        description: P-value output threshold
+output:
+  - tsv:
+      - meta:
+          type: map
+          description: Sample metadata
+      - "*.fimo_genome_hits.tsv":
+          type: file
+          description: FIMO hits TSV
+  - outdir:
+      - meta:
+          type: map
+          description: Sample metadata
+      - "*_fimo_out":
+          type: directory
+          description: FIMO output directory
+  - versions_fimo:
+      - fimo:
+          type: string
+          description: FIMO version
+authors:
+  - "@pgonzale60"

@@ -1,0 +1,47 @@
+name: "memecoregrid"
+description: "Multi-radius window slicing and MEME parameter grid search to discover and select the best core CBM motif"
+keywords:
+  - meme
+  - motif
+  - grid-search
+  - core-motif
+  - information-content
+tools:
+  - "meme":
+      description: "Multiple Em for Motif Elicitation"
+      homepage: "https://meme-suite.org"
+input:
+  - - meta:
+        type: map
+        description: Groovy Map containing sample information
+    - break_windows_fasta:
+        type: file
+        description: FASTA containing 300 bp break windows centered at Position 0
+output:
+  - best_core_motif:
+      - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.best_core_motif.meme":
+          type: file
+          description: Best core motif in MEME format
+  - grid_summary_tsv:
+      - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.core_grid_summary.tsv":
+          type: file
+          description: TSV summarizing all tested grid parameter conditions
+  - motif_metrics_json:
+      - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.core_motif_metrics.json":
+          type: file
+          description: JSON containing detailed metrics for selected core motif
+  - versions:
+      - versions.yml:
+          type: file
+          description: File containing software versions
+authors:
+  - "@pgonzale60"

@@ -120,16 +120,22 @@ workflow PDECURATION {
     )
 
     emit:
-    curated_fasta        = AUTOMATED_PDE_CURATION.out.curated_fasta
-    curated_agp          = AUTOMATED_PDE_CURATION.out.curated_agp
-    blueprint_json       = AUTOMATED_PDE_CURATION.out.blueprint_json
-    curated_pde_segments = AUTOMATED_PDE_CURATION.out.curated_pde_segments
-    curated_repeats      = AUTOMATED_PDE_CURATION.out.curated_repeats
-    scorecard_json       = AUTOMATED_PDE_CURATION.out.scorecard_json
-    validation_json      = AUTOMATED_PDE_CURATION.out.validation_json
-    summary_md           = CURATIONSUMMARY.out.summary_md
-    multiqc_report       = MULTIQC.out.report.map { _meta, report -> [report] }.toList()
-    versions             = ch_versions
+    curated_fasta              = AUTOMATED_PDE_CURATION.out.curated_fasta
+    curated_agp                = AUTOMATED_PDE_CURATION.out.curated_agp
+    blueprint_json             = AUTOMATED_PDE_CURATION.out.blueprint_json
+    curated_pde_segments       = AUTOMATED_PDE_CURATION.out.curated_pde_segments
+    curated_repeats            = AUTOMATED_PDE_CURATION.out.curated_repeats
+    scorecard_json             = AUTOMATED_PDE_CURATION.out.scorecard_json
+    validation_json            = AUTOMATED_PDE_CURATION.out.validation_json
+    summary_md                 = CURATIONSUMMARY.out.summary_md
+    best_core_motif            = AUTOMATED_PDE_CURATION.out.best_core_motif
+    best_auxiliary_motif       = AUTOMATED_PDE_CURATION.out.best_auxiliary_motif
+    motif_discovery_report_md  = AUTOMATED_PDE_CURATION.out.motif_discovery_report_md
+    fimo_annotated_hits        = AUTOMATED_PDE_CURATION.out.fimo_annotated_hits
+    motif_distribution_summary = AUTOMATED_PDE_CURATION.out.motif_distribution_summary
+    motif_distribution_report  = AUTOMATED_PDE_CURATION.out.motif_distribution_report
+    multiqc_report             = MULTIQC.out.report.map { _meta, report -> [report] }.toList()
+    versions                   = ch_versions
 }
 
 /*

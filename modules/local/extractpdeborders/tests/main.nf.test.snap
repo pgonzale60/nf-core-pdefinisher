@@ -1,0 +1,91 @@
+{
+    "extractpdeborders - stub": {
+        "content": [
+            {
+                "0": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.pde_border_breakpoints.bed:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "1": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.pde_border_flanks_150bp.fasta:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "2": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.pde_border_flanks_350bp.fasta:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "3": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.pde_border_flanks.bed:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "4": [
+                    [
+                        "EXTRACTPDEBORDERS",
+                        "python",
+                        "3.14.7"
+                    ]
+                ],
+                "border_breakpoints": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.pde_border_breakpoints.bed:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "flanks_150bp": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.pde_border_flanks_150bp.fasta:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "flanks_350bp": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.pde_border_flanks_350bp.fasta:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "flanks_bed": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.pde_border_flanks.bed:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "versions_python": [
+                    [
+                        "EXTRACTPDEBORDERS",
+                        "python",
+                        "3.14.7"
+                    ]
+                ]
+            }
+        ],
+        "timestamp": "2026-10-10T14:11:54.582281",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    }
+}

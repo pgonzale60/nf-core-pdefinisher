@@ -1,0 +1,75 @@
+{
+    "pdemotifprofiler - stub": {
+        "content": [
+            {
+                "0": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.fimo_annotated_hits.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "1": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.motif_distribution_summary.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "2": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.motif_distribution_report.md:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "3": [
+                    [
+                        "PDEMOTIFPROFILER",
+                        "python",
+                        "3.14.7"
+                    ]
+                ],
+                "annotated_hits": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.fimo_annotated_hits.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "report_md": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.motif_distribution_report.md:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "summary_tsv": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.motif_distribution_summary.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "versions_python": [
+                    [
+                        "PDEMOTIFPROFILER",
+                        "python",
+                        "3.14.7"
+                    ]
+                ]
+            }
+        ],
+        "timestamp": "2026-10-10T09:29:13.574551",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    }
+}

@@ -17,6 +17,7 @@ include { CURATION_RESOLUTION  } from '../curation_resolution/main'
 include { ASSEMBLY_SURGERY     } from '../assembly_surgery/main'
 include { CURATION_EVALUATION  } from '../curation_evaluation/main'
 include { CURATION_VALIDATION  } from '../curation_validation/main'
+include { PDE_MOTIF_DISCOVERY  } from '../pde_motif_discovery/main'
 
 workflow AUTOMATED_PDE_CURATION {
 
@@ -205,21 +206,67 @@ workflow AUTOMATED_PDE_CURATION {
         ch_val_bai  = CURATION_VALIDATION.out.curated_bai
     }
 
+    // =========================================================================
+    // OPTIONAL: PDE BREAKPOINT MOTIF DISCOVERY (MEME, BIPARTITE & FIMO)
+    // =========================================================================
+    def ch_best_core_motif        = Channel.empty()
+    def ch_core_metrics_json      = Channel.empty()
+    def ch_grid_summary_tsv       = Channel.empty()
+    def ch_best_aux_motif         = Channel.empty()
+    def ch_bipartite_spacing_tsv  = Channel.empty()
+    def ch_motif_report_md        = Channel.empty()
+    def ch_fimo_hits              = Channel.empty()
+    def ch_fimo_annotated         = Channel.empty()
+    def ch_motif_distribution_tsv = Channel.empty()
+    def ch_motif_distribution_md  = Channel.empty()
+
+    if (params.run_motif_discovery) {
+        def fimo_thresh = params.fimo_pvalue_threshold ?: 1e-4
+        PDE_MOTIF_DISCOVERY (
+            ch_assembly,
+            PDE_RECONNAISSANCE.out.pde_segments_bed,
+            PDE_RECONNAISSANCE.out.delfies_bed,
+            fimo_thresh
+        )
+        ch_versions = ch_versions.mix(PDE_MOTIF_DISCOVERY.out.versions)
+
+        ch_best_core_motif        = PDE_MOTIF_DISCOVERY.out.best_core_motif
+        ch_core_metrics_json      = PDE_MOTIF_DISCOVERY.out.core_motif_metrics_json
+        ch_grid_summary_tsv       = PDE_MOTIF_DISCOVERY.out.grid_summary_tsv
+        ch_best_aux_motif         = PDE_MOTIF_DISCOVERY.out.best_auxiliary_motif
+        ch_bipartite_spacing_tsv  = PDE_MOTIF_DISCOVERY.out.bipartite_spacing_tsv
+        ch_motif_report_md        = PDE_MOTIF_DISCOVERY.out.discovery_report_md
+        ch_fimo_hits              = PDE_MOTIF_DISCOVERY.out.fimo_genome_hits
+        ch_fimo_annotated         = PDE_MOTIF_DISCOVERY.out.fimo_annotated_hits
+        ch_motif_distribution_tsv = PDE_MOTIF_DISCOVERY.out.motif_distribution_summary
+        ch_motif_distribution_md  = PDE_MOTIF_DISCOVERY.out.motif_distribution_report
+    }
+
     emit:
-    blueprint_json       = CURATIONSYNTHESIS.out.blueprint_json
-    blueprint_md         = CURATIONSYNTHESIS.out.blueprint_md
-    curated_agp          = ASSEMBLY_SURGERY.out.curated_agp
-    curated_fasta        = ASSEMBLY_SURGERY.out.curated_fasta
-    components_fasta     = ASSEMBLY_SURGERY.out.components_fasta
-    segregated_fastas    = ASSEMBLY_SURGERY.out.segregated_fastas
-    curation_audit       = ASSEMBLY_SURGERY.out.audit
-    curated_pde_segments = ASSEMBLY_SURGERY.out.curated_pde_segments
-    curated_repeats      = ASSEMBLY_SURGERY.out.curated_repeats
-    scorecard_json       = CURATION_EVALUATION.out.scorecard_json
-    report_md            = CURATION_EVALUATION.out.report_md
-    validation_json      = ch_val_json
-    validation_md        = ch_val_md
-    curated_bam          = ch_val_bam
-    curated_bai          = ch_val_bai
-    versions             = ch_versions
+    blueprint_json             = CURATIONSYNTHESIS.out.blueprint_json
+    blueprint_md               = CURATIONSYNTHESIS.out.blueprint_md
+    curated_agp                = ASSEMBLY_SURGERY.out.curated_agp
+    curated_fasta              = ASSEMBLY_SURGERY.out.curated_fasta
+    components_fasta           = ASSEMBLY_SURGERY.out.components_fasta
+    segregated_fastas          = ASSEMBLY_SURGERY.out.segregated_fastas
+    curation_audit             = ASSEMBLY_SURGERY.out.audit
+    curated_pde_segments       = ASSEMBLY_SURGERY.out.curated_pde_segments
+    curated_repeats            = ASSEMBLY_SURGERY.out.curated_repeats
+    scorecard_json             = CURATION_EVALUATION.out.scorecard_json
+    report_md                  = CURATION_EVALUATION.out.report_md
+    validation_json            = ch_val_json
+    validation_md              = ch_val_md
+    curated_bam                = ch_val_bam
+    curated_bai                = ch_val_bai
+    best_core_motif            = ch_best_core_motif
+    core_motif_metrics_json    = ch_core_metrics_json
+    grid_summary_tsv           = ch_grid_summary_tsv
+    best_auxiliary_motif       = ch_best_aux_motif
+    bipartite_spacing_tsv      = ch_bipartite_spacing_tsv
+    motif_discovery_report_md  = ch_motif_report_md
+    fimo_genome_hits           = ch_fimo_hits
+    fimo_annotated_hits        = ch_fimo_annotated
+    motif_distribution_summary = ch_motif_distribution_tsv
+    motif_distribution_report  = ch_motif_distribution_md
+    versions                   = ch_versions
 }
