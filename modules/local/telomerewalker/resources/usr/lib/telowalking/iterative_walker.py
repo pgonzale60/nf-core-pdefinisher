@@ -280,24 +280,38 @@ def _walk_loop(unmapped, seed_seq, motif, rev_motif, max_iters, min_telo_bp,
 
         # Cluster reads extraction
         if bam_path and cluster_reads and os.path.exists(bam_path):
-            cluster_set = set(cluster_reads)
-            try:
-                cmd_view = ["samtools", "view", bam_path]
-                proc = subprocess.Popen(cmd_view, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
-                with open(candidates_fa, "a") as c_fh:
-                    for line in proc.stdout:
-                        parts = line.split("\t")
-                        if len(parts) >= 11 and parts[0] in cluster_set and parts[0] not in local_reads and parts[9] != "*":
-                            qname = parts[0]
-                            seq = parts[9].upper()
-                            local_reads[qname] = seq
-                            c_fh.write(f">{qname}\n{seq}\n")
-                            if len(local_reads) >= len(cluster_set):
-                                proc.kill()
-                                break
-                proc.stdout.close()
-            except Exception:
-                pass
+            if isinstance(cluster_reads, (list, tuple, set)):
+                cluster_set = {str(r) for r in cluster_reads if r}
+            else:
+                cluster_set = set()
+
+            needed_qnames = [q for q in cluster_set if q not in local_reads]
+            if needed_qnames:
+                qf_path = None
+                try:
+                    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as qf:
+                        qf_path = qf.name
+                        for q in needed_qnames:
+                            qf.write(f"{q}\n")
+                    cmd_view = ["samtools", "view", "-N", qf_path, bam_path]
+                    proc = subprocess.Popen(cmd_view, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+                    with open(candidates_fa, "a") as c_fh:
+                        for line in proc.stdout:
+                            parts = line.split("\t")
+                            if len(parts) >= 11 and parts[0] in cluster_set and parts[0] not in local_reads and parts[9] != "*":
+                                qname = parts[0]
+                                seq = parts[9].upper()
+                                local_reads[qname] = seq
+                                c_fh.write(f">{qname}\n{seq}\n")
+                                if len(local_reads) >= len(cluster_set):
+                                    proc.kill()
+                                    break
+                    proc.stdout.close()
+                except Exception:
+                    pass
+                finally:
+                    if qf_path and os.path.exists(qf_path):
+                        os.unlink(qf_path)
 
         if (unmapped is None or len(unmapped) == 0) and len(local_reads) == 0:
             notes = "Zero unmapped reads in library"

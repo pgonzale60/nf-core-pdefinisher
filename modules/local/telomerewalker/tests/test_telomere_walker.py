@@ -113,6 +113,53 @@ class TestTelomereWalker(unittest.TestCase):
         finally:
             overhang_capper.terminal_window_lines = orig_twl
 
+    def test_extract_cluster_reads_from_card(self):
+        """Verifies cluster reads are only extracted from genuine junction cluster cards."""
+        cluster_card = {
+            "mechanism": "SCAFFOLD_REPEAT_TO_TELOMERE",
+            "evidence": {
+                "junction_cluster_id": "CL_01",
+                "supporting_reads": ["readA", "readB"],
+            }
+        }
+        self.assertEqual(
+            pde_telomere_walker.extract_cluster_reads_from_card(cluster_card),
+            ["readA", "readB"]
+        )
+
+        read_cap_card = {
+            "mechanism": "CAP_WITH_READ",
+            "authorized_read_qname": "readC",
+            "evidence": {
+                "read_count": 1,
+                "supporting_reads": ["readC"],
+            }
+        }
+        self.assertIsNone(pde_telomere_walker.extract_cluster_reads_from_card(read_cap_card))
+
+        legacy_read_card = {
+            "mechanism": "CAP_WITH_READ",
+            "evidence": {
+                "supporting_reads": 1,
+            }
+        }
+        self.assertIsNone(pde_telomere_walker.extract_cluster_reads_from_card(legacy_read_card))
+
+    def test_iterative_walker_handles_scalar_or_invalid_cluster_reads(self):
+        """Verifies that non-iterable cluster_reads (e.g. legacy int count) does not raise TypeError."""
+        from telowalking import run_iterative_walker
+        class DummyEmptyIndex:
+            def __len__(self):
+                return 0
+
+        # Should handle scalar int without raising TypeError: 'int' object is not iterable
+        res = run_iterative_walker(
+            "dummy.bam", "ACGT" * 100, "TTAGGC", "GCCTAA",
+            max_iters=10, unmapped=DummyEmptyIndex(),
+            tip_is_germline=True, cluster_reads=1
+        )
+        self.assertEqual(res["status"], "ZERO_EXTENDING_READS")
+
 
 if __name__ == "__main__":
     unittest.main()

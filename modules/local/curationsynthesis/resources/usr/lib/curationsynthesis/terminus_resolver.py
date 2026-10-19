@@ -610,7 +610,8 @@ def synthesize_telomere_cards(
                     "authorized_read_qname": read_qname,
                     "read_extension_bp": f"+{read_ext_bp:,} bp",
                     "telo_repeats": read_telo_cnt,
-                    "supporting_reads": read_cnt,
+                    "read_count": read_cnt,
+                    "supporting_reads": [read_qname] if read_qname and read_qname != "None" else [],
                 }
                 if somatic_boundary_found:
                     evidence_dict["somatic_diminution_resolved"] = (

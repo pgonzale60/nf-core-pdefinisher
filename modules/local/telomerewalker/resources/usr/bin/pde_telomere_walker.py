@@ -454,6 +454,25 @@ def parse_blueprint(blueprint_path, chrom_lens=None):
     return BlueprintParseResult(term_cards, policy, dispositions, terminal_excisions_5p, terminal_excisions_3p)
 
 
+def extract_cluster_reads_from_card(card):
+    """Extract verified list of cluster read QNAMEs from action card if and only if it represents a cluster."""
+    if not card or not isinstance(card, dict):
+        return None
+    evidence = card.get("evidence", {})
+    if not isinstance(evidence, dict):
+        return None
+    is_cluster_card = (
+        "junction_cluster_id" in evidence
+        or card.get("mechanism") == "SCAFFOLD_REPEAT_TO_TELOMERE"
+        or card.get("classification") == "SATELLITE_LINKED_TELOMERE"
+    )
+    if is_cluster_card:
+        supp = evidence.get("supporting_reads")
+        if isinstance(supp, (list, tuple, set)):
+            return [str(r) for r in supp if r]
+    return None
+
+
 def run_self_test():
     """Verify internal modular packages and dependency contracts."""
     sha = get_script_fingerprint()
@@ -775,7 +794,7 @@ def main():
                         terminus=terminus,
                         c_len=c_len,
                         c_start=c_start,
-                        cluster_reads=card.get("evidence", {}).get("supporting_reads") if card else None,
+                        cluster_reads=extract_cluster_reads_from_card(card),
                     )
                     ext_fa, added_len, telo_len, non_telo = "NONE", 0, 0, 0
                     if walk_res["added_bp"] > 0:
@@ -1107,7 +1126,7 @@ def main():
 
                 term_max_iters = safe_int(card.get("walker_max_iters") if card else None, default=max_iters)
                 seed_seq = extract_seed_sequence(args.ref, chrom, terminus, c_len, seed_len=seed_len_bp, chrom_start=c_start)
-                walk_cluster_reads = card.get("evidence", {}).get("supporting_reads") if card else None
+                walk_cluster_reads = extract_cluster_reads_from_card(card)
                 walk_res = run_iterative_walker(
                     args.bam, seed_seq, motif, rev_motif,
                     max_iters=term_max_iters,
