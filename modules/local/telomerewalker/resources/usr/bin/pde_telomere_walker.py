@@ -351,24 +351,55 @@ def materialise_unplaced_extension(nomination, ref_fasta):
 
 
 
-def parse_blueprint(blueprint_path):
+class BlueprintParseResult(tuple):
+    """Result of parse_blueprint: behaves as a 3-tuple (term_cards, policy, dispositions)
+    for backwards compatibility with existing callers, while exposing
+    terminal_excisions_5p and terminal_excisions_3p as attributes.
+    """
+
+    def __new__(
+        cls,
+        term_cards,
+        policy,
+        dispositions,
+        terminal_excisions_5p=None,
+        terminal_excisions_3p=None,
+    ):
+        instance = super().__new__(cls, (term_cards, policy, dispositions))
+        instance.term_cards = term_cards
+        instance.policy = policy
+        instance.dispositions = dispositions
+        instance.terminal_excisions_5p = terminal_excisions_5p or {}
+        instance.terminal_excisions_3p = terminal_excisions_3p or {}
+        return instance
+
+
+def parse_blueprint(blueprint_path, chrom_lens=None):
     """Parse curation action cards for Domain 2 (Terminus) and Domain 3 (Terminal rDNA),
 
-    the policy, and Module 2's per-sequence scaffold dispositions from curation_manifest.json.
+    the policy, Module 2's per-sequence scaffold dispositions, and dynamic terminal excisions
+    from curation_manifest.json.
     """
     term_cards = {}
     policy = {}
     dispositions = []
+    terminal_excisions_5p = {}
+    terminal_excisions_3p = {}
     if not blueprint_path or not os.path.exists(blueprint_path):
-        return term_cards, policy, dispositions
+        return BlueprintParseResult(term_cards, policy, dispositions, terminal_excisions_5p, terminal_excisions_3p)
+
+    if chrom_lens is None:
+        chrom_lens = {}
 
     try:
         with open(blueprint_path) as f:
             data = json.load(f)
 
         cards = []
+        all_cards = []
         if isinstance(data, list):
             cards = data
+            all_cards = data
         elif isinstance(data, dict):
             policy = data.get("policy", {})
             dispositions = data.get("scaffold_dispositions", []) or []
@@ -376,8 +407,13 @@ def parse_blueprint(blueprint_path):
             if isinstance(doms, dict):
                 cards.extend(doms.get("DOMAIN_TERMINUS", []))
                 cards.extend(doms.get("DOMAIN_RDNA", []))
+                for d_cards in doms.values():
+                    if isinstance(d_cards, list):
+                        all_cards.extend(d_cards)
             if not cards:
                 cards = data.get("action_cards", data.get("telomere_cards", data.get("curation_cards", [])))
+            if not all_cards:
+                all_cards = cards
 
         for c in cards:
             dom = c.get("domain", "")
@@ -395,10 +431,27 @@ def parse_blueprint(blueprint_path):
                 if existing and (existing.get("domain") == "DOMAIN_TERMINUS" or existing.get("card_id", "").startswith("CARD-TELO")):
                     continue
                 term_cards[(chrom, terminus)] = c
+
+        # Dynamic terminal excision tracking across all domains
+        for ic in all_cards:
+            act = ic.get("action", "")
+            c_target = ic.get("chrom", "")
+            s = safe_int(ic.get("start", ic.get("start_pos", 0)))
+            e_pos = safe_int(ic.get("end", ic.get("end_pos", 0)))
+            c_l = chrom_lens.get(c_target, 0)
+            if act in ("EXCISE_DUMMY_GAP", "EXCISE_GAP", "PRUNE_CHIMERIC_TERMINUS"):
+                if s == 0 and e_pos > 0:
+                    terminal_excisions_5p[c_target] = max(terminal_excisions_5p.get(c_target, 0), e_pos)
+                if c_l > 0 and e_pos >= c_l and s < c_l:
+                    terminal_excisions_3p[c_target] = min(terminal_excisions_3p.get(c_target, c_l), s)
+            if "effective_chrom_start" in ic:
+                terminal_excisions_5p[c_target] = max(terminal_excisions_5p.get(c_target, 0), safe_int(ic["effective_chrom_start"]))
+            if "effective_chrom_len" in ic and safe_int(ic["effective_chrom_len"]) > 0:
+                terminal_excisions_3p[c_target] = min(terminal_excisions_3p.get(c_target, c_l or 10**12), safe_int(ic["effective_chrom_len"]))
     except Exception as e:
         sys.stderr.write(f"Warning: Failed to parse blueprint JSON {blueprint_path}: {e}\n")
 
-    return term_cards, policy, dispositions
+    return BlueprintParseResult(term_cards, policy, dispositions, terminal_excisions_5p, terminal_excisions_3p)
 
 
 def run_self_test():
@@ -557,10 +610,18 @@ def main():
     manifest_path = args.manifest or f"{sample_id}_walker_manifest.tsv"
     os.makedirs(outdir, exist_ok=True)
 
+    chrom_lens = parse_chrom_lens_from_bam(args.bam)
+    target_chroms = [c.strip() for c in args.chromosomes.split(",")] if args.chromosomes else list(chrom_lens.keys())
+    target_chroms = [c for c in target_chroms if c in chrom_lens]
+
     if args.blueprint:
-        term_cards, policy, scaffold_dispositions = parse_blueprint(args.blueprint)
+        bp_res = parse_blueprint(args.blueprint, chrom_lens=chrom_lens)
+        term_cards, policy, scaffold_dispositions = bp_res
+        terminal_excisions_5p = bp_res.terminal_excisions_5p
+        terminal_excisions_3p = bp_res.terminal_excisions_3p
     else:
         term_cards, policy, scaffold_dispositions = {}, {}, []
+        terminal_excisions_5p, terminal_excisions_3p = {}, {}
     has_blueprint = bool(term_cards or args.blueprint)
 
     telo_policy = policy.get("telomere", {})
@@ -576,10 +637,6 @@ def main():
     max_iters = safe_int(telo_policy.get("walker_max_iters"))
     germline_buffer_bp = safe_int(arch_policy.get("germline_buffer_bp", 100), default=100)
     mapq_anchored = safe_int(map_policy.get("mapq_anchored", 30), default=30)
-
-    chrom_lens = parse_chrom_lens_from_bam(args.bam)
-    target_chroms = [c.strip() for c in args.chromosomes.split(",")] if args.chromosomes else list(chrom_lens.keys())
-    target_chroms = [c for c in target_chroms if c in chrom_lens]
 
     print(f"[{sample_id}] Evaluating {len(target_chroms)} chromosomes (2N = {2 * len(target_chroms)} termini)...", flush=True)
 
@@ -611,8 +668,9 @@ def main():
 
     for chrom in target_chroms:
         for terminus in ["5p", "3p"]:
-            c_len = chrom_lens[chrom]
-            c_start = 0
+            orig_len = chrom_lens[chrom]
+            c_start = terminal_excisions_5p.get(chrom, 0)
+            c_len = terminal_excisions_3p.get(chrom, orig_len)
             term_id = f"{chrom}_{terminus}"
             print(f"[{sample_id}] Evaluating terminus: {term_id}...", flush=True)
 
@@ -624,11 +682,11 @@ def main():
                 mechanism = card.get("mechanism", "") if card else ""
                 tip_is_germline = bool(card.get("terminus_is_germline", False)) if card else False
 
-                if card and action == "PRUNE_CHIMERIC_TERMINUS":
-                    if terminus == "3p":
-                        c_len = safe_int(card.get("effective_chrom_len", c_len))
-                    elif terminus == "5p":
-                        c_start = safe_int(card.get("effective_chrom_start", 0))
+                if card:
+                    if terminus == "5p" and "effective_chrom_start" in card:
+                        c_start = max(c_start, safe_int(card["effective_chrom_start"]))
+                    elif terminus == "3p" and "effective_chrom_len" in card:
+                        c_len = min(c_len, safe_int(card["effective_chrom_len"]))
 
                 # 1. Baseline Capped: SKIP_WALKER or ALREADY_CAPPED
                 if card is None or action == "SKIP_WALKER" or classification == "ALREADY_CAPPED":
@@ -712,7 +770,12 @@ def main():
                         min_germline_extension_bp=min_buf,
                         unmapped=shared_unmapped(),
                         threads=args.threads,
-                        tip_is_germline=tip_is_germline
+                        tip_is_germline=tip_is_germline,
+                        chrom=chrom,
+                        terminus=terminus,
+                        c_len=c_len,
+                        c_start=c_start,
+                        cluster_reads=card.get("evidence", {}).get("supporting_reads") if card else None,
                     )
                     ext_fa, added_len, telo_len, non_telo = "NONE", 0, 0, 0
                     if walk_res["added_bp"] > 0:
@@ -866,6 +929,57 @@ def main():
                             ])
                             continue
 
+                        # (d) Fallback to satellite repeat scaffolding if designated cluster or scaffolds exist
+                        card_evidence = (card.get("evidence", {}) or {}) if card else {}
+                        distal_cl_id = card_evidence.get("distal_cluster_id")
+                        assoc_scaffs = card_evidence.get("associated_scaffolds") or (
+                            [card_evidence.get("associated_scaffold")] if card_evidence.get("associated_scaffold") else None
+                        )
+                        if distal_cl_id or assoc_scaffs:
+                            print(f"[{sample_id}] {term_id}: no single-read overhang; falling back to satellite scaffolding for cluster {distal_cl_id or assoc_scaffs}.", flush=True)
+                            combined_scaff_seq = ""
+                            if assoc_scaffs and args.ref and os.path.exists(args.ref):
+                                seq_parts = []
+                                for s_name in assoc_scaffs:
+                                    try:
+                                        s_seq = extract_sequence_by_name(args.ref, s_name)
+                                        strand = card_evidence.get("scaffold_orientations", {}).get(s_name, "+")
+                                        if strand == "-":
+                                            s_seq = revcomp(s_seq)
+                                        seq_parts.append(s_seq)
+                                    except Exception as ex:
+                                        sys.stderr.write(f"Warning: could not extract scaffold {s_name} from {args.ref}: {ex}\n")
+                                if seq_parts:
+                                    min_scaff_overlap = safe_int(telo_policy.get("subtelomeric_min_overlap_bp", 500), default=500)
+                                    combined_scaff_seq = seq_parts[0]
+                                    for next_part in seq_parts[1:]:
+                                        ov = find_sequence_overlap(combined_scaff_seq, next_part, min_overlap=min_scaff_overlap)
+                                        if ov > 0:
+                                            combined_scaff_seq += next_part[ov:]
+                                        else:
+                                            combined_scaff_seq += next_part
+
+                            tip_seq = extract_seed_sequence(args.ref, chrom, terminus, c_len, seed_len=terminal_window_bp, chrom_start=c_start) if (args.ref and os.path.exists(args.ref)) else ""
+                            scaffold_res = materialise_satellite_scaffold(
+                                card, chrom, terminus, motif, rev_motif,
+                                gap_size=safe_int(card.get("gap_size", 0)),
+                                scaffold_seq=combined_scaff_seq,
+                                tip_seq=tip_seq,
+                                bam_path=args.bam,
+                                policy=telo_policy,
+                            )
+                            ext_fa, added_len, telo_len, non_telo = write_extension_fasta(
+                                outdir, term_id, "satellite_scaffold_ext",
+                                f"status={scaffold_res['status']} reads={scaffold_res['read_count']}",
+                                scaffold_res["net_seq"], motif, rev_motif)
+                            telomere_lengths.append((chrom, terminus, scaffold_res["status"], "SATELLITE_LINKED",
+                                                     scaffold_res["telo_len"], scaffold_res["added_len"]))
+                            manifest_rows.append([
+                                chrom, terminus, scaffold_res["status"], f"SATELLITE_ARRAY_LINKED_{scaffold_res['read_count']}_READS",
+                                added_len, telo_len, non_telo, ext_fa, scaffold_res["notes"]
+                            ])
+                            continue
+
                         print(f"[{sample_id}] {term_id}: handing end to iterative walker ({'; '.join(tried) or 'no candidates'})", flush=True)
 
                 # 5. Phase 1 Deterministic Unitig Capping
@@ -993,9 +1107,20 @@ def main():
 
                 term_max_iters = safe_int(card.get("walker_max_iters") if card else None, default=max_iters)
                 seed_seq = extract_seed_sequence(args.ref, chrom, terminus, c_len, seed_len=seed_len_bp, chrom_start=c_start)
-                walk_res = run_iterative_walker(args.bam, seed_seq, motif, rev_motif, max_iters=term_max_iters,
-                                                min_telo_bp=min_extension_bp, unmapped=shared_unmapped(),
-                                                threads=args.threads, tip_is_germline=tip_is_germline)
+                walk_cluster_reads = card.get("evidence", {}).get("supporting_reads") if card else None
+                walk_res = run_iterative_walker(
+                    args.bam, seed_seq, motif, rev_motif,
+                    max_iters=term_max_iters,
+                    min_telo_bp=min_extension_bp,
+                    unmapped=shared_unmapped(),
+                    threads=args.threads,
+                    tip_is_germline=tip_is_germline,
+                    chrom=chrom,
+                    terminus=terminus,
+                    c_len=c_len,
+                    c_start=c_start,
+                    cluster_reads=walk_cluster_reads,
+                )
                 ext_fa, added_len, telo_len, non_telo = "NONE", 0, 0, 0
                 walk_status = walk_res["status"]
                 if walk_res["added_bp"] > 0:

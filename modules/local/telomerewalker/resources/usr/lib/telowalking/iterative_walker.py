@@ -203,44 +203,37 @@ def evaluate_step_information_gain(
 
 def run_iterative_walker(bam_path, seed_seq, motif, rev_motif, max_iters, kmer_size=21,
                          min_telo_bp=200, is_somatic_boundary=False, min_germline_extension_bp=100,
-                         unmapped=None, threads=1, tip_is_germline=False):
+                         unmapped=None, threads=1, tip_is_germline=False,
+                         chrom=None, terminus=None, c_len=None, c_start=0, cluster_reads=None):
     """Iterative consensus extension outward into unmapped/clipped reads using minimap2 prefix-suffix overlaps
     gated by 1-step information-gain and valency conservation.
+    Supports multi-hop subtelomeric expansion and cluster-seeded micro-gap assembly.
     """
     if unmapped is None:
         with tempfile.TemporaryDirectory() as tmpdir:
             return _walk_loop(UnmappedReadIndex(bam_path, tmpdir), seed_seq, motif, rev_motif,
                               max_iters, min_telo_bp, is_somatic_boundary, min_germline_extension_bp,
-                              threads, tip_is_germline, kmer_size=kmer_size)
-
-    if len(unmapped) == 0:
-        notes = "Zero unmapped reads in library"
-        if tip_is_germline:
-            notes += " (distal GRS arm)"
-        elif is_somatic_boundary:
-            notes += " to extend past somatic diminution breaksite"
-        return {
-            "status": "ZERO_EXTENDING_READS",
-            "added_bp": 0,
-            "telo_bp": 0,
-            "extension_seq": "",
-            "notes": notes,
-            "failure_reason": "Zero unmapped reads available in BAM library"
-        }
+                              threads, tip_is_germline, kmer_size=kmer_size,
+                              bam_path=bam_path, chrom=chrom, terminus=terminus,
+                              c_len=c_len, c_start=c_start, cluster_reads=cluster_reads)
 
     return _walk_loop(unmapped, seed_seq, motif, rev_motif, max_iters, min_telo_bp,
                       is_somatic_boundary, min_germline_extension_bp, threads, tip_is_germline,
-                      kmer_size=kmer_size)
+                      kmer_size=kmer_size,
+                      bam_path=bam_path, chrom=chrom, terminus=terminus,
+                      c_len=c_len, c_start=c_start, cluster_reads=cluster_reads)
 
 
 def _walk_loop(unmapped, seed_seq, motif, rev_motif, max_iters, min_telo_bp,
                is_somatic_boundary, min_germline_extension_bp, threads=1, tip_is_germline=False,
-               kmer_size=21):
+               kmer_size=21, bam_path=None, chrom=None, terminus=None,
+               c_len=None, c_start=0, cluster_reads=None):
     consensus = seed_seq
     total_added = 0
     k = len(motif)
     used_read_ids = set()
     rollback_reason = None
+    local_reads = {}
 
     if not shutil.which("minimap2"):
         raise RuntimeError("minimap2 is required for iterative telomere walking but not found in PATH")
@@ -248,7 +241,78 @@ def _walk_loop(unmapped, seed_seq, motif, rev_motif, max_iters, min_telo_bp,
     effective_max_iters = max(1, max_iters)
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        candidates_fa = unmapped.fa_path
+        candidates_fa = os.path.join(tmpdir, "candidates.fa")
+        if unmapped and hasattr(unmapped, "fa_path") and os.path.exists(unmapped.fa_path):
+            shutil.copyfile(unmapped.fa_path, candidates_fa)
+        else:
+            open(candidates_fa, "w").close()
+
+        # Regional reads extraction for multi-hop subtelomeric walking
+        if bam_path and chrom and terminus and c_len is not None and os.path.exists(bam_path):
+            if terminus == "5p":
+                reg = f"{chrom}:{max(1, c_start + 1)}-{c_start + 50000}"
+            else:
+                reg = f"{chrom}:{max(1, c_len - 50000)}-{c_len}"
+            try:
+                cmd_v = ["samtools", "view", "-b", bam_path, reg]
+                cmd_f = ["samtools", "fasta", "-"]
+                p1 = subprocess.Popen(cmd_v, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+                p2 = subprocess.Popen(cmd_f, stdin=p1.stdout, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+                p1.stdout.close()
+                out_fa, _ = p2.communicate()
+                if out_fa:
+                    with open(candidates_fa, "a") as c_fh:
+                        c_fh.write(out_fa)
+                    cur_id = None
+                    seq_lines = []
+                    for line in out_fa.splitlines():
+                        if line.startswith(">"):
+                            if cur_id and seq_lines:
+                                local_reads[cur_id] = "".join(seq_lines).upper()
+                            cur_id = line[1:].split()[0]
+                            seq_lines = []
+                        else:
+                            seq_lines.append(line.strip())
+                    if cur_id and seq_lines:
+                        local_reads[cur_id] = "".join(seq_lines).upper()
+            except Exception:
+                pass
+
+        # Cluster reads extraction
+        if bam_path and cluster_reads and os.path.exists(bam_path):
+            cluster_set = set(cluster_reads)
+            try:
+                cmd_view = ["samtools", "view", bam_path]
+                proc = subprocess.Popen(cmd_view, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+                with open(candidates_fa, "a") as c_fh:
+                    for line in proc.stdout:
+                        parts = line.split("\t")
+                        if len(parts) >= 11 and parts[0] in cluster_set and parts[0] not in local_reads and parts[9] != "*":
+                            qname = parts[0]
+                            seq = parts[9].upper()
+                            local_reads[qname] = seq
+                            c_fh.write(f">{qname}\n{seq}\n")
+                            if len(local_reads) >= len(cluster_set):
+                                proc.kill()
+                                break
+                proc.stdout.close()
+            except Exception:
+                pass
+
+        if (unmapped is None or len(unmapped) == 0) and len(local_reads) == 0:
+            notes = "Zero unmapped reads in library"
+            if tip_is_germline:
+                notes += " (distal GRS arm)"
+            elif is_somatic_boundary:
+                notes += " to extend past somatic diminution breaksite"
+            return {
+                "status": "ZERO_EXTENDING_READS",
+                "added_bp": 0,
+                "telo_bp": 0,
+                "extension_seq": "",
+                "notes": notes,
+                "failure_reason": "Zero unmapped or extending reads available in BAM library"
+            }
 
         for iteration in range(1, effective_max_iters + 1):
             tail = consensus[-1000:]
@@ -308,11 +372,11 @@ def _walk_loop(unmapped, seed_seq, motif, rev_motif, max_iters, min_telo_bp,
                     ext_seq = ""
                     if strand == "+":
                         if (qlen - qend) >= 50:
-                            read_seq = unmapped.get_seq(qname)
+                            read_seq = local_reads.get(qname) or (unmapped.get_seq(qname) if unmapped else None)
                             ext_seq = read_seq[qend:] if read_seq else ""
                     else:
                         if qstart >= 50:
-                            read_seq = unmapped.get_seq(qname)
+                            read_seq = local_reads.get(qname) or (unmapped.get_seq(qname) if unmapped else None)
                             ext_seq = revcomp(read_seq[:qstart]) if read_seq else ""
 
                     if not ext_seq or len(ext_seq) < 50:
@@ -394,6 +458,41 @@ def _walk_loop(unmapped, seed_seq, motif, rev_motif, max_iters, min_telo_bp,
         )
         consensus = seed_seq
         total_added = 0
+
+    # Opportunity 2: Cluster-seeded abPOA micro-gap assembly fallback
+    abpoa_bin = shutil.which("abpoa")
+    if abpoa_bin and local_reads:
+        telo_local = [seq for seq in local_reads.values() if max(seq.count(motif), seq.count(rev_motif)) * k >= min_telo_bp]
+        if telo_local:
+            with tempfile.NamedTemporaryFile("w", suffix=".fa", delete=False) as poa_in:
+                poa_in_path = poa_in.name
+                poa_in.write(f">seed\n{seed_seq[-1000:]}\n")
+                for r_idx, r_seq in enumerate(telo_local[:20]):
+                    poa_in.write(f">read_{r_idx}\n{r_seq}\n")
+            try:
+                res_poa = subprocess.run([abpoa_bin, poa_in_path, "-r", "0"], capture_output=True, text=True)
+                poa_lines = [l.strip() for l in res_poa.stdout.splitlines() if l.strip() and not l.startswith(">")]
+                poa_cons = "".join(poa_lines).upper()
+                anchor_probe = seed_seq[-200:]
+                if anchor_probe in poa_cons:
+                    idx = poa_cons.find(anchor_probe)
+                    ext_part = poa_cons[idx + len(anchor_probe):]
+                    fwd_h = ext_part[-1000:].count(motif)
+                    rev_h = ext_part[-1000:].count(rev_motif)
+                    ext_telo = max(fwd_h, rev_h) * k
+                    if ext_telo >= min_telo_bp and len(ext_part) >= 50:
+                        return {
+                            "status": "EXTEND_TO_TELOMERE",
+                            "added_bp": len(ext_part),
+                            "telo_bp": ext_telo,
+                            "extension_seq": ext_part,
+                            "notes": f"Closed subtelomeric micro-gap via cluster-seeded abPOA assembly ({len(ext_part)} bp added, {ext_telo} bp telomere)"
+                        }
+            except Exception:
+                pass
+            finally:
+                if os.path.exists(poa_in_path):
+                    os.remove(poa_in_path)
 
     # Determine structured algorithmic failure status
     if rollback_reason:

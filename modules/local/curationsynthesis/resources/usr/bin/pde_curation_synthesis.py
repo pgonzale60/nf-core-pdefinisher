@@ -198,6 +198,7 @@ def main():
         telo_junctions=telo_junctions,
         terminal_matches=terminal_matches,
         raw_softclips=raw_softclips,
+        internal_cards=internal_cards,
     )
 
     # 4. Synthesise Domain 3 Major rDNA Locus Audit & Replacement Cards

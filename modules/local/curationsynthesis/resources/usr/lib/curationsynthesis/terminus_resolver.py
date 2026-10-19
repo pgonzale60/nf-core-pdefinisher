@@ -18,6 +18,18 @@ from .policy import DEFAULT_POLICY
 from .port_valency import build_unitig_assignment, terminus_state
 
 
+def safe_int(val, default=0):
+    """Safely convert value to integer."""
+    if val is None:
+        return default
+    if isinstance(val, (int, float)):
+        return int(val)
+    try:
+        return int(str(val).replace(",", "").strip())
+    except (ValueError, TypeError):
+        return default
+
+
 def detect_chimeric_terminus(chrom, terminus, chrom_len, clips, d_soma, delfies_pts, policy):
     """Detect whether an uncapped chromosome end holds an internal authentic telomeric junction
     flanked by a distal chimeric misassembly.
@@ -145,6 +157,7 @@ def synthesize_telomere_cards(
     telo_junctions=None,
     terminal_matches=None,
     raw_softclips=None,
+    internal_cards=None,
 ):
     """Synthesise Domain 2 (Terminus) and Domain 3 (Terminal rDNA) Curation Action Cards."""
     if policy is None:
@@ -159,6 +172,21 @@ def synthesize_telomere_cards(
     subtelo_scaff_win = policy.get("telomere", {}).get("subtelomeric_scaffold_window_bp", 25000)
     walker_max_iters = policy.get("telomere", {}).get("walker_max_iters", 100)
 
+    effective_5p = {}  # chrom -> max excised end coordinate
+    effective_3p = {}  # chrom -> min excised start coordinate
+    if internal_cards:
+        for ic in internal_cards:
+            act = ic.get("action", "")
+            c_target = ic.get("chrom", "")
+            s = safe_int(ic.get("start", ic.get("start_pos", 0)))
+            e_pos = safe_int(ic.get("end", ic.get("end_pos", 0)))
+            c_l = chrom_lens.get(c_target, 0)
+            if act in ("EXCISE_DUMMY_GAP", "EXCISE_GAP", "PRUNE_CHIMERIC_TERMINUS"):
+                if s == 0 and e_pos > 0:
+                    effective_5p[c_target] = max(effective_5p.get(c_target, 0), e_pos)
+                if c_l > 0 and e_pos >= c_l and s < c_l:
+                    effective_3p[c_target] = min(effective_3p.get(c_target, c_l), s)
+
     unitig_assignment = build_unitig_assignment(
         nuclear_chroms, chrom_lens, grs_segments, core_segments, delfies_points, unitig_extensions, policy
     )
@@ -167,7 +195,10 @@ def synthesize_telomere_cards(
     card_idx = start_card_idx
 
     for c in nuclear_chroms:
-        c_len = chrom_lens.get(c, 0)
+        orig_c_len = chrom_lens.get(c, 0)
+        eff_start = effective_5p.get(c, 0)
+        eff_len = effective_3p.get(c, orig_c_len)
+        c_len = eff_len
         c_fully_covered_by_rdna = False
         for e in ["5p", "3p"]:
             if c_fully_covered_by_rdna:
@@ -194,7 +225,7 @@ def synthesize_telomere_cards(
 
             if is_rdna_term:
                 r_start, r_end = matching_rdna
-                dist_to_tip = r_start if e == "5p" else (c_len - r_end)
+                dist_to_tip = (r_start - eff_start) if e == "5p" else (eff_len - r_end)
                 cards.append(
                     {
                         "card_id": f"CARD-TELO-{card_idx:02d}",
@@ -203,8 +234,10 @@ def synthesize_telomere_cards(
                         "title": f"Terminus at {term_id}",
                         "chrom": c,
                         "terminus": e,
-                        "start": 0 if e == "5p" else r_start,
-                        "end": r_end if e == "5p" else c_len,
+                        "start": eff_start if e == "5p" else r_start,
+                        "end": r_end if e == "5p" else eff_len,
+                        "effective_chrom_start": eff_start,
+                        "effective_chrom_len": eff_len,
                         "action": "TERMINUS_RDNA_ARRAY",
                         "classification": "TERMINUS_RDNA_ARRAY",
                         "confidence": "HIGH",
@@ -274,55 +307,72 @@ def synthesize_telomere_cards(
                 if b_stat == "TELOMERE_IN_OVERHANG" or measured_tract == 0:
                     t_match = (terminal_matches or {}).get((c, e))
                     junc_match = t_match.get("cluster") if t_match else None
+                    if not junc_match and telo_junctions:
+                        for cl in telo_junctions.get("clusters", []):
+                            if (
+                                cl.get("classification") == "GERMLINE_JUNCTION"
+                                and cl.get("target_chrom") == c
+                                and cl.get("target_arm") == e
+                            ):
+                                junc_match = cl
+                                break
 
-                    evidence_dict = {
-                        "baseline_status": b_stat,
-                        "terminal_tract_bp": f"{measured_tract} bp",
-                        "deep_spanning_overhang_bp": f"+{deeper_ext:,} bp",
-                        "candidate_read": read_qname if is_valid_germline_read else "None",
-                        "candidate_unitig": best_u_name,
-                        **({"unitig_extension_region": best_u_region} if best_u_region else {}),
-                    }
-                    if junc_match:
-                        r_cnt = junc_match.get("read_count", 0)
-                        t_bp = int(junc_match.get("mean_telomere_tract_bp", 800))
-                        motif_var = junc_match.get("dominant_motif", "GCCTAA" if e == "5p" else "TTAGGC")
-                        evidence_dict["distal_cluster_id"] = junc_match.get("cluster_id")
-                        evidence_dict["distal_telomere_tract_bp"] = t_bp
-                        evidence_dict["distal_cluster_reads"] = r_cnt
-                        evidence_dict["distal_motif"] = motif_var
-                        evidence_dict["unresolved_repeat_gap"] = False
-
-                    cards.append(
-                        {
-                            "card_id": f"CARD-TELO-{card_idx:02d}",
-                            "domain": "DOMAIN_TERMINUS",
-                            "category": "Chromosome Terminus: Extend From Read Overhang",
-                            "title": f"Terminus at {term_id}",
-                            "chrom": c,
-                            "terminus": e,
-                            "start": 0 if e == "5p" else c_len,
-                            "end": 0 if e == "5p" else c_len,
-                            "action": "EXTEND_FROM_OVERHANG",
-                            "classification": "TELOMERE_IN_OVERHANG",
-                            "confidence": "HIGH" if deeper_ext >= min_ext_bp else "MEDIUM",
-                            "authorized_read_qname": read_qname
-                            if (valid_read_ext_bp >= best_u_bp and is_valid_germline_read)
-                            else None,
-                            "authorized_unitig_id": best_u_name
-                            if (best_u_bp > valid_read_ext_bp and best_u_name != "None")
-                            else None,
-                            "evidence": evidence_dict,
-                            "instructions": [
-                                "Assembled tip ends in unique subtelomeric sequence: the draft holds no canonical tract and is not capped.",
-                                "Reads overlapping this tip carry canonical repeats in their soft-clipped overhang tails.",
-                                "Extend the tip by the overhang reaching furthest into the repeat array, then confirm the appended sequence ends in a tract.",
-                                "If no candidate reaches past the tip, hand the end to the iterative walker rather than reporting it resolved.",
-                            ],
+                    # Opportunity 3: If neither unitig nor single read provides a verified extending anchor (deeper_ext < min_ext_bp),
+                    # but a distal telomeric junction cluster or scaffold match exists, fall through to Level 5b
+                    # (SATELLITE_LINKED_TELOMERE) rather than stranding this end in a dead-end overhang card.
+                    if deeper_ext < min_ext_bp and (junc_match or (t_match and t_match.get("scaffolds"))):
+                        pass
+                    else:
+                        evidence_dict = {
+                            "baseline_status": b_stat,
+                            "terminal_tract_bp": f"{measured_tract} bp",
+                            "deep_spanning_overhang_bp": f"+{deeper_ext:,} bp",
+                            "candidate_read": read_qname if is_valid_germline_read else "None",
+                            "candidate_unitig": best_u_name,
+                            **({"unitig_extension_region": best_u_region} if best_u_region else {}),
                         }
-                    )
-                    card_idx += 1
-                    continue
+                        if junc_match:
+                            r_cnt = junc_match.get("read_count", 0)
+                            t_bp = int(junc_match.get("mean_telomere_tract_bp", 800))
+                            motif_var = junc_match.get("dominant_motif", "GCCTAA" if e == "5p" else "TTAGGC")
+                            evidence_dict["distal_cluster_id"] = junc_match.get("cluster_id")
+                            evidence_dict["distal_telomere_tract_bp"] = t_bp
+                            evidence_dict["distal_cluster_reads"] = r_cnt
+                            evidence_dict["distal_motif"] = motif_var
+                            evidence_dict["unresolved_repeat_gap"] = False
+
+                        cards.append(
+                            {
+                                "card_id": f"CARD-TELO-{card_idx:02d}",
+                                "domain": "DOMAIN_TERMINUS",
+                                "category": "Chromosome Terminus: Extend From Read Overhang",
+                                "title": f"Terminus at {term_id}",
+                                "chrom": c,
+                                "terminus": e,
+                                "start": eff_start if e == "5p" else eff_len,
+                                "end": eff_start if e == "5p" else eff_len,
+                                "action": "EXTEND_FROM_OVERHANG",
+                                "classification": "TELOMERE_IN_OVERHANG",
+                                "confidence": "HIGH" if deeper_ext >= min_ext_bp else "MEDIUM",
+                                "authorized_read_qname": read_qname
+                                if (valid_read_ext_bp >= best_u_bp and is_valid_germline_read)
+                                else None,
+                                "authorized_unitig_id": best_u_name
+                                if (best_u_bp > valid_read_ext_bp and best_u_name != "None")
+                                else None,
+                                "effective_chrom_start": eff_start,
+                                "effective_chrom_len": eff_len,
+                                "evidence": evidence_dict,
+                                "instructions": [
+                                    "Assembled tip ends in unique subtelomeric sequence: the draft holds no canonical tract and is not capped.",
+                                    "Reads overlapping this tip carry canonical repeats in their soft-clipped overhang tails.",
+                                    "Extend the tip by the overhang reaching furthest into the repeat array, then confirm the appended sequence ends in a tract.",
+                                    "If no candidate reaches past the tip, hand the end to the iterative walker rather than reporting it resolved.",
+                                ],
+                            }
+                        )
+                        card_idx += 1
+                        continue
 
                 if deeper_ext >= min_ext_bp:
                     cards.append(
@@ -333,8 +383,8 @@ def synthesize_telomere_cards(
                             "title": f"Terminus at {term_id}",
                             "chrom": c,
                             "terminus": e,
-                            "start": 0 if e == "5p" else c_len,
-                            "end": 0 if e == "5p" else c_len,
+                            "start": eff_start if e == "5p" else eff_len,
+                            "end": eff_start if e == "5p" else eff_len,
                             "action": "EXTEND_TELOMERE_TRACT",
                             "classification": "DRAFT_HAS_TELOMERE",
                             "confidence": "HIGH",
@@ -344,6 +394,8 @@ def synthesize_telomere_cards(
                             "authorized_unitig_id": best_u_name
                             if (best_u_bp > valid_read_ext_bp and best_u_name != "None")
                             else None,
+                            "effective_chrom_start": eff_start,
+                            "effective_chrom_len": eff_len,
                             "evidence": {
                                 "baseline_status": "ALREADY_CAPPED",
                                 "deep_spanning_overhang_bp": f"+{deeper_ext:,} bp",
@@ -366,11 +418,13 @@ def synthesize_telomere_cards(
                             "title": f"Terminus at {term_id}",
                             "chrom": c,
                             "terminus": e,
-                            "start": 0 if e == "5p" else c_len,
-                            "end": 0 if e == "5p" else c_len,
+                            "start": eff_start if e == "5p" else eff_len,
+                            "end": eff_start if e == "5p" else eff_len,
                             "action": "SKIP_WALKER",
                             "classification": "ALREADY_CAPPED",
                             "confidence": "HIGH",
+                            "effective_chrom_start": eff_start,
+                            "effective_chrom_len": eff_len,
                             "evidence": {
                                 "baseline_status": "ALREADY_CAPPED",
                                 "deep_spanning_overhang_bp": f"+{deeper_ext:,} bp",
@@ -427,12 +481,16 @@ def synthesize_telomere_cards(
                         "title": f"Terminus at {term_id}",
                         "chrom": c,
                         "terminus": e,
+                        "start": eff_start if e == "5p" else eff_len,
+                        "end": eff_start if e == "5p" else eff_len,
                         "terminus_is_germline": tip_is_germline,
                         "action": "EXTEND_TO_TELOMERE",
                         "classification": "RESOLVABLE_BY_UNITIG",
                         "mechanism": "CAP_WITH_UNITIG",
                         "authorized_unitig_id": best_u_name,
                         "confidence": "HIGH",
+                        "effective_chrom_start": eff_start,
+                        "effective_chrom_len": eff_len,
                         "evidence": evidence_dict,
                         "instructions": instructions,
                     }
@@ -461,9 +519,9 @@ def synthesize_telomere_cards(
             dist_to_tip = None
             if chr_alns:
                 if e == "5p":
-                    dist_to_tip = min(a.get("target_start", 0) for a in chr_alns)
+                    dist_to_tip = max(0, min(a.get("target_start", 0) for a in chr_alns) - eff_start)
                 else:
-                    dist_to_tip = max(0, c_len - max(a.get("target_end", 0) for a in chr_alns))
+                    dist_to_tip = max(0, eff_len - max(a.get("target_end", 0) for a in chr_alns))
 
             has_anchored_cluster = (
                 junc_match is not None
@@ -529,12 +587,16 @@ def synthesize_telomere_cards(
                         "title": f"Terminus at {term_id}",
                         "chrom": c,
                         "terminus": e,
+                        "start": eff_start if e == "5p" else eff_len,
+                        "end": eff_start if e == "5p" else eff_len,
                         "terminus_is_germline": tip_is_germline,
                         "action": "SCAFFOLD_REPEAT_TO_TELOMERE",
                         "classification": "SATELLITE_LINKED_TELOMERE",
                         "mechanism": "SCAFFOLD_REPEAT_TO_TELOMERE",
                         "gap_size": subtelo_gap,
                         "confidence": "HIGH",
+                        "effective_chrom_start": eff_start,
+                        "effective_chrom_len": eff_len,
                         "evidence": evidence_dict,
                         "instructions": instructions,
                     }
@@ -563,12 +625,16 @@ def synthesize_telomere_cards(
                         "title": f"Terminus at {term_id}",
                         "chrom": c,
                         "terminus": e,
+                        "start": eff_start if e == "5p" else eff_len,
+                        "end": eff_start if e == "5p" else eff_len,
                         "terminus_is_germline": tip_is_germline,
                         "action": "EXTEND_TO_TELOMERE",
                         "classification": "RESOLVABLE_BY_READ",
                         "mechanism": "CAP_WITH_READ",
                         "authorized_read_qname": read_qname,
                         "confidence": "HIGH",
+                        "effective_chrom_start": eff_start,
+                        "effective_chrom_len": eff_len,
                         "evidence": evidence_dict,
                         "instructions": [
                             f"Cap terminus directly with terminal soft-clipped read {read_qname} extending +{read_ext_bp:,} bp ({read_telo_cnt} repeats)."
@@ -637,10 +703,14 @@ def synthesize_telomere_cards(
                         "title": f"Terminus at {term_id}",
                         "chrom": c,
                         "terminus": e,
+                        "start": eff_start if e == "5p" else eff_len,
+                        "end": eff_start if e == "5p" else eff_len,
                         "action": "EXTEND_TO_TELOMERE",
                         "classification": "SOMATIC_DIMINUTION_BOUNDARY",
                         "action_subcode": "WALK_PAST_BREAKSITE",
                         "confidence": "HIGH",
+                        "effective_chrom_start": eff_start,
+                        "effective_chrom_len": eff_len,
                         "is_somatic_boundary": True,
                         "somatic_boundary_coord": d_soma,
                         "forbidden_zone_bp": d_soma,
@@ -676,11 +746,15 @@ def synthesize_telomere_cards(
                     "title": f"Terminus at {term_id}",
                     "chrom": c,
                     "terminus": e,
+                    "start": eff_start if e == "5p" else eff_len,
+                    "end": eff_start if e == "5p" else eff_len,
                     "terminus_is_germline": tip_is_germline,
                     "action": "EXTEND_TO_TELOMERE",
                     "classification": "UNCAPPED_SUBTELOMERE",
                     "mechanism": "WALK_TO_TELOMERE",
                     "confidence": "MEDIUM",
+                    "effective_chrom_start": eff_start,
+                    "effective_chrom_len": eff_len,
                     "walker_max_iters": walker_max_iters,
                     "evidence": evidence_dict,
                     "instructions": [
