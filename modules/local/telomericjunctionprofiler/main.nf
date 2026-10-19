@@ -24,7 +24,7 @@ process TELOMERICJUNCTIONPROFILER {
     def delfies_arg = delfies_bed ? "--delfies-bed \"${delfies_bed}\"" : ""
 
     """
-    # Tool: pde_telomeric_junction_profiler.py | Script-SHA: e1485524244791fd
+    # Tool: pde_telomeric_junction_profiler.py | Script-SHA: 8e531d1f88821ef7
     pde_telomeric_junction_profiler.py \\
         --reads "${reads}" \\
         --ref "${ref_fasta}" \\

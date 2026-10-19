@@ -24,7 +24,7 @@ process CURATIONSUMMARY {
     def prefix = task.ext.prefix ?: (meta.id ?: 'cohort')
     def val_arg = validations ? "--validations ${validations}" : ""
     """
-    # Tool: pde_curation_summary.py | Script-SHA: 551cedaa6b731a90
+    # Tool: pde_curation_summary.py | Script-SHA: ddd68e0d6a539549
     pde_curation_summary.py --version
     pde_curation_summary.py \\
         --scorecards ${scorecards} \\

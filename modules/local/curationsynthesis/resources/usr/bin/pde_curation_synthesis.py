@@ -291,7 +291,7 @@ def main():
         )
         os.makedirs(os.path.dirname(os.path.abspath(args.output_json)), exist_ok=True)
         with open(args.output_json, "w") as out:
-            json.dump(manifest_data, out, indent=2)
+            json.dump(manifest_data, out, indent=2, sort_keys=True)
         print(f"[SUCCESS] Wrote machine-executable curation manifest to: {args.output_json}")
 
 

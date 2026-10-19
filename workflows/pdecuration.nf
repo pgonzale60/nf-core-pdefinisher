@@ -49,7 +49,7 @@ workflow PDECURATION {
     // MODULE: Cohort-level Curation Summary across all processed samples
     //
     ch_all_scorecards  = AUTOMATED_PDE_CURATION.out.scorecard_json.map { _meta, f -> f }.collect()
-    ch_all_validations = AUTOMATED_PDE_CURATION.out.validation_json.map { _meta, f -> f }.collect()
+    ch_all_validations = AUTOMATED_PDE_CURATION.out.validation_json.map { _meta, f -> f }.collect().ifEmpty([])
 
     ch_summary_input = ch_all_scorecards.toList()
         .combine(ch_all_validations.toList())
@@ -120,14 +120,16 @@ workflow PDECURATION {
     )
 
     emit:
-    curated_fasta   = AUTOMATED_PDE_CURATION.out.curated_fasta
-    curated_agp     = AUTOMATED_PDE_CURATION.out.curated_agp
-    blueprint_json  = AUTOMATED_PDE_CURATION.out.blueprint_json
-    scorecard_json  = AUTOMATED_PDE_CURATION.out.scorecard_json
-    validation_json = AUTOMATED_PDE_CURATION.out.validation_json
-    summary_md      = CURATIONSUMMARY.out.summary_md
-    multiqc_report  = MULTIQC.out.report.map { _meta, report -> [report] }.toList()
-    versions        = ch_versions
+    curated_fasta        = AUTOMATED_PDE_CURATION.out.curated_fasta
+    curated_agp          = AUTOMATED_PDE_CURATION.out.curated_agp
+    blueprint_json       = AUTOMATED_PDE_CURATION.out.blueprint_json
+    curated_pde_segments = AUTOMATED_PDE_CURATION.out.curated_pde_segments
+    curated_repeats      = AUTOMATED_PDE_CURATION.out.curated_repeats
+    scorecard_json       = AUTOMATED_PDE_CURATION.out.scorecard_json
+    validation_json      = AUTOMATED_PDE_CURATION.out.validation_json
+    summary_md           = CURATIONSUMMARY.out.summary_md
+    multiqc_report       = MULTIQC.out.report.map { _meta, report -> [report] }.toList()
+    versions             = ch_versions
 }
 
 /*

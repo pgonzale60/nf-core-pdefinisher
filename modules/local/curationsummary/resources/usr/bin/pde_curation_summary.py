@@ -652,7 +652,10 @@ def load_validation(filepath):
 def render_validation_summary_section(validations_map):
     """Renders cohort-level validation section for executive Markdown report."""
     if not validations_map:
-        return ""
+        lines = []
+        lines.append("\n## 7. Post-Curation Mapping & Structural Variant Validation\n\n")
+        lines.append("*Post-curation read re-mapping and Sniffles structural variant validation was skipped (`--skip_validation`).*\n")
+        return "".join(lines)
 
     lines = []
     lines.append("\n## 7. Post-Curation Mapping & Structural Variant Validation\n")
@@ -717,8 +720,7 @@ def main():
 
     # 1. Emit Markdown Report
     md_content = generate_markdown_report(args.prefix, agg, samples_data)
-    if validations_map:
-        md_content += render_validation_summary_section(validations_map)
+    md_content += render_validation_summary_section(validations_map)
 
     md_path = os.path.join(args.outdir, f"{args.prefix}.curation_summary.md")
     with open(md_path, "w", encoding="utf-8") as f:
@@ -746,7 +748,7 @@ def main():
     }
     json_path = os.path.join(args.outdir, f"{args.prefix}.curation_summary.json")
     with open(json_path, "w", encoding="utf-8") as f:
-        json.dump(json_payload, f, indent=2)
+        json.dump(json_payload, f, indent=2, sort_keys=True)
     print(f"[{args.prefix}] Wrote JSON payload: {json_path}", flush=True)
 
 

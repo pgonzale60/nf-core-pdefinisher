@@ -158,7 +158,9 @@ workflow AUTOMATED_PDE_CURATION {
         CURATION_RESOLUTION.out.walker_patches,
         CURATION_RESOLUTION.out.rdna_manifest,
         CURATION_RESOLUTION.out.rdna_cassettes,
-        CURATION_RESOLUTION.out.trans_manifest
+        CURATION_RESOLUTION.out.trans_manifest,
+        PDE_RECONNAISSANCE.out.pde_segments_bed,
+        PDE_RECONNAISSANCE.out.red_bed
     )
     ch_versions = ch_versions.mix(ASSEMBLY_SURGERY.out.versions)
 
@@ -183,28 +185,41 @@ workflow AUTOMATED_PDE_CURATION {
     // =========================================================================
     // MODULE 6: POST-CURATION MAPPING & SNIFFLES VALIDATION
     // =========================================================================
-    ch_val_reads = ch_bam.map { meta, bam, bai -> tuple(meta, bam) }
-    CURATION_VALIDATION (
-        ch_val_reads,
-        ASSEMBLY_SURGERY.out.curated_fasta,
-        ASSEMBLY_SURGERY.out.curated_agp,
-        ASSEMBLY_SURGERY.out.audit
-    )
-    ch_versions = ch_versions.mix(CURATION_VALIDATION.out.versions)
+    def ch_val_json = Channel.empty()
+    def ch_val_md   = Channel.empty()
+    def ch_val_bam  = Channel.empty()
+    def ch_val_bai  = Channel.empty()
+
+    if (!params.skip_validation) {
+        ch_val_reads = ch_bam.map { meta, bam, bai -> tuple(meta, bam) }
+        CURATION_VALIDATION (
+            ch_val_reads,
+            ASSEMBLY_SURGERY.out.curated_fasta,
+            ASSEMBLY_SURGERY.out.curated_agp,
+            ASSEMBLY_SURGERY.out.audit
+        )
+        ch_versions = ch_versions.mix(CURATION_VALIDATION.out.versions)
+        ch_val_json = CURATION_VALIDATION.out.validation_json
+        ch_val_md   = CURATION_VALIDATION.out.validation_md
+        ch_val_bam  = CURATION_VALIDATION.out.curated_bam
+        ch_val_bai  = CURATION_VALIDATION.out.curated_bai
+    }
 
     emit:
-    blueprint_json    = CURATIONSYNTHESIS.out.blueprint_json
-    blueprint_md      = CURATIONSYNTHESIS.out.blueprint_md
-    curated_agp       = ASSEMBLY_SURGERY.out.curated_agp
-    curated_fasta     = ASSEMBLY_SURGERY.out.curated_fasta
-    components_fasta  = ASSEMBLY_SURGERY.out.components_fasta
-    segregated_fastas = ASSEMBLY_SURGERY.out.segregated_fastas
-    curation_audit    = ASSEMBLY_SURGERY.out.audit
-    scorecard_json    = CURATION_EVALUATION.out.scorecard_json
-    report_md         = CURATION_EVALUATION.out.report_md
-    validation_json   = CURATION_VALIDATION.out.validation_json
-    validation_md     = CURATION_VALIDATION.out.validation_md
-    curated_bam       = CURATION_VALIDATION.out.curated_bam
-    curated_bai       = CURATION_VALIDATION.out.curated_bai
-    versions          = ch_versions
+    blueprint_json       = CURATIONSYNTHESIS.out.blueprint_json
+    blueprint_md         = CURATIONSYNTHESIS.out.blueprint_md
+    curated_agp          = ASSEMBLY_SURGERY.out.curated_agp
+    curated_fasta        = ASSEMBLY_SURGERY.out.curated_fasta
+    components_fasta     = ASSEMBLY_SURGERY.out.components_fasta
+    segregated_fastas    = ASSEMBLY_SURGERY.out.segregated_fastas
+    curation_audit       = ASSEMBLY_SURGERY.out.audit
+    curated_pde_segments = ASSEMBLY_SURGERY.out.curated_pde_segments
+    curated_repeats      = ASSEMBLY_SURGERY.out.curated_repeats
+    scorecard_json       = CURATION_EVALUATION.out.scorecard_json
+    report_md            = CURATION_EVALUATION.out.report_md
+    validation_json      = ch_val_json
+    validation_md        = ch_val_md
+    curated_bam          = ch_val_bam
+    curated_bai          = ch_val_bai
+    versions             = ch_versions
 }

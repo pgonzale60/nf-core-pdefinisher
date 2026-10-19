@@ -115,6 +115,84 @@ class TestCurationAGPGenerator(unittest.TestCase):
             self.assertNotEqual(lines[0][4], "N", "First AGP record must not be an N-gap")
             self.assertNotEqual(lines[-1][4], "N", "Last AGP record must not be an N-gap")
 
+    def test_e2e_curated_bed_generation(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ref_path = os.path.join(tmpdir, "ref.fa")
+            with open(ref_path, "w") as f:
+                # 2000 bp chromosome
+                f.write(">chr1\n" + ("A" * 500) + ("N" * 100) + ("C" * 1400) + "\n")
+
+            blueprint_path = os.path.join(tmpdir, "blueprint.json")
+            blueprint = {
+                "action_cards": [
+                    {
+                        "card_id": "CARD-EXCISE-01",
+                        "chrom": "chr1",
+                        "domain": "DOMAIN_INTERNAL",
+                        "action": "EXCISE_GAP",
+                        "start_pos": 500,
+                        "end_pos": 600,
+                        "classification": "EXCISE_SCAFFOLDING_GAP"
+                    }
+                ]
+            }
+            with open(blueprint_path, "w") as f:
+                json.dump(blueprint, f)
+
+            pde_bed = os.path.join(tmpdir, "pde_segments.bed")
+            with open(pde_bed, "w") as f:
+                f.write("chr1\t0\t500\tCORE\n")
+                f.write("chr1\t500\t600\tGRS\n")
+                f.write("chr1\t600\t2000\tCORE\n")
+
+            red_bed = os.path.join(tmpdir, "red_repeats.bed")
+            with open(red_bed, "w") as f:
+                f.write("chr1\t100\t200\trepeat_A\n")
+                f.write("chr1\t520\t580\trepeat_in_gap\n")
+                f.write("chr1\t700\t800\trepeat_B\n")
+
+            outdir = os.path.join(tmpdir, "out")
+            cmd = [
+                sys.executable,
+                str(BIN_DIR / "pde_generate_agp.py"),
+                "--blueprint", blueprint_path,
+                "--ref", ref_path,
+                "--sample", "TEST_SAMPLE",
+                "--outdir", outdir,
+                "--pde-segments", pde_bed,
+                "--red-bed", red_bed
+            ]
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            self.assertEqual(res.returncode, 0, f"STDOUT: {res.stdout}\nSTDERR: {res.stderr}")
+
+            curated_pde = os.path.join(outdir, "TEST_SAMPLE.curated.pde_segments.bed")
+            curated_rep = os.path.join(outdir, "TEST_SAMPLE.curated.repeats.bed")
+
+            # Check that both curated BED files exist
+            self.assertTrue(os.path.exists(curated_pde), "Curated PDE segments BED must exist")
+            self.assertTrue(os.path.exists(curated_rep), "Curated repeats BED must exist")
+
+            # Verify NO TSV or input coordinate files were generated for segments/repeats
+            out_files = os.listdir(outdir)
+            self.assertNotIn("TEST_SAMPLE.curated.pde_segments.tsv", out_files)
+            self.assertNotIn("TEST_SAMPLE.curated.repeats.tsv", out_files)
+            self.assertNotIn("TEST_SAMPLE.input.pde_segments.bed", out_files)
+            self.assertNotIn("TEST_SAMPLE.input.repeats.bed", out_files)
+
+            # Validate PDE segment liftover coordinates (adjacent CORE regions merge after GRS excision)
+            with open(curated_pde) as f:
+                pde_lines = [l.strip().split("\t") for l in f if l.strip()]
+            self.assertEqual(len(pde_lines), 1)
+            self.assertEqual(pde_lines[0], ["chr1", "0", "1900", "CORE"])
+
+            # Validate repeat liftover coordinates
+            with open(curated_rep) as f:
+                rep_lines = [l.strip().split("\t") for l in f if l.strip()]
+            self.assertEqual(len(rep_lines), 2)
+            self.assertEqual(rep_lines[0], ["chr1", "100", "200", "repeat_A"])
+            self.assertEqual(rep_lines[1], ["chr1", "600", "700", "repeat_B"])
+
 
 if __name__ == "__main__":
     unittest.main()
+

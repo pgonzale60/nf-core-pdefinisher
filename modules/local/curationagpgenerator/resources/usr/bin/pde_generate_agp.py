@@ -151,6 +151,8 @@ def parse_args():
     parser.add_argument("--walker-manifest", required=False, default=None, help="Engine B telomere manifest TSV")
     parser.add_argument("--rdna-manifest", required=False, default=None, help="Engine C rDNA manifest TSV")
     parser.add_argument("--trans-manifest", required=False, default=None, help="Engine D trans-chromosomal manifest TSV")
+    parser.add_argument("--pde-segments", required=False, default=None, help="Input assembly pde_segments.bed")
+    parser.add_argument("--red-bed", required=False, default=None, help="Input assembly RED repeat mask BED")
     parser.add_argument("--sample", required=False, help="Sample/strain prefix")
     parser.add_argument("--outdir", required=False, help="Output directory")
     parser.add_argument("--synthesize-fasta", action="store_true", help="Synthesize curated.fasta directly using pysam/internal engine")
@@ -160,6 +162,73 @@ def parse_args():
         if not (args.blueprint and args.ref and args.sample and args.outdir):
             parser.error("--blueprint, --ref, --sample, and --outdir are required when not running --self-test")
     return args
+
+
+def load_bed_intervals(bed_path, default_label=""):
+    """Loads intervals from a BED file into {chrom: [(start, end, label), ...]}."""
+    intervals = defaultdict(list)
+    if not bed_path or not os.path.exists(bed_path):
+        return intervals
+    with open(bed_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split("\t")
+            if len(parts) >= 3:
+                c = parts[0]
+                try:
+                    s = int(parts[1])
+                    e = int(parts[2])
+                except ValueError:
+                    continue
+                lbl = parts[3] if len(parts) >= 4 else default_label
+                intervals[c].append((s, e, lbl))
+    for c in intervals:
+        intervals[c].sort(key=lambda x: (x[0], x[1]))
+    return intervals
+
+
+def merge_curated_repeats(raw_intervals):
+    """Sorts and merges overlapping/adjacent repeat intervals."""
+    if not raw_intervals:
+        return []
+    raw_intervals.sort(key=lambda x: (x[0], x[1]))
+    merged = []
+    for s, e, lbl in raw_intervals:
+        if s >= e:
+            continue
+        if not merged:
+            merged.append([s, e, lbl])
+        elif s <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], e)
+        else:
+            merged.append([s, e, lbl])
+    return [(s, e, lbl) for s, e, lbl in merged]
+
+
+def merge_curated_pde_segments(raw_intervals, total_len):
+    """Sorts, resolves, and merges contiguous GRS/Core segments, filling novel/uncovered regions with putative_core."""
+    if not raw_intervals:
+        return [(0, total_len, "putative_core")] if total_len > 0 else []
+    raw_intervals.sort(key=lambda x: (x[0], x[1]))
+    merged = []
+    for s, e, cls in raw_intervals:
+        if s >= e:
+            continue
+        if merged and merged[-1][2] == cls and merged[-1][1] == s:
+            merged[-1][1] = e
+        elif merged and merged[-1][1] > s:
+            if e > merged[-1][1]:
+                if merged[-1][2] == cls:
+                    merged[-1][1] = e
+                else:
+                    merged.append([merged[-1][1], e, cls])
+        else:
+            merged.append([s, e, cls])
+    if not merged and total_len > 0:
+        merged.append([0, total_len, "putative_core"])
+    return [(s, e, cls) for s, e, cls in merged]
 
 
 def load_fasta(fasta_path):
@@ -232,6 +301,28 @@ def main():
         sys.exit(1)
     with open(args.blueprint) as f:
         blueprint = json.load(f)
+
+    # Load input segmentation (GRS vs Core)
+    input_segs_by_chr = load_bed_intervals(args.pde_segments, default_label="putative_core")
+    if not input_segs_by_chr and "input_segments" in blueprint:
+        for seg in blueprint["input_segments"]:
+            c = seg.get("chrom", "")
+            s = safe_int(seg.get("start", 0))
+            e = safe_int(seg.get("end", 0))
+            cls = seg.get("classification", "putative_core")
+            if c:
+                input_segs_by_chr[c].append((s, e, cls))
+    if not input_segs_by_chr:
+        for c in sorted(ref_seqs.keys()):
+            clen = len(ref_seqs[c])
+            cls = "putative_GRS" if "grs" in c.lower() else "putative_core"
+            input_segs_by_chr[c].append((0, clen, cls))
+
+    # Load RED repeat mask
+    red_repeats_by_chr = load_bed_intervals(args.red_bed, default_label="repeat")
+
+    curated_segments = []
+    curated_repeats = []
 
     # 3. Load Module 3 Manifests
     gap_rows = parse_tsv_manifest(args.gap_manifest)
@@ -574,8 +665,8 @@ def main():
         for card in chrom_cards:
             cid = card.get("card_id", "")
             act = card.get("action", "")
-            start = card.get("start")
-            end = card.get("end")
+            start = card.get("start") if card.get("start") is not None else card.get("start_pos")
+            end = card.get("end") if card.get("end") is not None else card.get("end_pos")
 
             if start is None or end is None:
                 term = card.get("terminus")
@@ -592,7 +683,7 @@ def main():
             start = safe_int(start)
             end = safe_int(end)
 
-            if act == "EXCISE_DUMMY_GAP":
+            if act in ("EXCISE_DUMMY_GAP", "EXCISE_GAP"):
                 edits.append({
                     "type": "EXCISE_GAP",
                     "start": start, "end": end,
@@ -944,6 +1035,8 @@ def main():
         blocks = strip_terminal_gaps(blocks, components_pool)
 
         # Emit AGP Lines for Chromosome (Stateless Accumulator)
+        chr_curated_segs_raw = []
+        chr_curated_repeats_raw = []
         curr_pos = 1
         valid_part = 1
         for b in blocks:
@@ -954,13 +1047,51 @@ def main():
             end = curr_pos + b.length - 1
             if b.type == "W":
                 agp_lines.append(f"{chrom}\t{beg}\t{end}\t{valid_part}\tW\t{b.component_id}\t1\t{b.length}\t{b.orientation}")
+                m_inv = re.match(rf"^{re.escape(chrom)}_inv_(\d+)_(\d+)$", b.component_id) if b.component_id else None
+                m_slice = re.match(rf"^{re.escape(chrom)}_(\d+)_(\d+)$", b.component_id) if b.component_id else None
+                m = m_inv or m_slice
+                if m:
+                    src_s, src_e = int(m.group(1)), int(m.group(2))
+                    # Map GRS/Core segments
+                    for seg_s, seg_e, cls in input_segs_by_chr.get(chrom, []):
+                        ovl_s = max(seg_s, src_s)
+                        ovl_e = min(seg_e, src_e)
+                        if ovl_s < ovl_e:
+                            if b.orientation == "-":
+                                f_s = (beg - 1) + (src_e - ovl_e)
+                                f_e = (beg - 1) + (src_e - ovl_s)
+                            else:
+                                f_s = (beg - 1) + (ovl_s - src_s)
+                                f_e = (beg - 1) + (ovl_e - src_s)
+                            chr_curated_segs_raw.append((f_s, f_e, cls))
+                    # Map RED repeat mask
+                    for rep_s, rep_e, lbl in red_repeats_by_chr.get(chrom, []):
+                        ovl_s = max(rep_s, src_s)
+                        ovl_e = min(rep_e, src_e)
+                        if ovl_s < ovl_e:
+                            if b.orientation == "-":
+                                f_s = (beg - 1) + (src_e - ovl_e)
+                                f_e = (beg - 1) + (src_e - ovl_s)
+                            else:
+                                f_s = (beg - 1) + (ovl_s - src_s)
+                                f_e = (beg - 1) + (ovl_e - src_s)
+                            chr_curated_repeats_raw.append((f_s, f_e, lbl))
+                else:
+                    chr_curated_segs_raw.append((beg - 1, end, "putative_core"))
             else:
                 gap_type = "repeat" if (b.component_id and "rdna" in str(b.component_id).lower()) else "scaffold"
                 gap_evidence = "unspecified" if gap_type == "repeat" else "paired-ends"
                 agp_lines.append(f"{chrom}\t{beg}\t{end}\t{valid_part}\tN\t{b.length}\t{gap_type}\tyes\t{gap_evidence}")
+                chr_curated_segs_raw.append((beg - 1, end, "putative_core"))
 
             curr_pos = end + 1
             valid_part += 1
+
+        total_chr_len = curr_pos - 1
+        for s, e, cls in merge_curated_pde_segments(chr_curated_segs_raw, total_chr_len):
+            curated_segments.append((chrom, s, e, cls))
+        for s, e, lbl in merge_curated_repeats(chr_curated_repeats_raw):
+            curated_repeats.append((chrom, s, e, lbl))
 
         # Record Audit Info
         for e in edits:
@@ -1032,6 +1163,15 @@ def main():
                 # Conservation of Sequence guard: target port was not materialised; retain scaffold!
                 components_pool[scaff] = scaff_seq
                 agp_lines.append(f"{scaff}\t1\t{scaff_len}\t1\tW\t{scaff}\t1\t{scaff_len}\t+")
+                scaff_segs = input_segs_by_chr.get(scaff, [])
+                if scaff_segs:
+                    for s, e, cls in scaff_segs:
+                        curated_segments.append((scaff, s, e, cls))
+                else:
+                    cls = "putative_GRS" if "grs" in scaff.lower() else "putative_core"
+                    curated_segments.append((scaff, 0, scaff_len, cls))
+                for s, e, lbl in red_repeats_by_chr.get(scaff, []):
+                    curated_repeats.append((scaff, s, e, lbl))
                 audit_rows.append({
                     "sample": args.sample, "chrom": scaff, "card_id": f"SCAFF-{scaff}",
                     "action": "RETAIN_UNMATERIALIZED", "edit_type": "RETENTION_GUARD_UNMATERIALIZED",
@@ -1041,6 +1181,15 @@ def main():
             # Retain in primary AGP release
             components_pool[scaff] = scaff_seq
             agp_lines.append(f"{scaff}\t1\t{scaff_len}\t1\tW\t{scaff}\t1\t{scaff_len}\t+")
+            scaff_segs = input_segs_by_chr.get(scaff, [])
+            if scaff_segs:
+                for s, e, cls in scaff_segs:
+                    curated_segments.append((scaff, s, e, cls))
+            else:
+                cls = "putative_GRS" if "grs" in scaff.lower() else "putative_core"
+                curated_segments.append((scaff, 0, scaff_len, cls))
+            for s, e, lbl in red_repeats_by_chr.get(scaff, []):
+                curated_repeats.append((scaff, s, e, lbl))
 
 
     # Process Severed Unplaced Scaffolds from Trans-Chromosomal Fissions
@@ -1057,6 +1206,10 @@ def main():
                 components_pool[cid] = trimmed_seq
                 tlen = len(trimmed_seq)
                 agp_lines.append(f"{assigned}\t1\t{tlen}\t1\tW\t{cid}\t1\t{tlen}\t+")
+                curated_segments.append((assigned, 0, tlen, "putative_GRS" if "grs" in assigned.lower() else "putative_core"))
+                for s, e, lbl in red_repeats_by_chr.get(cid, []):
+                    if s < tlen:
+                        curated_repeats.append((assigned, max(0, s), min(tlen, e), lbl))
                 audit_rows.append({
                     "sample": args.sample, "chrom": assigned, "card_id": r.get("card_id", "TRANS"),
                     "action": "SEVER_TO_UNPLACED", "edit_type": "UNPLACED_SCAFFOLD_CREATION",
@@ -1140,6 +1293,19 @@ def main():
                 for i in range(0, len(full_obj_seq), 80):
                     f.write(full_obj_seq[i:i+80] + "\n")
         print(f"[{args.sample}] Synthesized curated FASTA directly: {curated_fasta_path}")
+
+    # 9. Emit Final Curated BED Files (exclusively final assembly coordinates)
+    curated_seg_bed = os.path.join(args.outdir, f"{args.sample}.curated.pde_segments.bed")
+    with open(curated_seg_bed, "w", encoding="utf-8") as f:
+        for c, s, e, cls in curated_segments:
+            f.write(f"{c}\t{s}\t{e}\t{cls}\n")
+    print(f"[{args.sample}] Emitted curated PDE segmentation BED: {curated_seg_bed}")
+
+    curated_rep_bed = os.path.join(args.outdir, f"{args.sample}.curated.repeats.bed")
+    with open(curated_rep_bed, "w", encoding="utf-8") as f:
+        for c, s, e, lbl in curated_repeats:
+            f.write(f"{c}\t{s}\t{e}\t{lbl}\n")
+    print(f"[{args.sample}] Emitted curated repeat mask BED: {curated_rep_bed}")
 
 
 if __name__ == "__main__":

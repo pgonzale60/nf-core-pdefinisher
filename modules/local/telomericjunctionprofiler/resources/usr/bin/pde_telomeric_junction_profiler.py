@@ -549,7 +549,7 @@ def main():
     }
 
     with open(args.output_json, "w", encoding="utf-8") as f:
-        json.dump(catalog_doc, f, indent=2)
+        json.dump(catalog_doc, f, indent=2, sort_keys=True)
 
     if args.output_tsv:
         headers = [

@@ -18,7 +18,9 @@ process CURATIONAGPGENERATOR {
         path(walker_manifest),
         path(rdna_cassettes),
         path(rdna_manifest),
-        path(trans_manifest)
+        path(trans_manifest),
+        path(pde_segments),
+        path(red_bed)
     )
 
     output:
@@ -27,6 +29,8 @@ process CURATIONAGPGENERATOR {
     tuple val(meta), path("*.curated.fasta"), emit: curated_fasta
     tuple val(meta), path("*.haplotigs.fasta"), path("*.purged_rdna.fasta"), optional: true, emit: segregated_fastas
     tuple val(meta), path("*.curation_audit.tsv"), emit: audit
+    tuple val(meta), path("*.curated.pde_segments.bed"), optional: true, emit: curated_pde_segments
+    tuple val(meta), path("*.curated.repeats.bed"), optional: true, emit: curated_repeats
     tuple val("${task.process}"), val('python'), val('3.10.4'), emit: versions_agp, topic: versions
 
     when:
@@ -39,8 +43,10 @@ process CURATIONAGPGENERATOR {
     def walker_arg  = walker_manifest ? "--walker-manifest \"${walker_manifest}\"" : ""
     def rdna_arg    = rdna_manifest ? "--rdna-manifest \"${rdna_manifest}\"" : ""
     def trans_arg   = trans_manifest ? "--trans-manifest \"${trans_manifest}\"" : ""
+    def seg_arg     = pde_segments ? "--pde-segments \"${pde_segments}\"" : ""
+    def red_arg     = red_bed ? "--red-bed \"${red_bed}\"" : ""
     """
-    # Tool: pde_generate_agp.py | Script-SHA: 8d7d12b2fec32630
+    # Tool: pde_generate_agp.py | Script-SHA: 2139545c0af174a5
     pde_generate_agp.py \\
         --blueprint "${blueprint_json}" \\
         --ref "${ref_fasta}" \\
@@ -48,6 +54,8 @@ process CURATIONAGPGENERATOR {
         ${walker_arg} \\
         ${rdna_arg} \\
         ${trans_arg} \\
+        ${seg_arg} \\
+        ${red_arg} \\
         --sample "${prefix}" \\
         --outdir "." \\
         --synthesize-fasta \\
@@ -63,5 +71,7 @@ process CURATIONAGPGENERATOR {
     touch "${prefix}.haplotigs.fasta"
     touch "${prefix}.purged_rdna.fasta"
     touch "${prefix}.curation_audit.tsv"
+    touch "${prefix}.curated.pde_segments.bed"
+    touch "${prefix}.curated.repeats.bed"
     """
 }

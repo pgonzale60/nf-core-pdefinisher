@@ -333,7 +333,6 @@ process BUILD_VALIDATION_PACKAGE {
     """
     python3 - << 'EOF'
 import json, gzip, os
-from datetime import datetime, timezone
 
 def count_fq(p):
     if not p or not os.path.exists(p) or os.path.getsize(p) == 0: return 0
@@ -391,12 +390,11 @@ pkg = {
         "action_required": action,
         "rationale": rationale,
         "candidate_contigs_to_add_path": candidate_contigs
-    },
-    "timestamp_utc": datetime.now(timezone.utc).isoformat()
+    }
 }
 
 with open('${prefix}.Artifact_C_Validation_Package.json', 'w') as f:
-    json.dump(pkg, f, indent=2)
+    json.dump(pkg, f, indent=2, sort_keys=True)
 EOF
     """
 

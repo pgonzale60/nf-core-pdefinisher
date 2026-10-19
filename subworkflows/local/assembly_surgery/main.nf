@@ -19,6 +19,8 @@ workflow ASSEMBLY_SURGERY {
     ch_rdna_manifest   // channel: [ val(meta), path(rdna_manifest) ]
     ch_rdna_cassettes  // channel: [ val(meta), path(rdna_cassettes) ]
     ch_trans_manifest  // channel: [ val(meta), path(trans_manifest) ]
+    ch_pde_segments    // channel: [ val(meta), path(pde_segments_bed) ]
+    ch_red_bed         // channel: [ val(meta), path(red_bed) ]
 
     main:
     ch_versions = Channel.empty()
@@ -32,6 +34,8 @@ workflow ASSEMBLY_SURGERY {
         .join(ch_rdna_cassettes, by: 0)
         .join(ch_rdna_manifest, by: 0)
         .join(ch_trans_manifest, by: 0)
+        .join(ch_pde_segments, by: 0)
+        .join(ch_red_bed, by: 0)
 
     CURATIONAGPGENERATOR (
         ch_generator_input
@@ -51,10 +55,12 @@ workflow ASSEMBLY_SURGERY {
     ch_versions = ch_versions.mix(ASMFORMATQC.out.versions_agp_tpf_utils)
 
     emit:
-    curated_agp       = ASMFORMATQC.out.agp
-    components_fasta  = CURATIONAGPGENERATOR.out.components_fasta
-    curated_fasta     = CURATIONAGPGENERATOR.out.curated_fasta
-    segregated_fastas = CURATIONAGPGENERATOR.out.segregated_fastas
-    audit             = CURATIONAGPGENERATOR.out.audit
-    versions          = ch_versions
+    curated_agp          = ASMFORMATQC.out.agp
+    components_fasta     = CURATIONAGPGENERATOR.out.components_fasta
+    curated_fasta        = CURATIONAGPGENERATOR.out.curated_fasta
+    segregated_fastas    = CURATIONAGPGENERATOR.out.segregated_fastas
+    audit                = CURATIONAGPGENERATOR.out.audit
+    curated_pde_segments = CURATIONAGPGENERATOR.out.curated_pde_segments
+    curated_repeats      = CURATIONAGPGENERATOR.out.curated_repeats
+    versions             = ch_versions
 }

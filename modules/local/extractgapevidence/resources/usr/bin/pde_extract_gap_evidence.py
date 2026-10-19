@@ -19,7 +19,6 @@ import hashlib
 import json
 import os
 import sys
-from datetime import datetime, timezone
 
 import pysam
 
@@ -273,7 +272,6 @@ def extract_evidence(gaps_bed, sniffles_vcf, bam_path, sample_id):
         'task': 'EXTRACT_GAP_AND_ANOMALY_EVIDENCE',
         'script_fingerprint': f"sha256:{get_script_fingerprint()}",
         'schema_version': SCHEMA_VERSION,
-        'timestamp_utc': datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%SZ"),
         'sample_id': sample_id,
         'granularity': 'per_read_micro_observations',
         'inputs': {
@@ -316,4 +314,4 @@ if __name__ == '__main__':
         parser.error("--gaps, --sniffles, and --bam are required when not running --self-test or --version")
 
     result = extract_evidence(args.gaps, args.sniffles, args.bam, args.sample)
-    print(json.dumps(result, indent=2))
+    print(json.dumps(result, indent=2, sort_keys=True))

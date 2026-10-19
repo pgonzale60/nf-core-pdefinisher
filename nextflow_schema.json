@@ -66,6 +66,12 @@
                     "description": "Path to JSON policy configuration governing gap bridging, telomere capping, and validation thresholds.",
                     "fa_icon": "fas fa-sliders-h"
                 },
+                "skip_validation": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Skip post-curation BAM re-mapping and Sniffles structural variant validation to accelerate run completion.",
+                    "fa_icon": "fas fa-forward"
+                },
                 "delfies_args": {
                     "type": "string",
                     "default": "--AnalyzeReads --seq String --finding_site_mode 'eliminated' --window_size 15 --minimum_ReadAligns 3 --telomere_string 'TTAGGC'",
