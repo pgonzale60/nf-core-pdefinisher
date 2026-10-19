@@ -33,7 +33,8 @@ class TestIdentifyPutativeGRS(unittest.TestCase):
         self.assertAlmostEqual(pde_policy["max_grs_to_core_ratio"], 0.40)
         self.assertAlmostEqual(pde_policy["min_transition_contrast"], 2.0)
         self.assertAlmostEqual(pde_policy["default_grs_coverage_ratio"], 0.35)
-        self.assertEqual(pde_policy["max_terminal_arm_bp"], 1500000)
+        self.assertIsNone(pde_policy.get("max_terminal_arm_bp"))
+        self.assertIsNone(pde_policy.get("max_internal_grs_bp"))
 
     def test_cluster_breakpoints_by_strand(self):
         # 3 breakpoints on '+' strand within 3 bp -> cluster together
@@ -87,8 +88,8 @@ class TestIdentifyPutativeGRS(unittest.TestCase):
             clustered_bps,
             cov_windows,
             t_grs,
-            max_terminal_arm_bp=1_500_000,
-            max_internal_grs_bp=500_000,
+            max_terminal_arm_bp=None,
+            max_internal_grs_bp=None,
             min_transition_contrast=2.0,
         )
         self.assertTrue(ok)
@@ -97,11 +98,29 @@ class TestIdentifyPutativeGRS(unittest.TestCase):
         self.assertEqual(grs_intervals[1], (4_000_000, 4_020_000))
         self.assertEqual(grs_intervals[2], (10_000_000, 10_500_000))
 
-    def test_run_pushdown_automaton_rejects_huge_terminal_arm(self):
-        # A '-' breakpoint at 4 Mb (violates max_terminal_arm_bp=1.5 Mb)
-        cov_windows = {"chr1": [(p, p + 10_000, 50.0) for p in range(0, 10_000_000, 10_000)]}
+    def test_run_pushdown_automaton_supports_megabase_terminal_arm(self):
+        # A '-' breakpoint at 4 Mb in an Auanema-scale genome (10 Mb chromosome)
+        # 0 to 4 Mb: 10x (GRS), 4 Mb to 10 Mb: 60x (Core)
+        cov_windows = {"chr1": []}
+        for pos in range(0, 10_000_000, 10_000):
+            cov = 10.0 if pos < 4_000_000 else 60.0
+            cov_windows["chr1"].append((pos, pos + 10_000, cov))
         clustered_bps = [(4_000_000, "-", 40.0, {})]
+
+        # Unbounded (default): accepted based on empirical coverage contrast
         ok, grs_intervals, _ = run_pushdown_automaton(
+            "chr1",
+            10_000_000,
+            clustered_bps,
+            cov_windows,
+            25.0,
+            max_terminal_arm_bp=None,
+        )
+        self.assertTrue(ok)
+        self.assertEqual(grs_intervals, [(0, 4_000_000)])
+
+        # When legacy ceiling is explicitly passed, it is rejected as expected
+        ok_capped, grs_intervals_capped, _ = run_pushdown_automaton(
             "chr1",
             10_000_000,
             clustered_bps,
@@ -109,8 +128,8 @@ class TestIdentifyPutativeGRS(unittest.TestCase):
             25.0,
             max_terminal_arm_bp=1_500_000,
         )
-        self.assertFalse(ok)
-        self.assertEqual(len(grs_intervals), 0)
+        self.assertFalse(ok_capped)
+        self.assertEqual(len(grs_intervals_capped), 0)
 
     def test_fit_em_2comp_unimodal_rejection(self):
         # Unimodal normal-like distribution around 65x (e.g. 50x to 80x)

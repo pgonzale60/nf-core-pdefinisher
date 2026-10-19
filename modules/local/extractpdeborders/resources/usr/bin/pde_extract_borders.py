@@ -19,6 +19,7 @@ Outputs:
 import argparse
 import gzip
 import os
+import re
 import sys
 
 
@@ -198,12 +199,15 @@ def main():
             flank_end = min(chr_len, pos + win)
             subseq = genome[chrom][flank_start:flank_end]
 
+            clean_bp_name = re.sub(r"[^A-Za-z0-9_-]+", "_", bp["name"]).strip("_")
+            strand_str = "minus" if strand == "-" else "plus"
+            seq_id = f"{clean_bp_name}_{chrom}_{pos + 1}_{strand_str}_win{win}bp_oriented"
+            header = f"{seq_id} soma_len={win}"
+
             if strand == "-":
                 subseq_oriented = revcomp(subseq)
-                header = f"{bp['name']}_{chrom}_{pos + 1}_minus_win{win}bp_oriented soma_len={win}"
             else:
                 subseq_oriented = subseq
-                header = f"{bp['name']}_{chrom}_{pos + 1}_plus_win{win}bp_oriented soma_len={win}"
 
             fasta_records.append(f">{header}\n{subseq_oriented}")
 

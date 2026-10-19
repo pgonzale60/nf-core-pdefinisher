@@ -24,8 +24,13 @@ LIB_DIR = (
 if str(LIB_DIR) not in sys.path:
     sys.path.insert(0, str(LIB_DIR))
 
-from bipartite.aux_grid import score_auxiliary_candidate  # noqa: E402
+from bipartite.aux_grid import (  # noqa: E402
+    is_core_echo,
+    score_auxiliary_candidate,
+)
 from bipartite.masker import (  # noqa: E402
+    clean_fasta_id,
+    load_fasta_dict,
     load_soma_len_map,
     mask_sequences_with_hits,
 )
@@ -183,6 +188,49 @@ class TestBipartiteProfiler(unittest.TestCase):
 
         self.assertGreater(score_11bp, score_6bp)
         self.assertGreater(score_11bp, 14.0)
+
+    def test_is_core_echo(self):
+        # PS1017: Core = 28 bp / 22 bp, Aux = 12 bp (exact substring)
+        core_22bp = "GGCTTAGGCTCAGCCAAAGCCA"
+        core_28bp = "TTTTGGCTTAGGCTCAGCCAAAGCCAAA"
+        aux_echo = "TTAGGCTCAGCC"
+
+        # Direct substring of 22 bp and 28 bp
+        self.assertTrue(is_core_echo(aux_echo, core_22bp))
+        self.assertTrue(is_core_echo(aux_echo, core_28bp))
+
+        # Reverse complement of 12 bp aux is GGCTGAGCCTAA
+        # It must also be identified as an echo of both core forms
+        rc_echo = "GGCTGAGCCTAA"
+        self.assertTrue(is_core_echo(rc_echo, core_22bp))
+        self.assertTrue(is_core_echo(rc_echo, core_28bp))
+
+        # Distinct independent motif should NOT be an echo
+        self.assertFalse(is_core_echo("CAGTAAAGCT", core_28bp))
+
+    def test_fimo_colon_header_sanitisation_and_masking(self):
+        # Header with colons and semicolons as output by DELFIES / pde_extract_borders
+        raw_header = "Type:S2G;breakpoint_window:240735-240835_chrI_240736_minus_win150bp_oriented soma_len=150"
+        clean_id = clean_fasta_id(raw_header)
+        # Colon and semicolon must be sanitised
+        self.assertNotIn(":", clean_id)
+        self.assertNotIn(";", clean_id)
+
+        seq = "A" * 150 + "C" * 150
+        with tempfile.NamedTemporaryFile("w", suffix=".fasta", delete=False) as tf:
+            tf.write(f">{raw_header}\n{seq}\n")
+            tf.flush()
+            seqs = load_fasta_dict(tf.name)
+            self.assertIn(clean_id, seqs)
+
+        # Mock hit from FIMO with sanitised name
+        mock_hits = [{
+            "seq_name": clean_id,
+            "start": 140,
+            "stop": 160,
+        }]
+        masked = mask_sequences_with_hits(seqs, mock_hits)
+        self.assertEqual(masked[clean_id][139:160], "N" * 21)
 
 
 if __name__ == "__main__":

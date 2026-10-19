@@ -78,8 +78,8 @@
     "min_transition_contrast": 2.0,
     "default_grs_coverage_ratio": 0.35,
     "min_em_component_separation": 0.45,
-    "max_terminal_arm_bp": 1500000,
-    "max_internal_grs_bp": 500000
+    "max_terminal_arm_bp": null,
+    "max_internal_grs_bp": null
   }
 }
 

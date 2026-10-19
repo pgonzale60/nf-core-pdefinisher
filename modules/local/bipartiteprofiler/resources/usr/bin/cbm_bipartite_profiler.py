@@ -91,13 +91,27 @@ def revcomp(seq: str) -> str:
 
 
 def is_core_echo(aux_consensus: str, core_consensus: str) -> bool:
-    """Return True if aux_consensus is a substring/superstring of core_consensus or its revcomp."""
+    """Return True if aux_consensus is an echo of core_consensus or its revcomp."""
     if not aux_consensus or not core_consensus:
         return False
-    a = aux_consensus.upper()
-    c = core_consensus.upper()
+    a = aux_consensus.upper().strip()
+    c = core_consensus.upper().strip()
     rc_c = revcomp(c)
-    return (a in c) or (c in a) or (a in rc_c) or (rc_c in a)
+    # 1. Exact substring or superstring
+    if (a in c) or (c in a) or (a in rc_c) or (rc_c in a):
+        return True
+    # 2. High-identity sliding window match
+    win_len = min(len(a), len(c))
+    if win_len >= 6:
+        for ref in (c, rc_c):
+            for i in range(len(ref) - win_len + 1):
+                sub = ref[i : i + win_len]
+                matches = sum(
+                    1 for x, y in zip(a[:win_len], sub) if x == y or x == "N" or y == "N"
+                )
+                if matches / win_len >= 0.85:
+                    return True
+    return False
 
 
 def extract_motif_n_from_meme(
@@ -182,12 +196,18 @@ def main():
     work_dir = Path("bipartite_work")
     work_dir.mkdir(exist_ok=True)
 
+    # Write clean break windows to guarantee FIMO/MEME never truncates IDs on colons
+    clean_break_windows = work_dir / "clean_break_windows.fasta"
+    with open(clean_break_windows, "w", encoding="utf-8") as f_clean:
+        for name, seq in raw_seqs.items():
+            f_clean.write(f">{name}\n{seq}\n")
+
     # 1. Higher-order Markov background
     if args.background_bfile and os.path.exists(args.background_bfile):
         bg_file = Path(args.background_bfile)
     else:
         bg_file = build_higher_order_markov_bg(
-            args.break_windows, work_dir / "bg_bipartite.txt"
+            str(clean_break_windows), work_dir / "bg_bipartite.txt"
         )
 
     # 2. Native Multi-Motif Soft-Erasure Discovery (MEME -nmotifs 3)
@@ -195,7 +215,7 @@ def main():
     subprocess.run(
         [
             "meme",
-            args.break_windows,
+            str(clean_break_windows),
             "-dna",
             "-mod",
             "zoops",
@@ -229,7 +249,7 @@ def main():
                     "100",
                     "-range",
                     "100",
-                    args.break_windows,
+                    str(clean_break_windows),
                     str(meme_xml),
                     str(meme_xml),
                 ],
@@ -241,7 +261,7 @@ def main():
     # 4. Mask core motifs with N and run masked grid as complementary auxiliary search
     _masked_seqs, core_hits = mask_core_motifs(
         core_meme=args.core_meme,
-        fasta_file=args.break_windows,
+        fasta_file=str(clean_break_windows),
         output_masked_fasta=args.output_masked_fasta,
         fimo_out_dir="fimo_core_hits",
         threshold=1e-4,
@@ -251,13 +271,6 @@ def main():
     for h in core_hits:
         core_hits_by_seq[h["seq_name"]].append(h)
 
-    best_aux_grid, _grid_results = run_auxiliary_grid(
-        masked_fasta=args.output_masked_fasta,
-        out_dir="aux_grid_runs",
-        bfile=str(bg_file),
-        threads=args.threads,
-    )
-
     core_consensus = ""
     if args.core_metrics_json and os.path.exists(args.core_metrics_json):
         try:
@@ -265,6 +278,14 @@ def main():
                 core_consensus = json.load(f_cm).get("consensus", "")
         except Exception:
             pass
+
+    best_aux_grid, _grid_results = run_auxiliary_grid(
+        masked_fasta=args.output_masked_fasta,
+        out_dir="aux_grid_runs",
+        core_consensus=core_consensus,
+        bfile=str(bg_file),
+        threads=args.threads,
+    )
 
     # Compare soft-erasure Motif 2 / Motif 3 vs masked-grid auxiliary motif
     candidate_soft = None
@@ -296,7 +317,12 @@ def main():
         best_aux = candidate_soft
         best_aux["composite_score"] = soft_score
         shutil.copy(candidate_soft["meme_txt_path"], args.output_aux_meme)
-    elif best_aux_grid and grid_score > 0 and best_aux_grid.get("meme_txt_path"):
+    elif (
+        best_aux_grid
+        and grid_score > 0
+        and not is_core_echo(best_aux_grid.get("consensus", ""), core_consensus)
+        and best_aux_grid.get("meme_txt_path")
+    ):
         best_aux = best_aux_grid
         best_aux["composite_score"] = grid_score
         shutil.copy(best_aux["meme_txt_path"], args.output_aux_meme)
@@ -309,7 +335,7 @@ def main():
     if best_aux and os.path.exists(args.output_aux_meme):
         aux_fimo_hits = run_fimo(
             meme_file=args.output_aux_meme,
-            fasta_file=args.break_windows,
+            fasta_file=str(clean_break_windows),
             out_dir="fimo_aux_hits",
             threshold=1e-3,
         )

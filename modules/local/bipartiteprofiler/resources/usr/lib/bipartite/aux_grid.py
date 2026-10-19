@@ -91,11 +91,16 @@ def parse_aux_meme_results(
             if "block diagrams" in line or line.startswith("MOTIF"):
                 break
             parts = line.split()
-            if len(parts) >= 4 and ("+" in parts or "-" in parts):
+            if len(parts) >= 3:
                 seq_name = parts[0]
-                strand = parts[1]
+                if parts[1] in ("+", "-"):
+                    strand = parts[1]
+                    start_str = parts[2]
+                else:
+                    strand = "+"
+                    start_str = parts[1]
                 try:
-                    start = int(parts[2])
+                    start = int(start_str)
                     dist_to_center = abs(start - center_pos)
                     site_records.append({
                         "seq": seq_name,
@@ -103,7 +108,7 @@ def parse_aux_meme_results(
                         "start": start,
                         "dist": dist_to_center,
                     })
-                except ValueError:
+                except (ValueError, IndexError):
                     continue
 
     unique_seqs = len({s["seq"] for s in site_records})
@@ -213,9 +218,40 @@ def score_auxiliary_candidate(
     return round(score, 4)
 
 
+def revcomp(seq: str) -> str:
+    """Return reverse complement of DNA sequence."""
+    tr = str.maketrans("ACGTNacgtn", "TGCANtgcan")
+    return seq.translate(tr)[::-1]
+
+
+def is_core_echo(aux_consensus: str, core_consensus: str) -> bool:
+    """Return True if aux_consensus is an echo of core_consensus or its revcomp."""
+    if not aux_consensus or not core_consensus:
+        return False
+    a = aux_consensus.upper().strip()
+    c = core_consensus.upper().strip()
+    rc_c = revcomp(c)
+    # 1. Exact substring or superstring
+    if (a in c) or (c in a) or (a in rc_c) or (rc_c in a):
+        return True
+    # 2. High-identity sliding window match
+    win_len = min(len(a), len(c))
+    if win_len >= 6:
+        for ref in (c, rc_c):
+            for i in range(len(ref) - win_len + 1):
+                sub = ref[i : i + win_len]
+                matches = sum(
+                    1 for x, y in zip(a[:win_len], sub) if x == y or x == "N" or y == "N"
+                )
+                if matches / win_len >= 0.85:
+                    return True
+    return False
+
+
 def run_auxiliary_grid(
     masked_fasta: str | Path,
     out_dir: str | Path,
+    core_consensus: str = "",
     bfile: str | None = None,
     threads: int = 1,
 ) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
@@ -254,7 +290,7 @@ def run_auxiliary_grid(
                 res["composite_score"] = score_auxiliary_candidate(res, total_sequences)
                 results.append(res)
 
-    # Check for significant auxiliary motif ranked by composite score
+    # Check for significant auxiliary motif ranked by composite score, universally rejecting core echoes
     sig_candidates = [
         r
         for r in results
@@ -262,6 +298,7 @@ def run_auxiliary_grid(
         and r["mean_ic"] >= 0.50
         and r["consensus_entropy"] >= 0.80
         and r.get("composite_score", 0.0) > 0
+        and not is_core_echo(r.get("consensus", ""), core_consensus)
     ]
     if sig_candidates:
         sig_candidates.sort(

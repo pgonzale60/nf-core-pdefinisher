@@ -214,6 +214,70 @@ anchor_5_r150_p0_93  +  92  1e-5
             # Offset from motif center to pos0 must be (92 + 2.5) - 93 = 1.5 bp
             self.assertEqual(met["median_offset_to_pos0"], 1.5)
 
+    def test_forward_only_meme_sites_parsed(self):
+        import tempfile
+
+        # Forward-only MEME output (no '+' or '-' column)
+        mock_fwd_meme = """MEME version 4
+MOTIF FWD_MOTIF 1 width = 6 sites = 2 llr = 15 E-value = 1e-4
+letter-probability matrix: alength= 4 w= 6 nsites= 2 E= 1e-4
+  1.0 0.0 0.0 0.0
+  0.0 1.0 0.0 0.0
+  0.0 0.0 1.0 0.0
+  0.0 0.0 0.0 1.0
+  1.0 0.0 0.0 0.0
+  0.0 1.0 0.0 0.0
+Multilevel ACGTAC
+sites sorted by position p-value
+seq_fwd_1  25  1e-4  ACGTAC
+seq_fwd_2  28  1e-4  ACGTAC
+"""
+        with tempfile.NamedTemporaryFile("w", suffix=".txt") as tf_txt:
+            tf_txt.write(mock_fwd_meme)
+            tf_txt.flush()
+            met = parse_meme_txt(tf_txt.name, radius=30, total_sequences=2)
+            self.assertIsNotNone(met)
+            self.assertEqual(met["unique_occupied_sites"], 2)
+            self.assertEqual(met["occupancy"], 1.0)
+            self.assertGreater(met["composite_score"], 0.0)
+
+    def test_total_ic_selects_full_28bp_over_truncated_22bp(self):
+        import tempfile
+
+        # PS1017: 28 bp full core (Total IC = 34.54 bits, E = 1e-113)
+        # vs 22 bp truncated core (Total IC = 29.50 bits, E = 1e-90)
+        row_28 = "\n".join(["  0.85 0.05 0.05 0.05" for _ in range(28)])
+        m28 = f"""MEME version 4
+MOTIF CORE28 1 width = 28 sites = 30 llr = 300 E-value = 1e-113
+letter-probability matrix: alength= 4 w= 28 nsites= 30 E= 1e-113
+{row_28}
+Multilevel {"A" * 28}
+sites sorted by position p-value
+s1 + 25 1e-10
+s2 + 25 1e-10
+"""
+        row_22 = "\n".join(["  0.88 0.04 0.04 0.04" for _ in range(22)])
+        m22 = f"""MEME version 4
+MOTIF CORE22 1 width = 22 sites = 30 llr = 250 E-value = 1e-90
+letter-probability matrix: alength= 4 w= 22 nsites= 30 E= 1e-90
+{row_22}
+Multilevel {"A" * 22}
+sites sorted by position p-value
+s1 + 25 1e-10
+s2 + 25 1e-10
+"""
+        with tempfile.NamedTemporaryFile("w", suffix=".txt") as f28, \
+             tempfile.NamedTemporaryFile("w", suffix=".txt") as f22:
+            f28.write(m28)
+            f28.flush()
+            f22.write(m22)
+            f22.flush()
+            met28 = parse_meme_txt(f28.name, radius=30, total_sequences=2)
+            met22 = parse_meme_txt(f22.name, radius=30, total_sequences=2)
+
+            self.assertGreater(met28["total_ic"], met22["total_ic"])
+            self.assertGreater(met28["composite_score"], met22["composite_score"])
+
 
 if __name__ == "__main__":
     unittest.main()

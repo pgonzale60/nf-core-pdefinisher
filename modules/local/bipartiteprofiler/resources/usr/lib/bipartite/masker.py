@@ -10,6 +10,12 @@ import subprocess
 from typing import Any
 
 
+def clean_fasta_id(raw_id: str) -> str:
+    """Sanitise sequence header into a clean token safe for FIMO and MEME."""
+    token = raw_id.strip().split()[0]
+    return re.sub(r"[^A-Za-z0-9_-]+", "_", token).strip("_")
+
+
 def load_soma_len_map(fasta_path: str | Path, default: int = 150) -> dict[str, int]:
     """Map clean sequence name to soma_len from FASTA header."""
     soma_map = {}
@@ -18,7 +24,7 @@ def load_soma_len_map(fasta_path: str | Path, default: int = 150) -> dict[str, i
     with open(fasta_path, encoding="utf-8") as f:
         for line in f:
             if line.startswith(">"):
-                seq_id = line[1:].split()[0].replace(":", "_")
+                seq_id = clean_fasta_id(line[1:])
                 m = re.search(r"\bsoma_len=(\d+)", line)
                 soma_map[seq_id] = int(m.group(1)) if m else default
     return soma_map
@@ -39,8 +45,8 @@ def load_fasta_dict(fasta_path: str | Path) -> dict[str, str]:
             if line.startswith(">"):
                 if cur_h:
                     seqs[cur_h] = "".join(cur_s)
-                # Keep ID clean (e.g. up to space)
-                cur_h = line[1:].split()[0].replace(":", "_")
+                # Keep ID clean and free of colon/delimiter truncations
+                cur_h = clean_fasta_id(line[1:])
                 cur_s = []
             else:
                 cur_s.append(line.upper())
@@ -90,7 +96,7 @@ def run_fimo(
                     continue
                 try:
                     hits.append({
-                        "seq_name": s.replace(":", "_"),
+                        "seq_name": clean_fasta_id(s),
                         "motif_id": r.get("motif_id", ""),
                         "start": int(r["start"]),  # 1-based inclusive
                         "stop": int(r["stop"]),  # 1-based inclusive
@@ -135,8 +141,15 @@ def mask_core_motifs(
 ) -> tuple[dict[str, str], list[dict[str, Any]]]:
     """Run FIMO with core motif on FASTA, mask instances with N, and save masked FASTA."""
     seq_dict = load_fasta_dict(fasta_file)
+    fimo_dir = Path(fimo_out_dir)
+    fimo_dir.mkdir(parents=True, exist_ok=True)
+    clean_fa = fimo_dir / "clean_input_for_fimo.fasta"
+    with open(clean_fa, "w", encoding="utf-8") as f_out:
+        for name, seq in seq_dict.items():
+            f_out.write(f">{name}\n{seq}\n")
+
     hits = run_fimo(
-        core_meme, fasta_file, out_dir=fimo_out_dir, threshold=threshold
+        core_meme, clean_fa, out_dir=fimo_out_dir, threshold=threshold
     )
     masked_dict = mask_sequences_with_hits(seq_dict, hits)
 

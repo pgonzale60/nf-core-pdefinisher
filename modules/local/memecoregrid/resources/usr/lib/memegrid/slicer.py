@@ -66,7 +66,7 @@ def write_sliced_fasta(
             pos0 = min(s_len, radius)
             if len(sliced) >= 20:  # Minimum valid window size
                 # Clean header for MEME compatibility and embed pos0 coordinate
-                clean_header = header.split()[0].replace(":", "_")
+                clean_header = re.sub(r"[^A-Za-z0-9_-]+", "_", header.split()[0]).strip("_")
                 f.write(f">{clean_header}_r{radius}_p0_{pos0}\n{sliced}\n")
                 count += 1
     return count

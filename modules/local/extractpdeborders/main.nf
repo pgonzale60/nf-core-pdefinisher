@@ -32,7 +32,7 @@ process EXTRACTPDEBORDERS {
     def bp_arg = breakpoints_bed ? "--breakpoints-bed ${breakpoints_bed}" : ""
 
     """
-    # Tool: pde_extract_borders.py | Script-SHA: b2447cc0959be3d8
+    # Tool: pde_extract_borders.py | Script-SHA: 07072342130b9e66
     python3 ${moduleDir}/resources/usr/bin/pde_extract_borders.py \\
         --pde-segments-bed "${pde_segments_bed}" \\
         --assembly "${assembly}" \\

@@ -233,7 +233,10 @@ def run_meme_grid(
     if not p1_results:
         return None, []
 
-    p1_best = max(p1_results, key=lambda x: x["composite_score"])
+    p1_best = max(
+        p1_results,
+        key=lambda x: (x["composite_score"], x["total_ic"], -x["evalue"]),
+    )
     best_radius = p1_best["radius"]
     best_order = p1_best["markov_order"]
 
@@ -253,7 +256,7 @@ def run_meme_grid(
 
     p2_best = max(
         p2_results if p2_results else p1_results,
-        key=lambda x: x["composite_score"],
+        key=lambda x: (x["composite_score"], x["total_ic"], -x["evalue"]),
     )
     best_w_args = next(
         w["args"] for w in WIDTH_RANGES if w["label"] == p2_best["w_label"]
@@ -280,7 +283,10 @@ def run_meme_grid(
     p3_results = execute_batch(phase3_conds)
     all_results.extend(p3_results)
 
-    all_results.sort(key=lambda r: r["composite_score"], reverse=True)
+    all_results.sort(
+        key=lambda r: (r["composite_score"], r["total_ic"], -r["evalue"]),
+        reverse=True,
+    )
     best_motif = all_results[0] if all_results else None
 
     # Save winning Markov background

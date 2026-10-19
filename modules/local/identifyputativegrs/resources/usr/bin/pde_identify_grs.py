@@ -252,8 +252,8 @@ def run_pushdown_automaton(
     clustered_bps,
     cov_windows,
     t_grs,
-    max_terminal_arm_bp=1_500_000,
-    max_internal_grs_bp=500_000,
+    max_terminal_arm_bp=None,
+    max_internal_grs_bp=None,
     min_transition_contrast=2.0,
 ):
     """
@@ -262,7 +262,7 @@ def run_pushdown_automaton(
       '-' represents close parenthesis ')' (exits GRS into core)
 
     Validates that terminal boundaries have true somatic core contrast on their
-    retained flank and do not exceed biologically realistic arm lengths from policy.
+    retained flank and do not exceed biologically realistic arm lengths if configured.
 
     Returns:
       (is_neat_match, grs_intervals, frontier_bps)
@@ -276,10 +276,10 @@ def run_pushdown_automaton(
     idx = 0
 
     # Optional 5' terminal GRS: starts with '-' (closing bracket from 0)
-    # MUST have somatic core contrast downstream (> t_grs) and satisfy max arm length
+    # MUST have somatic core contrast downstream (> t_grs) and satisfy max arm length if specified
     if clustered_bps[0][1] == "-":
         bp_pos = clustered_bps[0][0]
-        if bp_pos > max_terminal_arm_bp:
+        if max_terminal_arm_bp is not None and bp_pos > max_terminal_arm_bp:
             return False, [], []
         med_up = get_median_depth(cov_windows, chrom, 0, bp_pos)
         downstream_end = min(length, bp_pos + 50000)
@@ -309,7 +309,7 @@ def run_pushdown_automaton(
                 continue
             open_b = stack.pop()
             seg_len = pos - open_b[0]
-            if seg_len > max_internal_grs_bp:
+            if max_internal_grs_bp is not None and seg_len > max_internal_grs_bp:
                 # Exceeds max internal GRS length
                 continue
             # Validate coverage drop inside the candidate internal segment
@@ -323,8 +323,8 @@ def run_pushdown_automaton(
                 grs_intervals.append((open_b[0], pos))
                 frontier_bps.extend([open_b, b])
 
-    # Optional 3' terminal GRS: look for unclosed '+' within max_terminal_arm_bp from chromosome end
-    candidates_3p = [b for b in stack if (length - b[0]) <= max_terminal_arm_bp]
+    # Optional 3' terminal GRS: look for unclosed '+' within max_terminal_arm_bp from chromosome end (if configured)
+    candidates_3p = [b for b in stack if (max_terminal_arm_bp is None or (length - b[0]) <= max_terminal_arm_bp)]
     if candidates_3p:
         # Pick the leftmost valid 3' candidate (most comprehensive terminal range)
         for open_b in candidates_3p:
@@ -487,8 +487,10 @@ def main():
     min_transition_contrast = float(pde_policy.get("min_transition_contrast", 2.0))
     default_grs_coverage_ratio = float(pde_policy.get("default_grs_coverage_ratio", 0.35))
     min_em_component_separation = float(pde_policy.get("min_em_component_separation", 0.45))
-    max_terminal_arm_bp = int(pde_policy.get("max_terminal_arm_bp", 1_500_000))
-    max_internal_grs_bp = int(pde_policy.get("max_internal_grs_bp", 500_000))
+    raw_term = pde_policy.get("max_terminal_arm_bp")
+    max_terminal_arm_bp = int(raw_term) if raw_term is not None and int(raw_term) > 0 else None
+    raw_internal = pde_policy.get("max_internal_grs_bp")
+    max_internal_grs_bp = int(raw_internal) if raw_internal is not None and int(raw_internal) > 0 else None
 
     chr_lens = get_chromosome_lengths(args.assembly)
     breakpoints, bp_records_by_coord = parse_breakpoints(args.breakpoints_bed)
@@ -541,18 +543,18 @@ def main():
         for c, l in chr_lens.items():
             c_bps = clustered_bps_by_chr.get(c, [])
             if c_bps:
-                if c_bps[0][1] == "-" and c_bps[0][0] <= max_terminal_arm_bp:
+                if c_bps[0][1] == "-" and (max_terminal_arm_bp is None or c_bps[0][0] <= max_terminal_arm_bp):
                     d = get_median_depth(cov_windows, c, 0, c_bps[0][0])
                     if 0 < d <= max_grs_threshold:
                         candidate_grs_depths.append(d)
-                if c_bps[-1][1] == "+" and (l - c_bps[-1][0]) <= max_terminal_arm_bp:
+                if c_bps[-1][1] == "+" and (max_terminal_arm_bp is None or (l - c_bps[-1][0]) <= max_terminal_arm_bp):
                     d = get_median_depth(cov_windows, c, c_bps[-1][0], l)
                     if 0 < d <= max_grs_threshold:
                         candidate_grs_depths.append(d)
                 for i in range(len(c_bps) - 1):
                     if c_bps[i][1] == "+" and c_bps[i + 1][1] == "-":
                         s, e = c_bps[i][0], c_bps[i + 1][0]
-                        if 0 < e - s <= max_internal_grs_bp:
+                        if e > s and (max_internal_grs_bp is None or (e - s) <= max_internal_grs_bp):
                             d = get_median_depth(cov_windows, c, s, e)
                             if 0 < d <= max_grs_threshold:
                                 candidate_grs_depths.append(d)
@@ -635,7 +637,10 @@ def main():
             chosen_5p_grs = None
             chosen_5p_bp = None
             minus_bps = [
-                bp for bp in bps if bp[1] == "-" and bp[0] <= max_terminal_arm_bp
+                bp
+                for bp in bps
+                if bp[1] == "-"
+                and (max_terminal_arm_bp is None or bp[0] <= max_terminal_arm_bp)
             ]
             for bp in reversed(minus_bps):
                 pos = bp[0]
@@ -659,7 +664,11 @@ def main():
             plus_bps = [
                 bp
                 for bp in bps
-                if bp[1] == "+" and (length - bp[0]) <= max_terminal_arm_bp
+                if bp[1] == "+"
+                and (
+                    max_terminal_arm_bp is None
+                    or (length - bp[0]) <= max_terminal_arm_bp
+                )
             ]
             for bp in plus_bps:
                 pos = bp[0]
@@ -697,7 +706,10 @@ def main():
 
             for p_left in internal_plus:
                 for p_right in internal_minus:
-                    if 0 < p_right[0] - p_left[0] <= max_internal_grs_bp:
+                    if p_right[0] > p_left[0] and (
+                        max_internal_grs_bp is None
+                        or (p_right[0] - p_left[0]) <= max_internal_grs_bp
+                    ):
                         med_grs = get_median_depth(
                             cov_windows, chrom, p_left[0], p_right[0]
                         )

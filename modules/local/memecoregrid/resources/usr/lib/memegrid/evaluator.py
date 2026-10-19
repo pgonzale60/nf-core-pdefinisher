@@ -89,11 +89,16 @@ def parse_meme_txt(
             if "block diagrams" in line or line.startswith("MOTIF"):
                 break
             parts = line.split()
-            if len(parts) >= 4 and ("+" in parts or "-" in parts):
+            if len(parts) >= 3:
                 seq_name = parts[0]
-                strand = parts[1]
+                if parts[1] in ("+", "-"):
+                    strand = parts[1]
+                    start_str = parts[2]
+                else:
+                    strand = "+"
+                    start_str = parts[1]
                 try:
-                    start_pos = int(parts[2])
+                    start_pos = int(start_str)
                     # Distance relative to Position 0 (dynamic pos0 from sequence header, fallback to radius)
                     p0_match = re.search(r"_p0_(\d+)", seq_name)
                     pos0 = int(p0_match.group(1)) if p0_match else radius
@@ -106,7 +111,7 @@ def parse_meme_txt(
                         "start": start_pos,
                         "dist_to_pos0": dist_to_pos0,
                     })
-                except ValueError:
+                except (ValueError, IndexError):
                     continue
 
     unique_seqs = len({s["seq"] for s in site_records})
@@ -126,7 +131,7 @@ def parse_meme_txt(
         pos_iqr = 50.0
         median_offset = 0.0
 
-    # 6. Homopolymer penalty & Composite Score
+    # 6. Homopolymer penalty & Total Information Content Score
     cons_entropy = calculate_consensus_entropy(consensus)
     homopolymer_factor = (
         1.0
@@ -134,15 +139,12 @@ def parse_meme_txt(
         else (cons_entropy / 1.2 if cons_entropy >= 0.6 else 0.05)
     )
 
-    # Score rewards mean IC, occupancy, and tight positional clustering normalized by search radius
-    norm_iqr = pos_iqr / max(10, radius)
-    iqr_penalty = 1.0 / (1.0 + math.log1p(norm_iqr * 5.0))
-    if evalue > 0.05:
+    # Core selection is strictly governed by Total Information Content (sum IC_pos = mean_ic * w)
+    # with a standard E-value threshold (E < 0.005) and homopolymer artifact suppression.
+    if evalue >= 0.005:
         composite_score = 0.0
     else:
-        composite_score = (
-            (mean_ic * math.sqrt(w)) * occupancy * iqr_penalty * homopolymer_factor
-        )
+        composite_score = total_ic * homopolymer_factor
 
     return {
         "width": w,
