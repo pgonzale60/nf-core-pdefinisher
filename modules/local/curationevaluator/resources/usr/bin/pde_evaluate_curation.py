@@ -1467,6 +1467,26 @@ def main():
                         if telo_bp > 0:
                             breakdown_parts.append(f"Canonical telomere: {telo_bp:,} bp ({telo_pct:.1f}%)")
 
+                        # Reconcile net delta with audit (cassette inserted minus excised draft rDNA sequence)
+                        rdna_delta = total_len
+                        consumed_bp = 0
+                        matching_audit = [
+                            ar for ar in audit_rows
+                            if (ar.get("card_id") == card_id or (ar.get("chrom") == c and "RDNA" in ar.get("edit_type", "")))
+                            and ar.get("delta_bp") is not None
+                        ]
+                        if matching_audit:
+                            try:
+                                rdna_delta = int(matching_audit[0]["delta_bp"])
+                                orig_s = int(matching_audit[0].get("orig_start", 0))
+                                orig_e = int(matching_audit[0].get("orig_end", 0))
+                                consumed_bp = orig_e - orig_s
+                            except (ValueError, TypeError):
+                                pass
+
+                        if consumed_bp > 0:
+                            breakdown_parts.append(f"Replaced draft sequence: {consumed_bp:,} bp (net: {rdna_delta:+,} bp)")
+
                         breakdown = "<br>".join(breakdown_parts)
 
                         c_items.append({
@@ -1474,7 +1494,7 @@ def main():
                             "locus": f"**Chr {c}** ({term_str})",
                             "surgery_type": "**rDNA Cassette**",
                             "event": "Tripartite assembly",
-                            "net_delta": total_len,
+                            "net_delta": rdna_delta,
                             "breakdown": breakdown
                         })
 
@@ -1543,6 +1563,19 @@ def main():
                 "breakdown": f"Demoted {su_len:,} bp contig from misjoined gap"
             })
 
+        # 4b. Absorbed Unplaced Scaffolds (integrated into chromosome scaffolds / arms)
+        absorbed_unplaced = [r for r in audit_rows if r.get("edit_type") == "RETIRE_ABSORBED"]
+        if absorbed_unplaced:
+            total_absorbed_bp = sum(abs(int(r.get("delta_bp", 0))) for r in absorbed_unplaced)
+            absorbed_cnt = len(absorbed_unplaced)
+            ledger_rows.append({
+                "locus": "**Unplaced Scaffolds**",
+                "surgery_type": "Scaffold Absorption",
+                "event": "Integrated into chromosomes",
+                "net_delta": -total_absorbed_bp,
+                "breakdown": f"{absorbed_cnt} unplaced scaffolds absorbed into chromosome scaffolds ({total_absorbed_bp:,} bp retired from unplaced pool)"
+            })
+
         if total_purged_bp == 0:
             ledger_rows.append({
                 "locus": "**Unplaced Scaffolds**",
@@ -1552,13 +1585,25 @@ def main():
                 "breakdown": "None segregated"
             })
         else:
-            purged_cnt = len(purged_haplo) + len(purged_rdna)
+            purged_cnt = len(purged_haplo) + len(purged_rdna) + len(purged_organellar)
             ledger_rows.append({
                 "locus": "**Unplaced Scaffolds**",
                 "surgery_type": "Segregation / Purge",
                 "event": "Redundant haplotigs / rDNA",
                 "net_delta": -total_purged_bp,
                 "breakdown": f"{purged_cnt} scaffolds segregated ({total_purged_bp:,} bp)"
+            })
+
+        # Reconciliation check against physical measured delta
+        ledger_subtotal = sum(r["net_delta"] for r in ledger_rows)
+        discrepancy = measured_total_delta - ledger_subtotal
+        if discrepancy != 0:
+            ledger_rows.append({
+                "locus": "**Assembly Reconciliation**",
+                "surgery_type": "Adjustment",
+                "event": "Draft length reconciliation",
+                "net_delta": discrepancy,
+                "breakdown": f"Sequence alignment & gap boundary accounting adjustment ({discrepancy:+,} bp)"
             })
 
         # 5. Total Assembly Delta

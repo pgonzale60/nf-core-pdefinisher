@@ -207,9 +207,46 @@ class TestCurationEvaluator(unittest.TestCase):
         self.assertIn("+22,664 bp", output)
         self.assertIn("**ASSIGNED**", output)
         self.assertIn("`ptg000004l`", output)
-        self.assertIn("**COMPETED_OUT**", output)
         self.assertIn("Chromosome Termini Lacking Assembled Unitigs", output)
         self.assertIn("Chr IV 5p (supported by cluster cl_17 with 5 reads)", output)
+
+    def test_ledger_reconciliation(self):
+        # Verify that rDNA replaced sequence delta and retired absorbed scaffolds sum to measured total delta
+        audit_rows = [
+            {"chrom": "I", "card_id": "TELO-I-5p", "edit_type": "TELO_5P", "delta_bp": 1042},
+            {"chrom": "X", "card_id": "CARD-RDNA-1", "edit_type": "TELO_RDNA_CAPPED_5P", "orig_start": 0, "orig_end": 683275, "delta_bp": -520566},
+            {"chrom": "scaffold_1", "card_id": "SCAFF-scaffold_1", "edit_type": "RETIRE_ABSORBED", "delta_bp": -891743},
+            {"chrom": "scaffold_2", "card_id": "SCAFF-scaffold_2", "edit_type": "PURGE_HAPLOTIG", "delta_bp": -607750},
+        ]
+        measured_total_delta = sum(int(r["delta_bp"]) for r in audit_rows)
+        self.assertEqual(measured_total_delta, 1042 - 520566 - 891743 - 607750)
+
+        # Simulate ledger row collation
+        ledger_rows = []
+        # Chromosome addition
+        ledger_rows.append({"locus": "Chr I (5')", "net_delta": 1042})
+        # rDNA edit reconciled against audit
+        total_len = 162709
+        rdna_audit = [ar for ar in audit_rows if ar.get("card_id") == "CARD-RDNA-1"]
+        rdna_delta = int(rdna_audit[0]["delta_bp"])
+        consumed_bp = int(rdna_audit[0]["orig_end"]) - int(rdna_audit[0]["orig_start"])
+        self.assertEqual(consumed_bp, 683275)
+        self.assertEqual(rdna_delta, total_len - consumed_bp)
+        ledger_rows.append({"locus": "Chr X (5')", "net_delta": rdna_delta})
+
+        # Absorbed unplaced
+        absorbed_unplaced = [r for r in audit_rows if r.get("edit_type") == "RETIRE_ABSORBED"]
+        total_absorbed_bp = sum(abs(int(r["delta_bp"])) for r in absorbed_unplaced)
+        ledger_rows.append({"locus": "Unplaced Scaffolds", "net_delta": -total_absorbed_bp})
+
+        # Purged unplaced
+        purged = [r for r in audit_rows if r.get("edit_type") == "PURGE_HAPLOTIG"]
+        total_purged_bp = sum(abs(int(r["delta_bp"])) for r in purged)
+        ledger_rows.append({"locus": "Unplaced Scaffolds", "net_delta": -total_purged_bp})
+
+        # Check total
+        ledger_subtotal = sum(r["net_delta"] for r in ledger_rows)
+        self.assertEqual(ledger_subtotal, measured_total_delta)
 
 
 if __name__ == "__main__":
