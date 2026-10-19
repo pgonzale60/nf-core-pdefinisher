@@ -20,7 +20,9 @@ nextflow_process {
                     [ id: 'test_sample' ],
                     file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/genome/bed/test.bed', checkIfExists: true),
                     file(params.modules_testdata_base_path + 'Cantharis_rufa/analysis/icCanRufa1/read_mapping/pacbio/GCA_947369205.1.unmasked.pacbio.icCanRufa1_0_3.bed', checkIfExists: true),
-                    file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/genome/genome.fasta', checkIfExists: true)
+                    file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/genome/genome.fasta', checkIfExists: true),
+                    [],
+                    []
                 ])
                 input[1] = 150
                 input[2] = 350

@@ -226,6 +226,8 @@ workflow AUTOMATED_PDE_CURATION {
             ch_assembly,
             PDE_RECONNAISSANCE.out.pde_segments_bed,
             PDE_RECONNAISSANCE.out.delfies_bed,
+            PDE_RECONNAISSANCE.out.grs_summary_tsv,
+            PDE_RECONNAISSANCE.out.terminal_ends_summary,
             fimo_thresh
         )
         ch_versions = ch_versions.mix(PDE_MOTIF_DISCOVERY.out.versions)

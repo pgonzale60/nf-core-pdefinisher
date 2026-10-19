@@ -16,6 +16,8 @@ workflow PDE_MOTIF_DISCOVERY {
     ch_assembly         // channel: [ val(meta), path(assembly) ]
     ch_pde_segments     // channel: [ val(meta), path(pde_segments_bed) ]
     ch_breakpoints_bed  // channel: [ val(meta), path(breakpoints_bed) ]
+    ch_grs_summary      // channel: [ val(meta), path(grs_summary) ]
+    ch_ends_summary     // channel: [ val(meta), path(terminal_ends_summary) ]
     pvalue_thresh       // val: e.g. 1e-4
 
     main:
@@ -26,7 +28,10 @@ workflow PDE_MOTIF_DISCOVERY {
         .join(ch_breakpoints_bed, by: 0, remainder: true)
         .map { meta, segs, bps -> [ meta, segs, bps ?: [] ] }
         .join(ch_assembly, by: 0)
-        .map { meta, segs, bps, asm -> tuple(meta, segs, bps, asm) }
+        .join(ch_grs_summary, by: 0, remainder: true)
+        .map { meta, segs, bps, asm, grs -> [ meta, segs, bps, asm, grs ?: [] ] }
+        .join(ch_ends_summary, by: 0, remainder: true)
+        .map { meta, segs, bps, asm, grs, ends -> tuple(meta, segs, bps, asm, grs ?: [], ends ?: []) }
 
     EXTRACTPDEBORDERS (
         ch_borders_input,

@@ -34,6 +34,14 @@ input:
         type: file
         description: Draft or curated genome assembly FASTA
         pattern: "*.{fa,fasta,fa.gz,fasta.gz}"
+    - grs_summary:
+        type: file
+        description: Optional GRS summary TSV from IDENTIFYPUTATIVEGRS
+        pattern: "*.grs_summary.tsv"
+    - terminal_ends_summary:
+        type: file
+        description: Optional terminal ends summary TSV from SOFTCLIPENDS
+        pattern: "*.terminal_ends_summary.tsv"
   - - window_small:
         type: integer
         description: Half-window size in bp for small flanks (e.g. 150)
@@ -74,6 +82,22 @@ output:
           type: file
           description: Genomic coordinates of extracted border flanks
           pattern: "*.pde_border_flanks.bed"
+  - break_windows_fasta:
+      - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.break_windows_300bp.fasta":
+          type: file
+          description: Sliced 300 bp windows centred on breakpoints
+          pattern: "*.break_windows_300bp.fasta"
+  - census_json:
+      - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.census.json":
+          type: file
+          description: Sample census metrics JSON containing breakpoint counts, native telomeres, coverage medians, and germline fraction
+          pattern: "*.census.json"
   - versions_python:
       - - ${task.process}
         - python

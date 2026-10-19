@@ -20,6 +20,18 @@ def generate_cbm_discovery_report(
         with open(census_json_path, encoding="utf-8") as f:
             census = json.load(f)
 
+    c_soma = census.get("median_c_soma")
+    c_soma_str = f"{c_soma}×" if (c_soma is not None and c_soma != "N/A") else "N/A"
+
+    c_germ = census.get("median_c_germ")
+    c_germ_str = f"{c_germ}×" if (c_germ is not None and c_germ != "N/A") else "N/A"
+
+    f_germ = census.get("germline_fraction")
+    f_germ_str = f"{round(float(f_germ) * 100, 1)}%" if (f_germ is not None and f_germ != "N/A") else "N/A"
+
+    n_germ_telo = census.get("n_germ_telo", "N/A")
+    est_germ_chroms = census.get("estimated_germline_chromosomes", "N/A")
+
     core_metrics = {}
     if os.path.exists(core_metrics_json_path):
         with open(core_metrics_json_path, encoding="utf-8") as f:
@@ -30,11 +42,11 @@ def generate_cbm_discovery_report(
         "## 1. Executive Summary\n",
         f"- **Sample ID**: `{sample_id}`",
         f"- **PDE Breakpoints Identified ($N_{{breaks}}$)**: `{census.get('n_breaks', 'N/A')}`",
-        f"- **Germline Native Telomeres ($N_{{germ_telo}}$)**: `{census.get('n_germ_telo', 'N/A')}`",
-        f"- **Estimated Germline Chromosome Count**: `{census.get('estimated_germline_chromosomes', 'N/A')}`",
-        f"- **Median Somatic Coverage ($\\tilde{{C}}_{{soma}}$)**: `{census.get('median_c_soma', 'N/A')}×`",
-        f"- **Median Germline Coverage ($\\tilde{{C}}_{{germ}}$)**: `{census.get('median_c_germ', 'N/A')}×`",
-        f"- **Estimated Germline Fraction**: `{round(float(census.get('germline_fraction', 0)) * 100, 1)}%`",
+        f"- **Germline Native Telomeres ($N_{{germ_telo}}$)**: `{n_germ_telo}`",
+        f"- **Estimated Germline Chromosome Count**: `{est_germ_chroms}`",
+        f"- **Median Somatic Coverage ($\\tilde{{C}}_{{soma}}$)**: `{c_soma_str}`",
+        f"- **Median Germline Coverage ($\\tilde{{C}}_{{germ}}$)**: `{c_germ_str}`",
+        f"- **Estimated Germline Fraction**: `{f_germ_str}`",
         "\n---\n",
         "## 2. Tier-1 Core Motif Architecture\n",
     ]

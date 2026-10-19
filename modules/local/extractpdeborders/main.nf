@@ -8,7 +8,7 @@ process EXTRACTPDEBORDERS {
         'quay.io/biocontainers/python:3.10.4' }"
 
     input:
-    tuple val(meta), path(pde_segments_bed), path(breakpoints_bed), path(assembly)
+    tuple val(meta), path(pde_segments_bed), path(breakpoints_bed), path(assembly), path(grs_summary), path(terminal_ends_summary)
     val window_small
     val window_large
 
@@ -25,18 +25,22 @@ process EXTRACTPDEBORDERS {
     task.ext.when == null || task.ext.when
 
     script:
-    def args   = task.ext.args ?: ''
-    def prefix = task.ext.prefix ?: "${meta.id}"
-    def win_s  = window_small ?: 150
-    def win_l  = window_large ?: 350
-    def bp_arg = breakpoints_bed ? "--breakpoints-bed ${breakpoints_bed}" : ""
+    def args     = task.ext.args ?: ''
+    def prefix   = task.ext.prefix ?: "${meta.id}"
+    def win_s    = window_small ?: 150
+    def win_l    = window_large ?: 350
+    def bp_arg   = (breakpoints_bed && breakpoints_bed != "null" && breakpoints_bed != "") ? "--breakpoints-bed ${breakpoints_bed}" : ""
+    def grs_arg  = (grs_summary && grs_summary != "null" && grs_summary != "") ? "--grs-summary ${grs_summary}" : ""
+    def ends_arg = (terminal_ends_summary && terminal_ends_summary != "null" && terminal_ends_summary != "") ? "--terminal-ends-summary ${terminal_ends_summary}" : ""
 
     """
-    # Tool: pde_extract_borders.py | Script-SHA: 07072342130b9e66
+    # Tool: pde_extract_borders.py | Script-SHA: e8d6725174182dc6
     python3 ${moduleDir}/resources/usr/bin/pde_extract_borders.py \\
         --pde-segments-bed "${pde_segments_bed}" \\
         --assembly "${assembly}" \\
         ${bp_arg} \\
+        ${grs_arg} \\
+        ${ends_arg} \\
         --window-small ${win_s} \\
         --window-large ${win_l} \\
         --prefix "${prefix}" \\
