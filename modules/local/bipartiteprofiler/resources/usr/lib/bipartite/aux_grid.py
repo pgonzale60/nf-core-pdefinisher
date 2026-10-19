@@ -186,7 +186,7 @@ def _run_single_aux_condition(
 def score_auxiliary_candidate(
     cand: dict[str, Any] | None, total_sequences: int = 1
 ) -> float:
-    """Compute composite score for an auxiliary motif candidate."""
+    """Compute score for an auxiliary motif candidate based on Total Information Content."""
     if not cand or cand.get("evalue", 1.0) > 0.05:
         return 0.0
     total_ic = cand.get("total_ic", 0.0)
@@ -196,26 +196,7 @@ def score_auxiliary_candidate(
         total_ic = w * mean_ic
     if total_ic <= 0.0:
         return 0.0
-
-    unique_seqs = cand.get("unique_sequences_hit", 0)
-    nsites = max(1, cand.get("nsites", 1))
-    proximal = cand.get("proximal_sites_6_50bp", 0)
-    c_ent = cand.get("consensus_entropy", 1.0)
-
-    tot_seq = max(1, total_sequences)
-    occupancy = min(1.0, unique_seqs / tot_seq) if unique_seqs > 0 else min(1.0, nsites / tot_seq)
-    spatial_spec = min(1.0, proximal / nsites) if proximal > 0 else 0.75
-    homopolymer_factor = (
-        1.0 if c_ent >= 1.2 else (c_ent / 1.2 if c_ent >= 0.6 else 0.05)
-    )
-
-    score = (
-        total_ic
-        * (0.3 + 0.7 * occupancy)
-        * (0.4 + 0.6 * spatial_spec)
-        * homopolymer_factor
-    )
-    return round(score, 4)
+    return round(float(total_ic), 4)
 
 
 def revcomp(seq: str) -> str:
@@ -290,13 +271,11 @@ def run_auxiliary_grid(
                 res["composite_score"] = score_auxiliary_candidate(res, total_sequences)
                 results.append(res)
 
-    # Check for significant auxiliary motif ranked by composite score, universally rejecting core echoes
+    # Check for significant auxiliary motif ranked by total information content, universally rejecting core echoes
     sig_candidates = [
         r
         for r in results
         if r["evalue"] <= 0.05
-        and r["mean_ic"] >= 0.50
-        and r["consensus_entropy"] >= 0.80
         and r.get("composite_score", 0.0) > 0
         and not is_core_echo(r.get("consensus", ""), core_consensus)
     ]
@@ -304,7 +283,6 @@ def run_auxiliary_grid(
         sig_candidates.sort(
             key=lambda x: (
                 x["composite_score"],
-                x["total_ic"],
                 -math.log10(max(x["evalue"], 1e-100)),
             ),
             reverse=True,

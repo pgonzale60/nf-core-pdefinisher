@@ -24,14 +24,20 @@ workflow PDE_MOTIF_DISCOVERY {
     ch_versions = Channel.empty()
 
     // 1. Extract authentic GRS/Core border transitions directly from pde_segments.bed
-    ch_borders_input = ch_pde_segments
-        .join(ch_breakpoints_bed, by: 0, remainder: true)
-        .map { meta, segs, bps -> [ meta, segs, bps ?: [] ] }
-        .join(ch_assembly, by: 0)
-        .join(ch_grs_summary, by: 0, remainder: true)
-        .map { meta, segs, bps, asm, grs -> [ meta, segs, bps, asm, grs ?: [] ] }
-        .join(ch_ends_summary, by: 0, remainder: true)
-        .map { meta, segs, bps, asm, grs, ends -> tuple(meta, segs, bps, asm, grs ?: [], ends ?: []) }
+    ch_b1 = ch_pde_segments.map    { meta, f -> [ meta.id, meta, f ] }
+    ch_b2 = ch_breakpoints_bed.map { meta, f -> [ meta.id, f ] }
+    ch_b3 = ch_assembly.map        { meta, f -> [ meta.id, f ] }
+    ch_b4 = ch_grs_summary.map     { meta, f -> [ meta.id, f ] }
+    ch_b5 = ch_ends_summary.map    { meta, f -> [ meta.id, f ] }
+
+    ch_borders_input = ch_b1
+        .join(ch_b2, by: 0, remainder: true)
+        .join(ch_b3, by: 0)
+        .join(ch_b4, by: 0, remainder: true)
+        .join(ch_b5, by: 0, remainder: true)
+        .map { id, meta, segs, bps, asm, grs, ends ->
+            tuple(meta, segs, bps ?: [], asm, grs ?: [], ends ?: [])
+        }
 
     EXTRACTPDEBORDERS (
         ch_borders_input,
@@ -47,11 +53,20 @@ workflow PDE_MOTIF_DISCOVERY {
     ch_versions = ch_versions.mix(MEMECOREGRID.out.versions_meme)
 
     // 3. Tier-2 Auxiliary Motif Discovery & Bipartite Spacing Profiler
-    ch_bipartite_input = EXTRACTPDEBORDERS.out.break_windows_fasta
-        .join(MEMECOREGRID.out.best_core_motif, by: 0)
-        .join(EXTRACTPDEBORDERS.out.census_json, by: 0)
-        .join(MEMECOREGRID.out.motif_metrics_json, by: 0)
-        .join(MEMECOREGRID.out.best_background, by: 0)
+    ch_bp1 = EXTRACTPDEBORDERS.out.break_windows_fasta.map { meta, f -> [ meta.id, meta, f ] }
+    ch_bp2 = MEMECOREGRID.out.best_core_motif.map         { meta, f -> [ meta.id, f ] }
+    ch_bp3 = EXTRACTPDEBORDERS.out.census_json.map        { meta, f -> [ meta.id, f ] }
+    ch_bp4 = MEMECOREGRID.out.motif_metrics_json.map      { meta, f -> [ meta.id, f ] }
+    ch_bp5 = MEMECOREGRID.out.best_background.map         { meta, f -> [ meta.id, f ] }
+
+    ch_bipartite_input = ch_bp1
+        .join(ch_bp2, by: 0)
+        .join(ch_bp3, by: 0)
+        .join(ch_bp4, by: 0)
+        .join(ch_bp5, by: 0)
+        .map { id, meta, fa, core, census, metrics, bg ->
+            tuple(meta, fa, core, census, metrics, bg)
+        }
 
     BIPARTITEPROFILER (
         ch_bipartite_input
@@ -59,8 +74,9 @@ workflow PDE_MOTIF_DISCOVERY {
     ch_versions = ch_versions.mix(BIPARTITEPROFILER.out.versions_meme)
 
     // 4. Whole-Genome FIMO Scanning across raw assembly
-    ch_fimo_input = MEMECOREGRID.out.best_core_motif
-        .join(ch_assembly, by: 0)
+    ch_fimo_input = MEMECOREGRID.out.best_core_motif.map { meta, f -> [ meta.id, meta, f ] }
+        .join(ch_assembly.map { meta, f -> [ meta.id, f ] }, by: 0)
+        .map { id, meta, core, asm -> tuple(meta, core, asm) }
 
     FIMO (
         ch_fimo_input,
@@ -69,10 +85,10 @@ workflow PDE_MOTIF_DISCOVERY {
     ch_versions = ch_versions.mix(FIMO.out.versions_fimo)
 
     // 5. Profiling of motif occurrences across authentic break sites, GRS, and core
-    ch_profiler_input = FIMO.out.tsv
-        .join(EXTRACTPDEBORDERS.out.border_breakpoints, by: 0)
-        .join(ch_pde_segments, by: 0)
-        .map { meta, hits, bps, segs -> tuple(meta, hits, bps, segs) }
+    ch_profiler_input = FIMO.out.tsv.map { meta, f -> [ meta.id, meta, f ] }
+        .join(EXTRACTPDEBORDERS.out.border_breakpoints.map { meta, f -> [ meta.id, f ] }, by: 0)
+        .join(ch_pde_segments.map { meta, f -> [ meta.id, f ] }, by: 0)
+        .map { id, meta, hits, bps, segs -> tuple(meta, hits, bps, segs) }
 
     PDEMOTIFPROFILER (
         ch_profiler_input,
