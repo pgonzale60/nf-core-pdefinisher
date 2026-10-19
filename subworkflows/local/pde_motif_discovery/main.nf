@@ -4,11 +4,11 @@
 // and profiles genome-wide motif occurrences across assembly compartments.
 //
 
-include { EXTRACTPDEBORDERS } from '../../modules/local/extractpdeborders/main'
-include { MEMECOREGRID      } from '../../modules/local/memecoregrid/main'
-include { BIPARTITEPROFILER } from '../../modules/local/bipartiteprofiler/main'
-include { FIMO              } from '../../modules/local/fimo/main'
-include { PDEMOTIFPROFILER  } from '../../modules/local/pdemotifprofiler/main'
+include { EXTRACTPDEBORDERS } from '../../../modules/local/extractpdeborders/main'
+include { MEMECOREGRID      } from '../../../modules/local/memecoregrid/main'
+include { BIPARTITEPROFILER } from '../../../modules/local/bipartiteprofiler/main'
+include { FIMO              } from '../../../modules/local/fimo/main'
+include { PDEMOTIFPROFILER  } from '../../../modules/local/pdemotifprofiler/main'
 
 workflow PDE_MOTIF_DISCOVERY {
 
