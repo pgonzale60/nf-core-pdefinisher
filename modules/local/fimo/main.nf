@@ -12,8 +12,8 @@ process FIMO {
     val pvalue_thresh
 
     output:
-    tuple val(meta), path("${prefix}.fimo_genome_hits.tsv"), emit: tsv
-    tuple val(meta), path("${prefix}_fimo_out")            , emit: outdir
+    tuple val(meta), path("*.fimo_genome_hits.tsv"), emit: tsv
+    tuple val(meta), path("*_fimo_out")            , emit: outdir
     tuple val("${task.process}"), val('fimo'), eval("fimo -version 2>&1 | head -n 1 | sed 's/.*version //'"), topic: versions, emit: versions_fimo
 
     when:
