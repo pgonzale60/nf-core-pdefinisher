@@ -152,6 +152,33 @@ def main():
     raw_seqs = load_fasta_dict(args.break_windows)
     seq_names = list(raw_seqs.keys())
 
+    if len(seq_names) == 0:
+        # Gracefully handle samples with zero detected break windows
+        with open(args.output_aux_meme, "w", encoding="utf-8") as f:
+            f.write("MEME version 4\n\nALPHABET= ACGT\n")
+        with open(args.output_masked_fasta, "w", encoding="utf-8") as f:
+            pass
+        write_spacing_tsv([], args.output_spacing_tsv)
+        spacing_summary = {
+            "n_paired_occurrences": 0,
+            "core_only_occurrences": 0,
+            "aux_only_occurrences": 0,
+            "neither_occurrences": 0,
+            "median_spacing": None,
+            "iqr_spacing": None,
+            "mean_cosine_periodicity": 0.0,
+        }
+        generate_cbm_discovery_report(
+            sample_id=args.sample_id,
+            census_json_path=args.census_json,
+            core_metrics_json_path=args.core_metrics_json,
+            best_aux_motif=None,
+            bipartite_summary=spacing_summary,
+            output_report_md=args.output_report,
+        )
+        print(f"[BIPARTITEPROFILER] Completed for {args.sample_id} with 0 input sequences.")
+        return
+
     work_dir = Path("bipartite_work")
     work_dir.mkdir(exist_ok=True)
 

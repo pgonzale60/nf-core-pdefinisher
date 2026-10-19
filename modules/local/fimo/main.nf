@@ -29,14 +29,19 @@ process FIMO {
     """
     $gunzip_assembly
 
-    fimo \\
-        --thresh ${thresh} \\
-        --oc "${prefix}_fimo_out" \\
-        ${args} \\
-        "${motif_meme}" \\
-        "${input_assembly}"
-
-    cp "${prefix}_fimo_out/fimo.tsv" "${prefix}.fimo_genome_hits.tsv"
+    if grep -q "MOTIF" "${motif_meme}"; then
+        fimo \\
+            --thresh ${thresh} \\
+            --oc "${prefix}_fimo_out" \\
+            ${args} \\
+            "${motif_meme}" \\
+            "${input_assembly}"
+        cp "${prefix}_fimo_out/fimo.tsv" "${prefix}.fimo_genome_hits.tsv"
+    else
+        mkdir -p "${prefix}_fimo_out"
+        echo -e "motif_id\tmotif_alt_id\tsequence_name\tstart\tstop\tstrand\tscore\tp-value\tq-value\tmatched_sequence" > "${prefix}.fimo_genome_hits.tsv"
+        cp "${prefix}.fimo_genome_hits.tsv" "${prefix}_fimo_out/fimo.tsv"
+    fi
     """
 
     stub:
