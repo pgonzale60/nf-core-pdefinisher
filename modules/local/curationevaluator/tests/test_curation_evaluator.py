@@ -9,7 +9,12 @@ import sys
 bin_dir = Path(__file__).resolve().parent.parent / "resources" / "usr" / "bin"
 sys.path.insert(0, str(bin_dir))
 
-from pde_evaluate_curation import compute_red_repeat_pct, analyze_terminal_repeats, classify_unresolved_gap
+from pde_evaluate_curation import (
+    compute_red_repeat_pct,
+    analyze_terminal_repeats,
+    classify_unresolved_gap,
+    render_telomere_unitig_table,
+)
 
 
 class TestCurationEvaluator(unittest.TestCase):
@@ -134,6 +139,77 @@ class TestCurationEvaluator(unittest.TestCase):
         cls, note, takeaway = classify_unresolved_gap(None, span_reads=0, n_unitigs=0)
         self.assertEqual(cls, "Physical Sequencing Gap")
         self.assertIn("Zero spanning HiFi reads", takeaway)
+
+    def test_render_telomere_unitig_table(self):
+        import io
+
+        # 1. Empty inventory -> no output
+        buf = io.StringIO()
+        render_telomere_unitig_table(buf, {})
+        self.assertEqual(buf.getvalue(), "")
+
+        # 2. Populated inventory -> Markdown table with hits, overhangs, and disposition
+        inv = {
+            "total_assembled": 2,
+            "assigned_count": 1,
+            "unassigned_count": 1,
+            "termini_lacking_unitigs": ["Chr IV 5p (supported by cluster cl_17 with 5 reads)"],
+            "unitigs": [
+                {
+                    "unitig_id": "utg000013l",
+                    "length_bp": 34948,
+                    "coverage_str": "18.5× | 18 reads (cl_12)",
+                    "status": "ASSIGNED",
+                    "assigned_to": "Chr III 5p",
+                    "disposition": "Assigned to Chr III 5p (+22,664 bp extension).",
+                    "hits": [
+                        {
+                            "target_chrom": "III",
+                            "target_arm": "5p",
+                            "target_start": 0,
+                            "target_end": 12284,
+                            "strand": "+",
+                            "mapq": 60,
+                            "overhang_bp": 22664,
+                        }
+                    ],
+                },
+                {
+                    "unitig_id": "ptg000004l",
+                    "length_bp": 33055,
+                    "coverage_str": "N/A",
+                    "status": "COMPETED_OUT",
+                    "assigned_to": None,
+                    "disposition": "Competed out at Chr II 5p (+26,293 bp) by `utg000007l` (+4,000 bp).",
+                    "hits": [
+                        {
+                            "target_chrom": "II",
+                            "target_arm": "5p",
+                            "target_start": 0,
+                            "target_end": 6762,
+                            "strand": "+",
+                            "mapq": 60,
+                            "overhang_bp": 26293,
+                        }
+                    ],
+                },
+            ],
+        }
+
+        buf = io.StringIO()
+        render_telomere_unitig_table(buf, inv)
+        output = buf.getvalue()
+        self.assertIn("### Telomeric Unitig Inventory & Hit Disposition", output)
+        self.assertIn("`utg000013l`", output)
+        self.assertIn("34,948 bp", output)
+        self.assertIn("18.5× | 18 reads (cl_12)", output)
+        self.assertIn("Chr III (5p): 0–12,284 (+, MAPQ 60)", output)
+        self.assertIn("+22,664 bp", output)
+        self.assertIn("**ASSIGNED**", output)
+        self.assertIn("`ptg000004l`", output)
+        self.assertIn("**COMPETED_OUT**", output)
+        self.assertIn("Chromosome Termini Lacking Assembled Unitigs", output)
+        self.assertIn("Chr IV 5p (supported by cluster cl_17 with 5 reads)", output)
 
 
 if __name__ == "__main__":

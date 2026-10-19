@@ -29,6 +29,7 @@ from .evidence_io import (
     parse_unplaced_paf,
     partition_chromosomes,
     reconstruct_rdna_operons,
+    survey_telomere_unitigs,
 )
 from .internal_resolver import synthesize_curation_cards, synthesize_rdna_cards
 from .models import Port, UnplacedSegment
@@ -87,6 +88,7 @@ __all__ = [
     "synthesize_curation_cards",
     "synthesize_rdna_cards",
     "synthesize_telomere_cards",
+    "survey_telomere_unitigs",
     "terminus_state",
     "triage_unplaced_scaffolds",
 ]

@@ -540,3 +540,256 @@ def load_red_repeats(red_bed):
                     span = int(p[2]) - int(p[1])
                     scaff_repeats[sc] += span
     return scaff_repeats
+
+
+def survey_telomere_unitigs(
+    telo_paf,
+    nuclear_chroms,
+    chrom_lens,
+    unitig_assignment,
+    unitig_extensions=None,
+    telo_junctions=None,
+    telo_unitigs_fasta=None,
+    policy=None,
+):
+    """Survey all independently assembled telomeric unitigs and determine their hit disposition.
+
+    Tracks:
+      - Total independently assembled unitigs and their lengths.
+      - Alignment hits across the assembly (target chrom, coordinates, MAPQ, PID, overhang).
+      - Read depth / coverage (from FASTA headers or correlated telomeric junction clusters).
+      - Assignment status: ASSIGNED vs. UNASSIGNED (competed out, internal, or unaligned).
+      - Curator rationale / disposition for each unitig.
+
+    Returns:
+      dict with keys:
+        - "total_assembled": int
+        - "assigned_count": int
+        - "unassigned_count": int
+        - "assigned_termini": list of str (e.g. ["I 5p", "III 5p"])
+        - "termini_lacking_unitigs": list of str (ends without any unitig)
+        - "unitigs": list of dicts, sorted with assigned unitigs first, then by length
+    """
+    if policy is None:
+        policy = DEFAULT_POLICY
+    t_win = policy.get("telomere", {}).get("terminal_window_bp", 10000)
+    min_ext = policy.get("telomere", {}).get("min_extension_bp", 200)
+
+    # 1. Discover all unitigs
+    unitig_records = {}  # {qname: {"length": int, "depth": float|None}}
+
+    # Parse optional FASTA if available
+    if telo_unitigs_fasta and os.path.exists(telo_unitigs_fasta):
+        try:
+            with open(telo_unitigs_fasta, "r", encoding="utf-8", errors="replace") as fh:
+                cur_name = None
+                cur_len = 0
+                cur_dp = None
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    if line.startswith(">"):
+                        if cur_name is not None:
+                            unitig_records[cur_name] = {"length": cur_len, "depth": cur_dp}
+                        parts = line[1:].split()
+                        cur_name = parts[0]
+                        cur_len = 0
+                        cur_dp = None
+                        for p in parts[1:]:
+                            if p.startswith("rd="):
+                                try:
+                                    cur_dp = float(p.split("=")[1])
+                                except ValueError:
+                                    pass
+                            elif p.startswith("dp="):
+                                try:
+                                    cur_dp = float(p.split("=")[1])
+                                except ValueError:
+                                    pass
+                    else:
+                        cur_len += len(line)
+                if cur_name is not None:
+                    unitig_records[cur_name] = {"length": cur_len, "depth": cur_dp}
+        except Exception:
+            pass
+
+    # Parse PAF records
+    paf_by_query = defaultdict(list)
+    if telo_paf and os.path.exists(telo_paf):
+        with open(telo_paf, "r", encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                p = line.split("\t")
+                if len(p) >= 12:
+                    qname = p[0]
+                    paf_by_query[qname].append(p)
+                    if qname not in unitig_records:
+                        unitig_records[qname] = {"length": int(p[1]), "depth": None}
+
+    # 2. Map clusters by target
+    clusters_by_target = {}
+    if telo_junctions and isinstance(telo_junctions, dict):
+        for cl in telo_junctions.get("clusters", []):
+            tc = cl.get("target_chrom")
+            ta = cl.get("target_arm")
+            if tc and ta:
+                clusters_by_target[(tc, ta)] = cl
+
+    # 3. Build assigned molecules lookup
+    assigned_map = {}  # {unitig_id: (chrom, arm, candidate_tuple)}
+    for (c, arm), cand in (unitig_assignment or {}).items():
+        if cand and len(cand) > 1 and cand[1] != "None":
+            assigned_map[str(cand[1])] = (c, arm, cand)
+
+    # 4. Process each unitig
+    unitig_list = []
+    for qname, meta in sorted(unitig_records.items(), key=lambda x: -x[1]["length"]):
+        qlen = meta["length"]
+        depth = meta["depth"]
+        paf_recs = paf_by_query.get(qname, [])
+
+        hits = []
+        for p in paf_recs:
+            strand = p[4]
+            tname = p[5]
+            tlen = int(p[6])
+            tstart = int(p[7])
+            tend = int(p[8])
+            qstart = int(p[2])
+            qend = int(p[3])
+            matches = int(p[9])
+            alen = int(p[10])
+            mapq = int(p[11])
+            pid = round((matches / alen * 100.0), 1) if alen > 0 else 0.0
+
+            arm = "internal"
+            overhang = 0
+            if tname in nuclear_chroms:
+                if tstart <= t_win:
+                    arm = "5p"
+                    overhang = qstart if strand == "+" else (qlen - qend)
+                elif tend >= tlen - t_win:
+                    arm = "3p"
+                    overhang = (qlen - qend) if strand == "+" else qstart
+
+            hits.append({
+                "target_chrom": tname,
+                "target_arm": arm,
+                "target_start": tstart,
+                "target_end": tend,
+                "query_start": qstart,
+                "query_end": qend,
+                "strand": strand,
+                "mapq": mapq,
+                "matches": matches,
+                "alen": alen,
+                "pid": pid,
+                "overhang_bp": overhang,
+            })
+
+        # Coverage string formulation
+        cov_parts = []
+        if depth is not None:
+            cov_parts.append(f"{depth:.1f}×")
+
+        matched_cl = None
+        for h in hits:
+            if h["target_arm"] in ("5p", "3p"):
+                cl = clusters_by_target.get((h["target_chrom"], h["target_arm"]))
+                if cl:
+                    matched_cl = cl
+                    break
+        if matched_cl:
+            cl_desc = f"{matched_cl.get('read_count', 0)} reads ({matched_cl.get('cluster_id', 'cluster')})"
+            cov_parts.append(cl_desc)
+
+        coverage_str = " | ".join(cov_parts) if cov_parts else "N/A"
+
+        # Determine status and curator disposition
+        if qname in assigned_map:
+            c, arm, cand = assigned_map[qname]
+            ext_bp = cand[0]
+            status = "ASSIGNED"
+            assigned_to = f"Chr {c} {arm}"
+            disposition = f"Assigned to Chr {c} {arm} (+{ext_bp:,} bp extension)."
+        else:
+            assigned_to = None
+            terminal_hits = [h for h in hits if h["target_arm"] in ("5p", "3p") and h["target_chrom"] in nuclear_chroms]
+            if terminal_hits:
+                terminal_hits.sort(key=lambda h: h["overhang_bp"], reverse=True)
+                best_th = terminal_hits[0]
+                tc, tarm, ovh = best_th["target_chrom"], best_th["target_arm"], best_th["overhang_bp"]
+                if ovh < min_ext:
+                    status = "UNASSIGNED"
+                    disposition = f"Unassigned: Overhang at Chr {tc} {tarm} (+{ovh:,} bp) is below minimum threshold ({min_ext} bp)."
+                else:
+                    winner_cand = (unitig_assignment or {}).get((tc, tarm))
+                    if winner_cand and len(winner_cand) > 1 and winner_cand[1] != "None":
+                        winner_id = winner_cand[1]
+                        winner_ext = winner_cand[0]
+                        status = "COMPETED_OUT"
+                        disposition = f"Competed out at Chr {tc} {tarm} (+{ovh:,} bp) by `{winner_id}` (+{winner_ext:,} bp)."
+                    else:
+                        status = "UNASSIGNED"
+                        disposition = f"Unassigned: Disqualified at Chr {tc} {tarm} (insufficient MAPQ or single-molecule valency constraint)."
+            elif any(h["target_chrom"] in nuclear_chroms for h in hits):
+                best_h = max(hits, key=lambda h: h["alen"])
+                status = "INTERNAL_ALIGNMENT"
+                disposition = f"Internal alignment on Chr {best_h['target_chrom']}:{best_h['target_start']:,}–{best_h['target_end']:,} (MAPQ {best_h['mapq']}); zero tip overhang."
+            elif hits:
+                best_h = max(hits, key=lambda h: h["alen"])
+                status = "UNPLACED_SCAFFOLD"
+                disposition = f"Maps to unplaced scaffold {best_h['target_chrom']} (MAPQ {best_h['mapq']}); no nuclear chromosome anchor."
+            else:
+                status = "UNALIGNED"
+                disposition = "Unaligned sequence (zero mappings against assembly)."
+
+        unitig_list.append({
+            "unitig_id": qname,
+            "length_bp": qlen,
+            "coverage_str": coverage_str,
+            "status": status,
+            "assigned_to": assigned_to,
+            "disposition": disposition,
+            "hits": hits,
+        })
+
+    # Sort: ASSIGNED first (by chromosome/arm), then COMPETED_OUT, then remaining by length
+    def _sort_key(u):
+        st_order = {"ASSIGNED": 0, "COMPETED_OUT": 1, "INTERNAL_ALIGNMENT": 2, "UNPLACED_SCAFFOLD": 3, "UNASSIGNED": 4, "UNALIGNED": 5}
+        return (st_order.get(u["status"], 9), u["assigned_to"] or "", -u["length_bp"])
+
+    unitig_list.sort(key=_sort_key)
+
+    total_assembled = len(unitig_list)
+    assigned_count = sum(1 for u in unitig_list if u["status"] == "ASSIGNED")
+    unassigned_count = total_assembled - assigned_count
+
+    # Termini lacking unitigs
+    termini_with_unitigs = set()
+    for (c, e), cand in (unitig_assignment or {}).items():
+        if cand and len(cand) > 1 and cand[1] != "None":
+            termini_with_unitigs.add((c, e))
+    for (c, e), cand_list in (unitig_extensions or {}).items():
+        if cand_list:
+            termini_with_unitigs.add((c, e))
+
+    termini_lacking_unitigs = []
+    for c in sorted(nuclear_chroms, key=lambda x: (len(x), x)):
+        for e in ("5p", "3p"):
+            if (c, e) not in termini_with_unitigs:
+                cl = clusters_by_target.get((c, e))
+                cl_note = f" (supported by cluster {cl['cluster_id']} with {cl.get('read_count', 0)} reads)" if cl else " (zero telomeric reads/clusters)"
+                termini_lacking_unitigs.append(f"Chr {c} {e}{cl_note}")
+
+    return {
+        "total_assembled": total_assembled,
+        "assigned_count": assigned_count,
+        "unassigned_count": unassigned_count,
+        "assigned_termini": sorted([u["assigned_to"] for u in unitig_list if u["assigned_to"]]),
+        "termini_lacking_unitigs": termini_lacking_unitigs,
+        "unitigs": unitig_list,
+    }

@@ -221,6 +221,11 @@ def parse_sample_record(sc):
         "grs_fraction_pct": grs_frac_pct,
     }
 
+    telo_u = sc.get("telomere_unitigs", {})
+    data["telo_unitigs_assembled"] = telo_u.get("total_assembled", 0)
+    data["telo_unitigs_assigned"] = telo_u.get("assigned_count", 0)
+    data["telo_unitigs_unassigned"] = telo_u.get("unassigned_count", 0)
+
     data["tier"] = classify_tier(data)
     data["is_finished_gold"] = (data["is_t2t"] and data["is_gapless_non_rdna"])
     return data
@@ -249,6 +254,15 @@ def compute_cohort_aggregates(samples_data):
     post_capped_termini = sum(s["post_capped"] for s in samples_data)
     net_telo_added = post_capped_termini - pre_capped_termini
     net_telo_bp = sum(s["net_telo_bp_added"] for s in samples_data)
+
+    total_u_assembled = sum(s.get("telo_unitigs_assembled", 0) for s in samples_data)
+    total_u_assigned = sum(s.get("telo_unitigs_assigned", 0) for s in samples_data)
+    total_u_unassigned = sum(s.get("telo_unitigs_unassigned", 0) for s in samples_data)
+    u_assignment_pct = (
+        round((total_u_assigned / total_u_assembled) * 100.0, 1)
+        if total_u_assembled > 0
+        else 0.0
+    )
 
     baseline_gaps = sum(s["baseline_gaps"] for s in samples_data)
     remaining_gaps = sum(s["remaining_gaps"] for s in samples_data)
@@ -330,6 +344,10 @@ def compute_cohort_aggregates(samples_data):
         "cohort_grs_fraction_pct": cohort_grs_fraction_pct,
         "cohort_core_cov": cohort_core_cov,
         "cohort_grs_cov": cohort_grs_cov,
+        "total_unitigs_assembled": total_u_assembled,
+        "total_unitigs_assigned": total_u_assigned,
+        "total_unitigs_unassigned": total_u_unassigned,
+        "unitig_assignment_pct": u_assignment_pct,
         "mathematically_conserved_count": conserved_count,
         "mathematically_conserved_all": (conserved_count == total_genomes),
         "tier_distribution": dict(tier_counts),
@@ -373,6 +391,13 @@ def generate_markdown_report(prefix, agg, samples_data):
         f"**{agg['post_capped_termini']} / {agg['total_termini']} ({agg['cohort_t2t_completeness_pct']}%)** | "
         f"+{agg['net_telo_added']} ends (+{agg['net_telo_bp']:,} bp telomeric tracts) |"
     )
+    if agg.get("total_unitigs_assembled", 0) > 0:
+        md.append(
+            f"| **Telomeric Unitigs Assigned** | "
+            f"{agg['total_unitigs_assembled']} assembled | "
+            f"**{agg['total_unitigs_assigned']} / {agg['total_unitigs_assembled']} assigned ({agg['unitig_assignment_pct']}%)** | "
+            f"{agg['total_unitigs_unassigned']} unassigned unitigs across cohort |"
+        )
     md.append(
         f"| **Assembly Gaps Resolved** | "
         f"{agg['baseline_gaps']} baseline gaps | "
@@ -563,6 +588,9 @@ def generate_tsv_table(samples_data):
         "total_termini",
         "pre_capped_termini",
         "post_capped_termini",
+        "telo_unitigs_assembled",
+        "telo_unitigs_assigned",
+        "telo_unitigs_unassigned",
         "pre_t2t_pct",
         "post_t2t_pct",
         "t2t_gain_pct",

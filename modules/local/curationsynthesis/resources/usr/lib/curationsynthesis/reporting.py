@@ -38,6 +38,7 @@ def render_markdown_blueprint(
     scaffold_cards,
     scaffold_dispositions,
     extension_by_seq,
+    telomere_unitig_inventory=None,
 ):
     """Render the full Markdown Curation Reconnaissance Blueprint."""
     report_lines = [
@@ -137,6 +138,13 @@ def render_markdown_blueprint(
     # Step 3: Telomere Matrix & Cards
     tot_ends = len(nuclear_chroms) * 2
     report_lines.append(f"## 3. Dynamic {tot_ends}-End Telomere Evidence Matrix & Evidence Hierarchy\n")
+    if telomere_unitig_inventory:
+        tot_u = telomere_unitig_inventory.get("total_assembled", 0)
+        as_u = telomere_unitig_inventory.get("assigned_count", 0)
+        unas_u = telomere_unitig_inventory.get("unassigned_count", 0)
+        report_lines.append(
+            f"* **Independently Assembled Telomeric Unitigs**: **{tot_u} unitigs** ({as_u} assigned to chromosome ends, {unas_u} unassigned)\n"
+        )
     report_lines.append(
         "| End | Baseline Tip Status | Distal GRS Depth | Tip 1kb Depth | Single Read Overhang | Best Unitig Overhang | Evidence Decision | Accidental Somatic Warning |"
     )
@@ -226,6 +234,35 @@ def render_markdown_blueprint(
         report_lines.append(
             "Zero active terminus action cards required. All chromosome ends are verified complete in baseline assembly.\n"
         )
+
+    if telomere_unitig_inventory and telomere_unitig_inventory.get("unitigs"):
+        report_lines.append("### Telomeric Unitig Inventory & Hit Disposition\n")
+        report_lines.append(
+            "| Unitig ID | Length | Coverage / Reads | Alignment Hits (Target, Coordinates, MAPQ) | Terminal Overhang | Status | Curator Disposition |"
+        )
+        report_lines.append("| :--- | :---: | :---: | :--- | :---: | :---: | :--- |")
+        for u in telomere_unitig_inventory["unitigs"]:
+            uid = u["unitig_id"]
+            ulen = f"{u['length_bp']:,d} bp"
+            cov = u.get("coverage_str", "N/A")
+            status = f"**{u['status']}**"
+            disp = u.get("disposition", "")
+            hit_strs = []
+            max_ovh = 0
+            for h in u.get("hits", []):
+                t_arm = f" ({h['target_arm']})" if h.get("target_arm") != "internal" else ""
+                hit_strs.append(
+                    f"Chr {h['target_chrom']}{t_arm}: {h['target_start']:,}–{h['target_end']:,} ({h['strand']}, MAPQ {h['mapq']})"
+                )
+                if h.get("overhang_bp", 0) > max_ovh:
+                    max_ovh = h["overhang_bp"]
+            hits_cell = "<br>".join(hit_strs) if hit_strs else "Zero alignments"
+            ovh_cell = f"+{max_ovh:,d} bp" if max_ovh > 0 else "0 bp"
+            report_lines.append(f"| `{uid}` | {ulen} | {cov} | {hits_cell} | {ovh_cell} | {status} | {disp} |")
+        report_lines.append("")
+        if telomere_unitig_inventory.get("termini_lacking_unitigs"):
+            lacking_str = ", ".join(telomere_unitig_inventory["termini_lacking_unitigs"])
+            report_lines.append(f"* **Chromosome Termini Lacking Assembled Unitigs**: {lacking_str}\n")
 
     # Step 4: rDNA Audit
     report_lines.append("## 4. Major rDNA Locus Audit & Repeat-Graph Resolution\n")
@@ -374,6 +411,7 @@ def build_manifest_json(
     rdna_cards,
     scaffold_cards,
     scaffold_dispositions,
+    telomere_unitig_inventory=None,
 ):
     """Assemble the machine-executable curation_manifest.json payload."""
     all_action_cards = internal_cards + telo_cards + rdna_cards + scaffold_cards
@@ -413,5 +451,6 @@ def build_manifest_json(
             "domain_scaffold": len(scaffold_cards),
         },
         "scaffold_dispositions": scaffold_dispositions,
+        "telomere_unitig_inventory": telomere_unitig_inventory or {},
         "action_cards": all_action_cards,
     }

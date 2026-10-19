@@ -89,7 +89,15 @@ process HIFIASM {
 
     find . -maxdepth 1 -name "*.gfa" | while read graph; do
         bn=\$(basename "\$graph" .gfa)
-        gawk 'BEGIN { OFS = "\\t" } /^S/ { print ">" \$2; print \$3 }' "\$graph" > "\${bn}.fa"
+        gawk 'BEGIN { OFS = "\\t" } /^S/ {
+            dp = ""
+            for (i = 4; i <= NF; i++) {
+                if (\$i ~ /^rd:i:/) { dp = " rd=" substr(\$i, 6) }
+                else if (\$i ~ /^dp:f:/) { dp = " dp=" substr(\$i, 6) }
+            }
+            print ">" \$2 dp
+            print \$3
+        }' "\$graph" > "\${bn}.fa"
     done
 
     ## gzip all GFA and BED output files

@@ -47,6 +47,7 @@ from curationsynthesis import (
     partition_chromosomes,
     reconstruct_rdna_operons,
     render_markdown_blueprint,
+    survey_telomere_unitigs,
     synthesize_curation_cards,
     synthesize_rdna_cards,
     synthesize_telomere_cards,
@@ -88,6 +89,7 @@ def parse_args():
     parser.add_argument("--policy", default=None, help="Path to curation_policy.json (single source of truth)")
     parser.add_argument("--telo-motif", default=None, help="Canonical telomeric motif (optional override)")
     parser.add_argument("--telo-junctions", default=None, help="Path to telomeric junction catalog JSON")
+    parser.add_argument("--telo-unitigs", default=None, help="Optional path to telomeric unitigs FASTA")
     parser.add_argument("--chromosomes", default=None, help="Comma-separated list of canonical nuclear chromosome names")
     return parser.parse_args()
 
@@ -148,6 +150,16 @@ def main():
 
     unitig_assignment = build_unitig_assignment(
         nuclear_chroms, chrom_lens, grs_segments, core_segments, delfies_points, unitig_extensions, policy
+    )
+    telomere_unitig_inventory = survey_telomere_unitigs(
+        telo_paf=args.telo_paf,
+        nuclear_chroms=nuclear_chroms,
+        chrom_lens=chrom_lens,
+        unitig_assignment=unitig_assignment,
+        unitig_extensions=unitig_extensions,
+        telo_junctions=telo_junctions,
+        telo_unitigs_fasta=args.telo_unitigs,
+        policy=policy,
     )
 
     _scaff_align, scaff_primary_records, scaff_any_records = parse_unplaced_paf(args.unplaced_paf)
@@ -266,6 +278,7 @@ def main():
         scaffold_cards=scaffold_cards,
         scaffold_dispositions=scaffold_dispositions,
         extension_by_seq=extension_by_seq,
+        telomere_unitig_inventory=telomere_unitig_inventory,
     )
     print(full_report)
 
@@ -289,6 +302,7 @@ def main():
             rdna_cards=rdna_cards,
             scaffold_cards=scaffold_cards,
             scaffold_dispositions=scaffold_dispositions,
+            telomere_unitig_inventory=telomere_unitig_inventory,
         )
         os.makedirs(os.path.dirname(os.path.abspath(args.output_json)), exist_ok=True)
         with open(args.output_json, "w") as out:

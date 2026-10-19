@@ -480,6 +480,42 @@ def parse_agp_rdna_intervals(agp_path):
     return intervals
 
 
+def render_telomere_unitig_table(f, telomere_unitig_inventory):
+    """Render markdown table and diagnostic summary for all independently assembled telomeric unitigs."""
+    if not telomere_unitig_inventory or not telomere_unitig_inventory.get("unitigs"):
+        return
+
+    f.write("### Telomeric Unitig Inventory & Hit Disposition\n")
+    f.write(
+        "*Catalog of all independently assembled telomeric unitigs/contigs, evaluating sequence length, "
+        "read/cluster coverage, assembly alignments, and assignment status:*\n\n"
+    )
+    f.write("| Unitig ID | Length | Coverage / Reads | Alignment Hits (Target, Coordinates, MAPQ) | Terminal Overhang | Status | Curator Disposition |\n")
+    f.write("| :--- | :---: | :---: | :--- | :---: | :---: | :--- |\n")
+    for u in telomere_unitig_inventory["unitigs"]:
+        uid = u["unitig_id"]
+        ulen = f"{u['length_bp']:,d} bp"
+        cov = u.get("coverage_str", "N/A")
+        status = f"**{u['status']}**"
+        disp = u.get("disposition", "")
+        hit_strs = []
+        max_ovh = 0
+        for h in u.get("hits", []):
+            t_arm = f" ({h['target_arm']})" if h.get("target_arm") != "internal" else ""
+            hit_strs.append(
+                f"Chr {h['target_chrom']}{t_arm}: {h['target_start']:,}–{h['target_end']:,} ({h['strand']}, MAPQ {h['mapq']})"
+            )
+            if h.get("overhang_bp", 0) > max_ovh:
+                max_ovh = h["overhang_bp"]
+        hits_cell = "<br>".join(hit_strs) if hit_strs else "Zero alignments"
+        ovh_cell = f"+{max_ovh:,d} bp" if max_ovh > 0 else "0 bp"
+        f.write(f"| `{uid}` | {ulen} | {cov} | {hits_cell} | {ovh_cell} | {status} | {disp} |\n")
+    f.write("\n")
+    if telomere_unitig_inventory.get("termini_lacking_unitigs"):
+        lacking_str = ", ".join(telomere_unitig_inventory["termini_lacking_unitigs"])
+        f.write(f"* **Chromosome Termini Lacking Assembled Unitigs**: {lacking_str}\n\n")
+
+
 def main():
     args = parse_args()
     os.makedirs(args.outdir, exist_ok=True)
@@ -506,8 +542,9 @@ def main():
     terminal_summary_rows = parse_tsv(args.terminal_summary)
     trans_rows = parse_tsv(args.trans_manifest) if (args.trans_manifest and os.path.exists(args.trans_manifest)) else []
 
-    # Policy / Motifs
+    # Policy / Motifs / Telomere Inventory
     telo_motif = blueprint.get("policy", {}).get("telomere", {}).get("motif", "TTAGGC")
+    telomere_unitig_inventory = blueprint.get("telomere_unitig_inventory", {})
 
     # 3. Identify Nuclear Chromosomes vs Unplaced Scaffolds
     if args.chromosomes:
@@ -884,7 +921,14 @@ def main():
             "discrepancy_bp": reconciliation_discrepancy,
             "mathematically_conserved": is_conserved
         },
-        "karyotype_compartments": karyotype_compartments
+        "karyotype_compartments": karyotype_compartments,
+        "telomere_unitigs": {
+            "total_assembled": telomere_unitig_inventory.get("total_assembled", 0),
+            "assigned_count": telomere_unitig_inventory.get("assigned_count", 0),
+            "unassigned_count": telomere_unitig_inventory.get("unassigned_count", 0),
+            "assigned_termini": telomere_unitig_inventory.get("assigned_termini", []),
+            "termini_lacking_unitigs": telomere_unitig_inventory.get("termini_lacking_unitigs", []),
+        }
     }
 
     scorecard_path = os.path.join(args.outdir, f"{args.sample}.curation_scorecard.json")
@@ -920,6 +964,26 @@ def main():
         f.write(f"  - Fully Capped Chromosomes: **{len(fully_capped_chrs)} / {len(chr_names)}** ({fully_str})\n")
         uncapped_str = ", ".join(item[2] for item in uncapped_ends_list) if uncapped_ends_list else "None"
         f.write(f"  - Uncapped Chromosome Ends: **{len(uncapped_ends_list)}**" + (f" ({uncapped_str})\n" if uncapped_ends_list else "\n"))
+
+        u_tot = telomere_unitig_inventory.get("total_assembled", 0)
+        u_as = telomere_unitig_inventory.get("assigned_count", 0)
+        u_unas = telomere_unitig_inventory.get("unassigned_count", 0)
+        if u_tot > 0:
+            if len(uncapped_ends_list) > 0 and u_unas == 0:
+                f.write(
+                    f"  - Telomeric Unitigs: **{u_tot} independently assembled** (all **{u_as} assigned**; "
+                    f"0 unassigned unitigs available for remaining {len(uncapped_ends_list)} uncapped ends)\n"
+                )
+            elif len(uncapped_ends_list) > 0 and u_unas > 0:
+                f.write(
+                    f"  - Telomeric Unitigs: **{u_tot} independently assembled** (**{u_as} assigned** to chromosome ends, "
+                    f"**{u_unas} unassigned** [see Section 2 for hit diagnostics])\n"
+                )
+            else:
+                f.write(
+                    f"  - Telomeric Unitigs: **{u_tot} independently assembled** (**{u_as} assigned** to chromosome ends, "
+                    f"**{u_unas} unassigned**)\n"
+                )
 
         if rdna_gaps_count > 0:
             f.write(
@@ -965,6 +1029,7 @@ def main():
         f.write("## 2. Unresolved Loci & Curator Diagnostics (Actionable Evidence)\n")
         if total_unresolved == 0:
             f.write("*All chromosome termini are capped and all baseline gaps have been resolved. Zero unresolved loci remain.*\n\n")
+            render_telomere_unitig_table(f, telomere_unitig_inventory)
         else:
             f.write(f"*Empirical evidence at the {total_unresolved} incomplete loci to allow the curator to challenge pipeline calls and assess manual feasibility:*\n\n")
 
@@ -1120,6 +1185,8 @@ def main():
                                     f.write(f"  * **Walker Observation**: {w_notes}\n")
                                 f.write("  * **Classification**: **Unresolved Subtelomere**.\n")
                                 f.write(f"  * **Curator Takeaway**: Uncapped terminus ({rep_content}). Preserved as an unextended subtelomeric end.\n\n")
+
+            render_telomere_unitig_table(f, telomere_unitig_inventory)
 
             if unresolved_gaps:
                 f.write("### Unresolved Gaps\n")
