@@ -90,7 +90,7 @@ def render_validation_markdown(data: Dict[str, Any]) -> str:
     lines.append(f"* **Total Evaluated Surgery Loci**: `{summary.get('total_edits_evaluated', 0)}`")
     lines.append(f"* **Surgery Loci Concordance**: `{summary.get('edit_concordance_pct', 0.0)}%` ({summary.get('edits_passed', 0)} Clean, {summary.get('edits_warned', 0)} Warnings, {summary.get('edits_failed', 0)} Rejected)")
     lines.append(f"* **Total Assembly SVs Called (Sniffles)**: `{summary.get('total_svs_called', 0)}`")
-    lines.append(f"* **Flagrant Homozygous Errors ($VAF \\ge 0.8$)**: `{summary.get('flagrant_errors_count', 0)}`\n")
+    lines.append(f"* **Flagrant Homozygous Errors (Unedited Loci, $VAF \\ge 0.8$)**: `{summary.get('flagrant_errors_count', 0)}`\n")
 
     # Edited Loci Table
     lines.append("## 2. Surgery Loci Physical Verification Ledger\n")
@@ -104,13 +104,16 @@ def render_validation_markdown(data: Dict[str, Any]) -> str:
             status_badge = f"**{e['status']}**" if e['status'] == "PASS" else f"<span style='color:orange;'>**{e['status']}**</span>"
             span_str = f"{e['chrom']}:{e['curated_start']:,}-{e['curated_end']:,}"
             delta_str = f"+{e['delta_bp']:,} bp" if e['delta_bp'] > 0 else f"{e['delta_bp']:,} bp"
+            is_purged = "PURGE" in e.get("action", "").upper() or "PURGE" in e.get("edit_type", "").upper()
+            cov_str = "-" if is_purged else f"{e['mean_coverage']}x"
+            span_reads_str = "-" if is_purged else str(e['spanning_reads'])
             lines.append(
-                f"| **{e['chrom']}** | {e['edit_type']} | {span_str} | {delta_str} | {status_badge} | {e['mean_coverage']}x | {e['spanning_reads']} | {e['explanation']} |"
+                f"| **{e['chrom']}** | {e['edit_type']} | {span_str} | {delta_str} | {status_badge} | {cov_str} | {span_reads_str} | {e['explanation']} |"
             )
     lines.append("\n")
 
     # Flagrant Assembly Errors
-    lines.append("## 3. Flagrant Assembly Error Registry ($VAF \\ge 0.8$, High Support)\n")
+    lines.append("## 3. Flagrant Assembly Error Registry (Unedited Loci, $VAF \\ge 0.8$, High Support)\n")
     if not errors:
         lines.append("> [!NOTE]\n> **No flagrant homozygous structural defects detected across the curated assembly.**\n")
     else:

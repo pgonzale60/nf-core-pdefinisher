@@ -158,6 +158,72 @@ class TestCurationValidation(unittest.TestCase):
         self.assertIn("# Post-Curation Mapping & SV Validation Dossier: `test_sample`", md)
         self.assertIn("TELOMERE_CAPPING_5P", md)
 
+    def test_purged_sequence_validation(self):
+        purged_region = EditedRegion(
+            sample="test_sample",
+            chrom="scaffold_MT",
+            card_id="SCAFF-MT",
+            action="PURGE_ORGANELLAR",
+            edit_type="PURGE_ORGANELLAR",
+            curated_start=0,
+            curated_end=15000,
+            orig_start=0,
+            orig_end=15000,
+            delta_bp=-15000
+        )
+        res = validate_edited_regions([purged_region], [], bam_path=None)
+        self.assertEqual(len(res), 1)
+        self.assertEqual(res[0].status, "PASS")
+        self.assertIn("Purged sequence", res[0].explanation)
+
+    def test_mutually_exclusive_flagrant_errors(self):
+        region = EditedRegion(
+            sample="test_sample",
+            chrom="I",
+            card_id="GAP_001",
+            action="PATCH_GAP",
+            edit_type="GAP_PATCH",
+            curated_start=1000,
+            curated_end=1500,
+            orig_start=1000,
+            orig_end=1200,
+            delta_bp=300
+        )
+        svs = [
+            # SV 1: Inside edited locus (+/- 500bp flank) -> belongs to Section 2
+            StructuralVariant(
+                sv_id="SV_INSIDE_EDIT",
+                chrom="I",
+                start=1200,
+                end=1300,
+                sv_type="DEL",
+                sv_len=100,
+                support=20,
+                vaf=0.95,
+                filter_status="PASS",
+                qual=60.0,
+                chr2="I"
+            ),
+            # SV 2: Far outside edited locus -> belongs to Section 3
+            StructuralVariant(
+                sv_id="SV_OUTSIDE_EDIT",
+                chrom="I",
+                start=50000,
+                end=50200,
+                sv_type="DEL",
+                sv_len=200,
+                support=20,
+                vaf=0.95,
+                filter_status="PASS",
+                qual=60.0,
+                chr2="I"
+            )
+        ]
+        # When regions is provided, SV_INSIDE_EDIT should be excluded from Section 3
+        errors = find_flagrant_errors(svs, regions=[region])
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(errors[0].details["sv_id"], "SV_OUTSIDE_EDIT")
+
     def test_loaders_parse_agp_and_audit(self):
         with tempfile.TemporaryDirectory() as td:
             agp_path = os.path.join(td, "test.agp")

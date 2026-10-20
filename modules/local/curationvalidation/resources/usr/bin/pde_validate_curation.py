@@ -98,8 +98,8 @@ def main():
         bam_path=args.bam,
     )
 
-    # 4. Discover Flagrant Assembly Errors
-    flagrant_errors = find_flagrant_errors(svs)
+    # 4. Discover Flagrant Assembly Errors (mutually exclusive with edited surgical loci)
+    flagrant_errors = find_flagrant_errors(svs, regions=regions)
 
     # 5. Build JSON Payload
     json_payload = generate_validation_json(
