@@ -34,7 +34,7 @@ process EXTRACTPDEBORDERS {
     def ends_arg = (terminal_ends_summary && terminal_ends_summary != "null" && terminal_ends_summary != "") ? "--terminal-ends-summary ${terminal_ends_summary}" : ""
 
     """
-    # Tool: pde_extract_borders.py | Script-SHA: e8d6725174182dc6
+    # Tool: pde_extract_borders.py | Script-SHA: b71d417cc20ebe5e
     python3 ${moduleDir}/resources/usr/bin/pde_extract_borders.py \\
         --pde-segments-bed "${pde_segments_bed}" \\
         --assembly "${assembly}" \\

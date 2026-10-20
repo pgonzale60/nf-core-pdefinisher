@@ -330,7 +330,7 @@ def main():
 
             clean_bp_name = re.sub(r"[^A-Za-z0-9_-]+", "_", bp["name"]).strip("_")
             strand_str = "minus" if strand == "-" else "plus"
-            seq_id = f"{clean_bp_name}_{chrom}_{pos + 1}_{strand_str}_win{win}bp_oriented"
+            seq_id = f"{chrom}_{pos + 1}_{strand_str}_win{win}bp_oriented"
             header = f"{seq_id} soma_len={win}"
 
             if strand == "-":
