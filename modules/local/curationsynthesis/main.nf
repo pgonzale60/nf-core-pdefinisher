@@ -41,7 +41,7 @@ process CURATIONSYNTHESIS {
     def gap_arg = gap_evidence_json ? "--gap-evidence-json \"${gap_evidence_json}\"" : ""
     def junc_arg = telo_junction_json ? "--telo-junctions \"${telo_junction_json}\"" : ""
     """
-    # Tool: pde_curation_synthesis.py | Script-SHA: fa8410d3e8dd2798
+    # Tool: pde_curation_synthesis.py | Script-SHA: 23d519ef7f50987c
     pde_curation_synthesis.py --version
     pde_curation_synthesis.py \\
         --sample "${prefix}" \\

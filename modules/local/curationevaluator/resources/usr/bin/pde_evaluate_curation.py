@@ -197,7 +197,7 @@ def analyze_terminal_repeats(red_bed_path, chrom, term, c_len, window_bp=5000):
                 if not line.strip() or line.startswith("#"):
                     continue
                 parts = line.strip().split("\t")
-                if len(parts) >= 3 and parts[0] == chrom:
+                if len(parts) >= 3 and parts[0].split()[0] == chrom:
                     intervals.append((int(parts[1]), int(parts[2])))
     except Exception:
         return None
@@ -296,7 +296,7 @@ def compute_red_repeat_pct(red_bed_path, chrom, start, end):
                 if not line.strip() or line.startswith("#"):
                     continue
                 parts = line.strip().split("\t")
-                if len(parts) >= 3 and parts[0] == chrom:
+                if len(parts) >= 3 and parts[0].split()[0] == chrom:
                     r_s = int(parts[1])
                     r_e = int(parts[2])
                     clip_s = max(start, r_s)

@@ -536,9 +536,10 @@ def load_red_repeats(red_bed):
             for line in f:
                 p = line.strip().split("\t")
                 if len(p) >= 3:
-                    sc = p[0]
-                    span = int(p[2]) - int(p[1])
-                    scaff_repeats[sc] += span
+                    sc = p[0].split()[0] if p[0] else ""
+                    if sc:
+                        span = int(p[2]) - int(p[1])
+                        scaff_repeats[sc] += span
     return scaff_repeats
 
 

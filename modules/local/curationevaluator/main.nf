@@ -24,7 +24,7 @@ process CURATIONEVALUATOR {
     def trans_arg = trans_manifest ? "--trans-manifest \"${trans_manifest}\"" : ""
     def red_arg   = red_bed ? "--red-bed \"${red_bed}\"" : ""
     """
-    # Tool: pde_evaluate_curation.py | Script-SHA: 3851dfb5ab10ebae
+    # Tool: pde_evaluate_curation.py | Script-SHA: 15747d23f61edd31
     pde_evaluate_curation.py --version
     pde_evaluate_curation.py \\
         --pre-ref "${pre_ref}" \\

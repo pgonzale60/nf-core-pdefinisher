@@ -176,14 +176,15 @@ def load_bed_intervals(bed_path, default_label=""):
                 continue
             parts = line.split("\t")
             if len(parts) >= 3:
-                c = parts[0]
+                c = parts[0].split()[0] if parts[0] else ""
                 try:
                     s = int(parts[1])
                     e = int(parts[2])
                 except ValueError:
                     continue
                 lbl = parts[3] if len(parts) >= 4 else default_label
-                intervals[c].append((s, e, lbl))
+                if c:
+                    intervals[c].append((s, e, lbl))
     for c in intervals:
         intervals[c].sort(key=lambda x: (x[0], x[1]))
     return intervals
@@ -205,6 +206,285 @@ def merge_curated_repeats(raw_intervals):
         else:
             merged.append([s, e, lbl])
     return [(s, e, lbl) for s, e, lbl in merged]
+
+
+def assign_chromosome_pde_segments(chrom, blocks, input_segs_by_chr, red_repeats_by_chr):
+    """
+    Assigns PDE segment classifications (putative_core / putative_GRS) and repeat
+    annotations to AGP blocks in a chromosome, strictly following curation rules:
+      1. Additions and contigs retain prior status from input segmentation.
+      2. rDNA cassettes are always putative_core.
+      3. Telomere extensions inherit adjacent chromosome terminus status.
+      4. Internal gaps / patches inherit flanking neighbour status if they agree.
+      5. Gaps / patches straddling a transition are assigned to the core side.
+    """
+    valid_blocks = [b for b in blocks if b.length > 0]
+    if not valid_blocks:
+        return [], []
+
+    # Coordinate ranges for each block: [beg - 1, end] (0-based half-open)
+    block_coords = []
+    curr_pos = 1
+    for b in valid_blocks:
+        beg = curr_pos
+        end = curr_pos + b.length - 1
+        block_coords.append((beg - 1, end))
+        curr_pos = end + 1
+
+    n_blocks = len(valid_blocks)
+    block_segs = [[] for _ in range(n_blocks)]
+    block_repeats = [[] for _ in range(n_blocks)]
+    left_status = [None] * n_blocks
+    right_status = [None] * n_blocks
+
+    def is_core_label(lbl):
+        return "core" in str(lbl).lower()
+
+    def is_grs_label(lbl):
+        return "grs" in str(lbl).lower()
+
+    # Identify canonical labels from input segmentation
+    core_label = "putative_core"
+    grs_label = "putative_GRS"
+    for _, _, lbl in input_segs_by_chr.get(chrom, []):
+        if is_core_label(lbl):
+            core_label = lbl
+        elif is_grs_label(lbl):
+            grs_label = lbl
+    if core_label == "putative_core" and grs_label == "putative_GRS":
+        for c_segs in input_segs_by_chr.values():
+            for _, _, lbl in c_segs:
+                if is_core_label(lbl):
+                    core_label = lbl
+                elif is_grs_label(lbl):
+                    grs_label = lbl
+
+    def resolve_core_label(lbl1, lbl2=None):
+        for candidate in (lbl1, lbl2):
+            if candidate and is_core_label(candidate):
+                return candidate
+        return core_label
+
+    def resolve_grs_label(lbl1, lbl2=None):
+        for candidate in (lbl1, lbl2):
+            if candidate and is_grs_label(candidate):
+                return candidate
+        return grs_label
+
+    # Pass 1: Resolve blocks with intrinsic origin or prior status
+    for i, b in enumerate(valid_blocks):
+        b_beg, b_end = block_coords[i]
+        comp_id = b.component_id or ""
+
+        # 1. Baseline Slice or Inversion of parent chromosome
+        m_inv = re.match(rf"^{re.escape(chrom)}_inv_(\d+)_(\d+)$", comp_id) or re.match(rf"^{re.escape(chrom)}_(\d+)_(\d+)_inv$", comp_id)
+        m_slice = re.match(rf"^{re.escape(chrom)}_(\d+)_(\d+)$", comp_id)
+        if m_inv:
+            src_s, src_e = int(m_inv.group(1)), int(m_inv.group(2))
+            is_inv = True
+        elif m_slice:
+            src_s, src_e = int(m_slice.group(1)), int(m_slice.group(2))
+            is_inv = (b.orientation == "-")
+        else:
+            src_s, src_e = None, None
+            is_inv = False
+
+        if src_s is not None and src_e is not None:
+            segs = []
+            for seg_s, seg_e, cls in input_segs_by_chr.get(chrom, []):
+                ovl_s = max(seg_s, src_s)
+                ovl_e = min(seg_e, src_e)
+                if ovl_s < ovl_e:
+                    if is_inv:
+                        f_s = b_beg + (src_e - ovl_e)
+                        f_e = b_beg + (src_e - ovl_s)
+                    else:
+                        f_s = b_beg + (ovl_s - src_s)
+                        f_e = b_beg + (ovl_e - src_s)
+                    segs.append((f_s, f_e, cls))
+            if segs:
+                segs.sort(key=lambda x: (x[0], x[1]))
+                block_segs[i] = segs
+                left_status[i] = segs[0][2]
+                right_status[i] = segs[-1][2]
+            else:
+                default_cls = grs_label if "grs" in chrom.lower() else core_label
+                block_segs[i] = [(b_beg, b_end, default_cls)]
+                left_status[i] = default_cls
+                right_status[i] = default_cls
+
+            # Map repeats
+            for rep_s, rep_e, lbl in red_repeats_by_chr.get(chrom, []):
+                ovl_s = max(rep_s, src_s)
+                ovl_e = min(rep_e, src_e)
+                if ovl_s < ovl_e:
+                    if is_inv:
+                        f_s = b_beg + (src_e - ovl_e)
+                        f_e = b_beg + (src_e - ovl_s)
+                    else:
+                        f_s = b_beg + (ovl_s - src_s)
+                        f_e = b_beg + (ovl_e - src_s)
+                    block_repeats[i].append((f_s, f_e, lbl))
+            continue
+
+        # 2. rDNA Cassettes: Always putative_core
+        if "rdna" in comp_id.lower():
+            block_segs[i] = [(b_beg, b_end, core_label)]
+            left_status[i] = core_label
+            right_status[i] = core_label
+            continue
+
+        # 3. Known Scaffolds / Contigs in input_segs_by_chr
+        sc_name = None
+        if comp_id in input_segs_by_chr:
+            sc_name = comp_id
+        else:
+            m_sc_term = re.match(rf"^{re.escape(chrom)}_(?:5p|3p)_(.+)_ext$", comp_id)
+            if m_sc_term and m_sc_term.group(1) != "telo" and m_sc_term.group(1) in input_segs_by_chr:
+                sc_name = m_sc_term.group(1)
+            else:
+                m_sc_patch = re.match(r"^.+?_(.+)_patch(?:_p[12])?$", comp_id)
+                if m_sc_patch and m_sc_patch.group(1) in input_segs_by_chr:
+                    sc_name = m_sc_patch.group(1)
+
+        if sc_name and sc_name in input_segs_by_chr:
+            sc_segs = input_segs_by_chr[sc_name]
+            if sc_segs:
+                all_classes = {cls for _, _, cls in sc_segs}
+                if len(all_classes) == 1:
+                    cls = sc_segs[0][2]
+                    block_segs[i] = [(b_beg, b_end, cls)]
+                    left_status[i] = cls
+                    right_status[i] = cls
+                else:
+                    sc_len = max(e for _, e, _ in sc_segs)
+                    mapped_segs = []
+                    for s_s, s_e, s_cls in sc_segs:
+                        if b.orientation == "-":
+                            m_s = b_beg + int((sc_len - s_e) * (b.length / sc_len))
+                            m_e = b_beg + int((sc_len - s_s) * (b.length / sc_len))
+                        else:
+                            m_s = b_beg + int(s_s * (b.length / sc_len))
+                            m_e = b_beg + int(s_e * (b.length / sc_len))
+                        if m_s < m_e:
+                            mapped_segs.append((m_s, m_e, s_cls))
+                    if mapped_segs:
+                        mapped_segs.sort(key=lambda x: (x[0], x[1]))
+                        block_segs[i] = mapped_segs
+                        left_status[i] = mapped_segs[0][2]
+                        right_status[i] = mapped_segs[-1][2]
+                    else:
+                        cls = sc_segs[0][2]
+                        block_segs[i] = [(b_beg, b_end, cls)]
+                        left_status[i] = cls
+                        right_status[i] = cls
+            else:
+                cls = grs_label if "grs" in sc_name.lower() else core_label
+                block_segs[i] = [(b_beg, b_end, cls)]
+                left_status[i] = cls
+                right_status[i] = cls
+
+            sc_reps = red_repeats_by_chr.get(sc_name, [])
+            if sc_reps:
+                sc_len = max(e for _, e, _ in sc_segs) if sc_segs else b.length
+                for r_s, r_e, lbl in sc_reps:
+                    if b.orientation == "-":
+                        m_s = b_beg + int((sc_len - min(sc_len, r_e)) * (b.length / sc_len))
+                        m_e = b_beg + int((sc_len - min(sc_len, r_s)) * (b.length / sc_len))
+                    else:
+                        m_s = b_beg + int(min(sc_len, r_s) * (b.length / sc_len))
+                        m_e = b_beg + int(min(sc_len, r_e) * (b.length / sc_len))
+                    if m_s < m_e:
+                        block_repeats[i].append((m_s, m_e, lbl))
+            continue
+
+        if sc_name and is_grs_label(sc_name):
+            block_segs[i] = [(b_beg, b_end, grs_label)]
+            left_status[i] = grs_label
+            right_status[i] = grs_label
+            continue
+
+        # Remaining blocks (telomere extensions, gaps, patches) remain pending
+
+    # Pass 2A: Resolve terminal extensions
+    first_resolved_idx = None
+    for j in range(n_blocks):
+        if left_status[j] is not None:
+            first_resolved_idx = j
+            break
+
+    if first_resolved_idx is not None and first_resolved_idx > 0:
+        leading_status = left_status[first_resolved_idx]
+        for j in range(first_resolved_idx):
+            if left_status[j] is None:
+                b_beg, b_end = block_coords[j]
+                block_segs[j] = [(b_beg, b_end, leading_status)]
+                left_status[j] = leading_status
+                right_status[j] = leading_status
+
+    last_resolved_idx = None
+    for j in range(n_blocks - 1, -1, -1):
+        if right_status[j] is not None:
+            last_resolved_idx = j
+            break
+
+    if last_resolved_idx is not None and last_resolved_idx < n_blocks - 1:
+        trailing_status = right_status[last_resolved_idx]
+        for j in range(last_resolved_idx + 1, n_blocks):
+            if right_status[j] is None:
+                b_beg, b_end = block_coords[j]
+                block_segs[j] = [(b_beg, b_end, trailing_status)]
+                left_status[j] = trailing_status
+                right_status[j] = trailing_status
+
+    # Pass 2B: Resolve internal gaps and patches
+    for i in range(n_blocks):
+        if left_status[i] is not None:
+            continue
+        b_beg, b_end = block_coords[i]
+
+        left_neigh = None
+        for j in range(i - 1, -1, -1):
+            if right_status[j] is not None:
+                left_neigh = right_status[j]
+                break
+
+        right_neigh = None
+        for j in range(i + 1, n_blocks):
+            if left_status[j] is not None:
+                right_neigh = left_status[j]
+                break
+
+        if left_neigh and right_neigh:
+            if left_neigh == right_neigh:
+                assigned_status = left_neigh
+            elif is_core_label(left_neigh) and is_core_label(right_neigh):
+                assigned_status = resolve_core_label(left_neigh, right_neigh)
+            elif is_grs_label(left_neigh) and is_grs_label(right_neigh):
+                assigned_status = resolve_grs_label(left_neigh, right_neigh)
+            else:
+                # Transition gap/patch: assigned to core side
+                assigned_status = resolve_core_label(left_neigh, right_neigh)
+        elif left_neigh:
+            assigned_status = left_neigh
+        elif right_neigh:
+            assigned_status = right_neigh
+        else:
+            assigned_status = grs_label if "grs" in chrom.lower() else core_label
+
+        block_segs[i] = [(b_beg, b_end, assigned_status)]
+        left_status[i] = assigned_status
+        right_status[i] = assigned_status
+
+    chr_curated_segs_raw = []
+    for segs in block_segs:
+        chr_curated_segs_raw.extend(segs)
+
+    chr_curated_repeats_raw = []
+    for reps in block_repeats:
+        chr_curated_repeats_raw.extend(reps)
+
+    return chr_curated_segs_raw, chr_curated_repeats_raw
 
 
 def merge_curated_pde_segments(raw_intervals, total_len):
@@ -1035,8 +1315,9 @@ def main():
         blocks = strip_terminal_gaps(blocks, components_pool)
 
         # Emit AGP Lines for Chromosome (Stateless Accumulator)
-        chr_curated_segs_raw = []
-        chr_curated_repeats_raw = []
+        chr_curated_segs_raw, chr_curated_repeats_raw = assign_chromosome_pde_segments(
+            chrom, blocks, input_segs_by_chr, red_repeats_by_chr
+        )
         curr_pos = 1
         valid_part = 1
         for b in blocks:
@@ -1047,42 +1328,10 @@ def main():
             end = curr_pos + b.length - 1
             if b.type == "W":
                 agp_lines.append(f"{chrom}\t{beg}\t{end}\t{valid_part}\tW\t{b.component_id}\t1\t{b.length}\t{b.orientation}")
-                m_inv = re.match(rf"^{re.escape(chrom)}_inv_(\d+)_(\d+)$", b.component_id) if b.component_id else None
-                m_slice = re.match(rf"^{re.escape(chrom)}_(\d+)_(\d+)$", b.component_id) if b.component_id else None
-                m = m_inv or m_slice
-                if m:
-                    src_s, src_e = int(m.group(1)), int(m.group(2))
-                    # Map GRS/Core segments
-                    for seg_s, seg_e, cls in input_segs_by_chr.get(chrom, []):
-                        ovl_s = max(seg_s, src_s)
-                        ovl_e = min(seg_e, src_e)
-                        if ovl_s < ovl_e:
-                            if b.orientation == "-":
-                                f_s = (beg - 1) + (src_e - ovl_e)
-                                f_e = (beg - 1) + (src_e - ovl_s)
-                            else:
-                                f_s = (beg - 1) + (ovl_s - src_s)
-                                f_e = (beg - 1) + (ovl_e - src_s)
-                            chr_curated_segs_raw.append((f_s, f_e, cls))
-                    # Map RED repeat mask
-                    for rep_s, rep_e, lbl in red_repeats_by_chr.get(chrom, []):
-                        ovl_s = max(rep_s, src_s)
-                        ovl_e = min(rep_e, src_e)
-                        if ovl_s < ovl_e:
-                            if b.orientation == "-":
-                                f_s = (beg - 1) + (src_e - ovl_e)
-                                f_e = (beg - 1) + (src_e - ovl_s)
-                            else:
-                                f_s = (beg - 1) + (ovl_s - src_s)
-                                f_e = (beg - 1) + (ovl_e - src_s)
-                            chr_curated_repeats_raw.append((f_s, f_e, lbl))
-                else:
-                    chr_curated_segs_raw.append((beg - 1, end, "putative_core"))
             else:
                 gap_type = "repeat" if (b.component_id and "rdna" in str(b.component_id).lower()) else "scaffold"
                 gap_evidence = "unspecified" if gap_type == "repeat" else "paired-ends"
                 agp_lines.append(f"{chrom}\t{beg}\t{end}\t{valid_part}\tN\t{b.length}\t{gap_type}\tyes\t{gap_evidence}")
-                chr_curated_segs_raw.append((beg - 1, end, "putative_core"))
 
             curr_pos = end + 1
             valid_part += 1
@@ -1206,7 +1455,11 @@ def main():
                 components_pool[cid] = trimmed_seq
                 tlen = len(trimmed_seq)
                 agp_lines.append(f"{assigned}\t1\t{tlen}\t1\tW\t{cid}\t1\t{tlen}\t+")
-                curated_segments.append((assigned, 0, tlen, "putative_GRS" if "grs" in assigned.lower() else "putative_core"))
+                if cid in input_segs_by_chr and input_segs_by_chr[cid]:
+                    for s, e, cls in input_segs_by_chr[cid]:
+                        curated_segments.append((assigned, max(0, s), min(tlen, e), cls))
+                else:
+                    curated_segments.append((assigned, 0, tlen, "putative_GRS" if "grs" in assigned.lower() else "putative_core"))
                 for s, e, lbl in red_repeats_by_chr.get(cid, []):
                     if s < tlen:
                         curated_repeats.append((assigned, max(0, s), min(tlen, e), lbl))

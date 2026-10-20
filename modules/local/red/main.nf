@@ -41,9 +41,14 @@ process RED {
             ${args}
 
         # Red writes repeat coordinates in tabular format to out_rpt with .bed extension
-        cp out_rpt/${prefix}.bed ${prefix}.bed 2>/dev/null || \\
-        cp out_rpt/${prefix}.rpt ${prefix}.bed 2>/dev/null || \\
-        touch ${prefix}.bed
+        # Ensure column 1 contains strictly the sequence ID (strip header description/whitespace)
+        if [ -s out_rpt/${prefix}.bed ]; then
+            awk 'BEGIN {FS="\\t"; OFS="\\t"} {split(\$1, a, " "); \$1=a[1]; print}' out_rpt/${prefix}.bed > ${prefix}.bed
+        elif [ -s out_rpt/${prefix}.rpt ]; then
+            awk 'BEGIN {FS="\\t"; OFS="\\t"} {split(\$1, a, " "); \$1=a[1]; print}' out_rpt/${prefix}.rpt > ${prefix}.bed
+        else
+            touch ${prefix}.bed
+        fi
     fi
     """
 
