@@ -111,7 +111,7 @@ def parse_aux_meme_results(
                 except (ValueError, IndexError):
                     continue
 
-    unique_seqs = len({s["seq"] for s in site_records})
+    unique_seqs = nsites
     proximal_sites = sum(1 for s in site_records if 6 <= s["dist"] <= 50)
 
     # Entropy of consensus

@@ -278,6 +278,45 @@ s2 + 25 1e-10
             self.assertGreater(met28["total_ic"], met22["total_ic"])
             self.assertGreater(met28["composite_score"], met22["composite_score"])
 
+    def test_occupancy_handles_truncated_sequence_names(self):
+        import tempfile
+
+        # MEME truncates sequence names to 24 chars in plain text tables
+        truncated_meme = """MEME version 4
+MOTIF CORE 1 width = 6 sites = 14 llr = 200 E-value = 1e-30
+letter-probability matrix: alength= 4 w= 6 nsites= 14 E= 1e-30
+  0.9 0.05 0.05 0.0
+  0.9 0.05 0.05 0.0
+  0.9 0.05 0.05 0.0
+  0.0 0.9 0.05 0.05
+  0.0 0.05 0.9 0.05
+  0.05 0.05 0.0 0.9
+Multilevel AAACGT
+sites sorted by position p-value
+Type_S2G_breakpoint_wind + 58 1e-10
+Type_S2G_breakpoint_wind + 60 1e-10
+Type_S2G_breakpoint_wind + 60 1e-10
+Type_S2G_breakpoint_wind + 62 1e-10
+Type_S2G_breakpoint_wind + 66 1e-10
+Type_S2G_breakpoint_wind + 56 1e-10
+Type_S2G_breakpoint_wind + 59 1e-10
+Type_S2G_breakpoint_wind + 54 1e-10
+Type_S2G_breakpoint_wind + 61 1e-10
+Type_S2G_breakpoint_wind + 23 1e-10
+Type_S2G_breakpoint_wind - 41 1e-10
+Type_S2G_breakpoint_wind + 52 1e-10
+Type_S2G_breakpoint_wind + 59 1e-10
+Type_S2G_breakpoint_wind - 56 1e-10
+"""
+        with tempfile.NamedTemporaryFile("w", suffix=".txt") as tf:
+            tf.write(truncated_meme)
+            tf.flush()
+            met = parse_meme_txt(tf.name, radius=100, total_sequences=15)
+            self.assertIsNotNone(met)
+            self.assertEqual(met["nsites"], 14)
+            self.assertEqual(met["unique_occupied_sites"], 14)
+            self.assertAlmostEqual(met["occupancy"], 14 / 15, places=3)
+
 
 if __name__ == "__main__":
     unittest.main()

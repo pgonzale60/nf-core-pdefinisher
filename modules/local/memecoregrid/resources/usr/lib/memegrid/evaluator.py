@@ -114,7 +114,7 @@ def parse_meme_txt(
                 except (ValueError, IndexError):
                     continue
 
-    unique_seqs = len({s["seq"] for s in site_records})
+    unique_seqs = min(nsites, total_sequences) if total_sequences > 0 else nsites
     occupancy = unique_seqs / total_sequences if total_sequences > 0 else 0.0
 
     # 5. Positional IQR

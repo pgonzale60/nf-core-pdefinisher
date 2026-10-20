@@ -26,7 +26,7 @@ process MEMECOREGRID {
     def prefix = task.ext.prefix ?: "${meta.id}"
 
     """
-    # Tool: cbm_meme_core_grid.py | Script-SHA: dc6f59eb49a1bbd1
+    # Tool: cbm_meme_core_grid.py | Script-SHA: fbf5d26ad9df3bd5
     cbm_meme_core_grid.py \\
         --break-windows "${break_windows_fasta}" \\
         --output-dir "meme_grid_work" \\
