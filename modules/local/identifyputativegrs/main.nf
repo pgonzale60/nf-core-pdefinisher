@@ -32,7 +32,7 @@ process IDENTIFYPUTATIVEGRS {
     def red_arg  = (red_bed && red_bed != "" && red_bed != "null") ? "--red-bed ${red_bed}" : ""
 
     """
-    # Tool: pde_identify_grs.py | Script-SHA: 3b9785ea633f26ba
+    # Tool: pde_identify_grs.py | Script-SHA: ab690418e8a5ec4b
     python3 ${moduleDir}/resources/usr/bin/pde_identify_grs.py --version
     python3 ${moduleDir}/resources/usr/bin/pde_identify_grs.py \\
         --assembly "${assembly}" \\

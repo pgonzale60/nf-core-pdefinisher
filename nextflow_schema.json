@@ -92,7 +92,7 @@
                 },
                 "mosdepth_args": {
                     "type": "string",
-                    "default": "--no-per-base --by 10000",
+                    "default": "--no-per-base --by 10000 --mapq 20",
                     "description": "Extra arguments passed to mosdepth coverage profiling.",
                     "hidden": true
                 },

@@ -2,10 +2,13 @@
 """
 pde_identify_grs.py
 Identify putative GRS (eliminated) and Core segments using:
-1. DELFIES neo-telomeric addition breakpoints parsed via Pushdown Automaton (PDA).
-2. Clustering of breakpoints by strand within 3 bp.
-3. Fallback 2-component Gaussian Mixture Model (GRS vs Somatic Core) for scaffolds
-   without clean bracket matching or lacking DELFIES signals.
+1. Clustering of DELFIES neo-telomere breakpoints by strand within 3 bp.
+2. A coverage threshold T_GRS (2-component EM for bimodal genomes; DELFIES-calibrated otherwise).
+3. Chromosomal scaffolds: a GRS interval must be anchored by >= 1 DELFIES breakpoint;
+   mosdepth coverage drops (depth <= T_GRS) only validate or close it. Repeats are never
+   consulted and everything else is putative_core.
+4. Non-chromosomal scaffolds: repeat-aware (RED) call with an explicit
+   putative_GRS_uncertain class and a [min_elim_bp, max_elim_bp] range.
 """
 
 import argparse
@@ -84,7 +87,7 @@ def parse_args():
         "--red-bed",
         required=False,
         default=None,
-        help="Red repeat intervals BED file (deprecated; GRS is predominantly repetitive)",
+        help="RED repeat intervals BED; used only for non-chromosomal scaffolds",
     )
     parser.add_argument(
         "--policy",
@@ -246,123 +249,6 @@ def cluster_breakpoints_by_strand(bp_list, max_dist=3, min_support=5.0):
     return clustered
 
 
-def run_pushdown_automaton(
-    chrom,
-    length,
-    clustered_bps,
-    cov_windows,
-    t_grs,
-    max_terminal_arm_bp=None,
-    max_internal_grs_bp=None,
-    min_transition_contrast=2.0,
-):
-    """
-    Models breakpoint pairing as a Pushdown Automaton (Dyck language):
-      '+' represents open parenthesis '(' (exits core into GRS)
-      '-' represents close parenthesis ')' (exits GRS into core)
-
-    Validates that terminal boundaries have true somatic core contrast on their
-    retained flank and do not exceed biologically realistic arm lengths if configured.
-
-    Returns:
-      (is_neat_match, grs_intervals, frontier_bps)
-    """
-    if not clustered_bps:
-        return False, [], []
-
-    grs_intervals = []
-    frontier_bps = []
-    stack = []
-    idx = 0
-
-    # Optional 5' terminal GRS: starts with '-' (closing bracket from 0)
-    # MUST have somatic core contrast downstream (> t_grs) and satisfy max arm length if specified
-    if clustered_bps[0][1] == "-":
-        bp_pos = clustered_bps[0][0]
-        if max_terminal_arm_bp is not None and bp_pos > max_terminal_arm_bp:
-            return False, [], []
-        med_up = get_median_depth(cov_windows, chrom, 0, bp_pos)
-        downstream_end = min(length, bp_pos + 50000)
-        med_downstream = get_median_depth(cov_windows, chrom, bp_pos, downstream_end)
-        if (
-            med_downstream > t_grs
-            and (
-                med_up <= t_grs
-                or med_downstream >= min_transition_contrast * max(med_up, 0.1)
-            )
-        ):
-            grs_intervals.append((0, bp_pos))
-            frontier_bps.append(clustered_bps[0])
-            idx = 1
-        else:
-            return False, [], []
-
-    for i in range(idx, len(clustered_bps)):
-        b = clustered_bps[i]
-        pos, strand = b[0], b[1]
-        if strand == "+":
-            stack.append(b)
-        elif strand == "-":
-            if not stack:
-                # Unmatched closing breakpoint in the interior (e.g. isolated point scar).
-                # Skip rather than failing the whole chromosome.
-                continue
-            open_b = stack.pop()
-            seg_len = pos - open_b[0]
-            if max_internal_grs_bp is not None and seg_len > max_internal_grs_bp:
-                # Exceeds max internal GRS length
-                continue
-            # Validate coverage drop inside the candidate internal segment
-            med_internal = get_median_depth(cov_windows, chrom, open_b[0], pos)
-            up_start = max(0, open_b[0] - 50000)
-            med_up = get_median_depth(cov_windows, chrom, up_start, open_b[0])
-            down_end = min(length, pos + 50000)
-            med_down = get_median_depth(cov_windows, chrom, pos, down_end)
-            flank_min = min(med_up, med_down)
-            if med_internal <= t_grs or med_internal <= 0.45 * flank_min or seg_len < 1000:
-                grs_intervals.append((open_b[0], pos))
-                frontier_bps.extend([open_b, b])
-
-    # Optional 3' terminal GRS: look for unclosed '+' within max_terminal_arm_bp from chromosome end (if configured)
-    candidates_3p = [b for b in stack if (max_terminal_arm_bp is None or (length - b[0]) <= max_terminal_arm_bp)]
-    if candidates_3p:
-        # Pick the leftmost valid 3' candidate (most comprehensive terminal range)
-        for open_b in candidates_3p:
-            bp_pos = open_b[0]
-            upstream_start = max(0, bp_pos - 50000)
-            med_upstream = get_median_depth(cov_windows, chrom, upstream_start, bp_pos)
-            med_down = get_median_depth(cov_windows, chrom, bp_pos, length)
-            if (
-                med_upstream > t_grs
-                and (
-                    med_down <= t_grs
-                    or med_upstream >= min_transition_contrast * max(med_down, 0.1)
-                )
-            ):
-                grs_intervals.append((bp_pos, length))
-                frontier_bps.append(open_b)
-                break
-
-    grs_intervals.sort(key=lambda x: x[0])
-    # Deduplicate and ensure intervals do not overlap
-    merged = []
-    for it in grs_intervals:
-        if not merged:
-            merged.append(it)
-        else:
-            prev = merged[-1]
-            if it[0] < prev[1]:
-                # Overlap: merge into union
-                merged[-1] = (prev[0], max(prev[1], it[1]))
-            else:
-                merged.append(it)
-
-    if not merged:
-        return False, [], []
-
-    return True, merged, frontier_bps
-
-
 def fit_em_2comp(vals, max_iter=100, tol=1e-4):
     """
     Fit a 2-component Gaussian mixture model:
@@ -434,46 +320,182 @@ def fit_em_2comp(vals, max_iter=100, tol=1e-4):
     }
 
 
-def build_chromosome_segments(chrom, length, all_grs, cov_windows, t_grs):
-    """Build and classify segments for a chromosome, checking depth of all intervals.
+def parse_red_bed(red_file):
+    """Load repeat intervals (BED) merged per scaffold; empty when no mask is available."""
+    repeats = {}
+    if not red_file or not os.path.exists(red_file):
+        return repeats
+    with open(red_file) as f:
+        for line in f:
+            cols = line.split()
+            if len(cols) >= 3 and not line.startswith("#"):
+                try:
+                    repeats.setdefault(cols[0], []).append((int(cols[1]), int(cols[2])))
+                except ValueError:
+                    continue
+    for c, ivs in repeats.items():
+        ivs.sort()
+        merged = [list(ivs[0])]
+        for s, e in ivs[1:]:
+            if s <= merged[-1][1]:
+                merged[-1][1] = max(merged[-1][1], e)
+            else:
+                merged.append([s, e])
+        repeats[c] = [(s, e) for s, e in merged]
+    return repeats
 
-    Never assumes flanks around candidate GRS intervals are somatic core. Contiguous
-    adjacent segments sharing the same classification label are merged.
+
+def quantize_drops(cov_windows, chrom, t_grs, merge_gap_bp):
+    """Quantize coverage windows into low-coverage drops (depth <= t_grs).
+
+    Returns (raw_drops, merged_drops); merged_drops joins drops separated by
+    <= merge_gap_bp and is used only to trace where a single-anchored GRS closes.
     """
-    if not all_grs:
-        chr_med = get_median_depth(cov_windows, chrom, 0, length)
-        label = "putative_GRS" if chr_med <= t_grs else "putative_core"
-        return [(chrom, 0, length, label, chr_med)]
-
-    chr_segments = []
-    curr_pos = 0
-    for grs_s, grs_e, grs_med in all_grs:
-        if grs_s > curr_pos:
-            flank_med = get_median_depth(cov_windows, chrom, curr_pos, grs_s)
-            flank_label = "putative_core" if flank_med > t_grs else "putative_GRS"
-            chr_segments.append((chrom, curr_pos, grs_s, flank_label, flank_med))
-        chr_segments.append((chrom, grs_s, grs_e, "putative_GRS", grs_med))
-        curr_pos = grs_e
-
-    if curr_pos < length:
-        flank_med = get_median_depth(cov_windows, chrom, curr_pos, length)
-        flank_label = "putative_core" if flank_med > t_grs else "putative_GRS"
-        chr_segments.append((chrom, curr_pos, length, flank_label, flank_med))
-
-    merged_chr_segments = []
-    for c, s, e, lab, med in chr_segments:
-        if (
-            merged_chr_segments
-            and merged_chr_segments[-1][3] == lab
-            and merged_chr_segments[-1][2] == s
-        ):
-            prev_c, prev_s, _prev_e, prev_lab, _prev_med = merged_chr_segments[-1]
-            comb_med = get_median_depth(cov_windows, prev_c, prev_s, e)
-            merged_chr_segments[-1] = (prev_c, prev_s, e, prev_lab, comb_med)
+    raw = []
+    for s, e, v in sorted(cov_windows.get(chrom, [])):
+        if v <= t_grs:
+            if raw and s <= raw[-1][1]:
+                raw[-1] = (raw[-1][0], max(raw[-1][1], e))
+            else:
+                raw.append((s, e))
+    merged = []
+    for s, e in raw:
+        if merged and s - merged[-1][1] <= merge_gap_bp:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], e))
         else:
-            merged_chr_segments.append((c, s, e, lab, med))
+            merged.append((s, e))
+    return raw, merged
 
-    return merged_chr_segments
+
+def drop_overlap_bp(drops, start, end):
+    total = 0
+    for ds, de in drops:
+        if de <= start:
+            continue
+        if ds >= end:
+            break
+        total += max(0, min(end, de) - max(start, ds))
+    return total
+
+
+def delfies_bounded_grs(length, clustered_bps, raw_drops, merged_drops, rules):
+    """GRS intervals on a chromosomal scaffold. Every interval is anchored by >= 1 DELFIES breakpoint.
+
+    Repeats play no part here. Coverage only validates or closes an interval that a
+    breakpoint has already opened. Returns merged [(start, end, subtype, note)].
+    """
+    frac = rules["drop_overlap_fraction"]
+    micro = rules["micro_grs_max_bp"]
+    prox = rules["anchor_proximity_bp"]
+    min_closed = rules["min_closed_grs_bp"]
+
+    def bp_end(b):
+        return max(b[0], int(b[3].get("end", b[0])))
+
+    def supported(s, e):
+        return drop_overlap_bp(raw_drops, s, e) / max(1, e - s) >= frac
+
+    bps = sorted(clustered_bps, key=lambda b: b[0])
+    n = len(bps)
+    found = []
+
+    if n and bps[0][1] == "-":
+        first_neg = bp_end(bps[0])
+        if first_neg < micro or supported(0, first_neg):
+            found.append((0, first_neg, "5_prime_distal_GRS", ""))
+
+    i = 0
+    while i < n:
+        pos, strand = bps[i][0], bps[i][1]
+        if strand == "+":
+            # Concentric nested pair (+1, +2, -1, -2): the outer span is the GRS
+            j = i
+            while j < n and bps[j][1] == "+":
+                j += 1
+            k = j
+            while k < n and bps[k][1] == "-":
+                k += 1
+            if j - i >= 2 and k - j >= 2:
+                outer_s, outer_e = bps[i][0], bp_end(bps[k - 1])
+                if supported(outer_s, outer_e):
+                    inner = f"inner={bps[j - 1][0]}-{bp_end(bps[j])}"
+                    found.append((outer_s, outer_e, "Nested_Variable_GRS_Outer", inner))
+                    i = k
+                    continue
+            if i + 1 < n and bps[i + 1][1] == "-":
+                pair_e = bp_end(bps[i + 1])
+                span = pair_e - pos
+                if span < micro:
+                    found.append((pos, pair_e, "Micro_GRS_Paired", ""))
+                    i += 2
+                    continue
+                if supported(pos, pair_e):
+                    found.append((pos, pair_e, "Macro_GRS_Paired", ""))
+                    i += 2
+                    continue
+            if i == n - 1:
+                to_end = length - pos
+                if to_end < micro or supported(pos, length):
+                    found.append((pos, length, "3_prime_distal_GRS", ""))
+                    i += 1
+                    continue
+            for ds, de in merged_drops:
+                if abs(ds - pos) <= prox or ds <= pos <= de:
+                    if de - pos >= min_closed:
+                        found.append((pos, de, "Start_DELFIES_Anchored_End_Coverage_Closed", ""))
+                    break
+        elif i > 0:
+            e_pos = bp_end(bps[i])
+            for ds, de in merged_drops:
+                if abs(de - e_pos) <= prox or ds <= e_pos <= de:
+                    if e_pos - ds >= min_closed:
+                        found.append((ds, e_pos, "Start_Coverage_Opened_End_DELFIES_Anchored", ""))
+                    break
+        i += 1
+
+    if not found:
+        return []
+    found.sort(key=lambda x: x[0])
+    merged = [list(found[0])]
+    for s, e, t, note in found[1:]:
+        if s <= merged[-1][1] + 100:
+            merged[-1][1] = max(merged[-1][1], e)
+            if "distal" not in merged[-1][2]:
+                merged[-1][2] = t
+            merged[-1][3] = merged[-1][3] or note
+        else:
+            merged.append([s, e, t, note])
+    return [tuple(m) for m in merged]
+
+
+def build_chromosomal_segments(chrom, length, grs_intervals, cov_windows):
+    """Tile a chromosomal scaffold: DELFIES-anchored GRS intervals, everything else putative_core."""
+    segs = []
+    pos = 0
+    for s, e, subtype, note in grs_intervals:
+        s, e = max(0, s), min(length, e)
+        if e <= s or s < pos:
+            continue
+        if s > pos:
+            segs.append((chrom, pos, s, "putative_core", get_median_depth(cov_windows, chrom, pos, s), "-"))
+        sub = f"{subtype}({note})" if note else subtype
+        segs.append((chrom, s, e, "putative_GRS", get_median_depth(cov_windows, chrom, s, e), sub))
+        pos = e
+    if pos < length:
+        segs.append((chrom, pos, length, "putative_core", get_median_depth(cov_windows, chrom, pos, length), "-"))
+    return segs
+
+
+def classify_unplaced(chrom, length, raw_drops, repeats, rules):
+    """Non-chromosomal scaffold: repeat-aware call with an explicit uncertain class."""
+    repeat_bp = sum(min(length, e) - max(0, s) for s, e in repeats.get(chrom, []) if e > 0 and s < length)
+    non_rep_bp = max(0, length - repeat_bp)
+    drop_bp = sum(e - s for s, e in raw_drops)
+    if non_rep_bp < rules["unplaced_min_nonrepeat_bp"]:
+        return "putative_GRS_uncertain", "fully_repetitive_unplaced"
+    if drop_bp / max(1, length) >= rules["unplaced_grs_drop_fraction"]:
+        return "putative_GRS", "unplaced_coverage_drop"
+    return "putative_core", "-"
 
 
 def main():
@@ -487,6 +509,16 @@ def main():
     min_transition_contrast = float(pde_policy.get("min_transition_contrast", 2.0))
     default_grs_coverage_ratio = float(pde_policy.get("default_grs_coverage_ratio", 0.35))
     min_em_component_separation = float(pde_policy.get("min_em_component_separation", 0.45))
+    rules = {
+        "chromosomal_min_bp": int(pde_policy.get("chromosomal_min_bp", 1_000_000)),
+        "drop_overlap_fraction": float(pde_policy.get("drop_overlap_fraction", 0.15)),
+        "micro_grs_max_bp": int(pde_policy.get("micro_grs_max_bp", 1000)),
+        "drop_merge_gap_bp": int(pde_policy.get("drop_merge_gap_bp", 1000)),
+        "anchor_proximity_bp": int(pde_policy.get("anchor_proximity_bp", 2000)),
+        "min_closed_grs_bp": int(pde_policy.get("min_closed_grs_bp", 1000)),
+        "unplaced_min_nonrepeat_bp": int(pde_policy.get("unplaced_min_nonrepeat_bp", 1000)),
+        "unplaced_grs_drop_fraction": float(pde_policy.get("unplaced_grs_drop_fraction", 0.50)),
+    }
     raw_term = pde_policy.get("max_terminal_arm_bp")
     max_terminal_arm_bp = int(raw_term) if raw_term is not None and int(raw_term) > 0 else None
     raw_internal = pde_policy.get("max_internal_grs_bp")
@@ -499,7 +531,7 @@ def main():
     # 2. Gather whole-genome window depths across major chromosomes (>= 1 Mb)
     all_core_vals = []
     for c, l in chr_lens.items():
-        if l >= 1_000_000 and c in cov_windows:
+        if l >= rules["chromosomal_min_bp"] and c in cov_windows:
             all_core_vals.extend([w[2] for w in cov_windows[c]])
 
     # 3. Cluster breakpoints by strand within 3 bp
@@ -558,7 +590,7 @@ def main():
                             d = get_median_depth(cov_windows, c, s, e)
                             if 0 < d <= max_grs_threshold:
                                 candidate_grs_depths.append(d)
-            elif l < 1_000_000 and c in cov_windows:
+            elif l < rules["chromosomal_min_bp"] and c in cov_windows:
                 d = get_median_depth(cov_windows, c, 0, l)
                 if 0 < d <= max_grs_threshold:
                     candidate_grs_depths.append(d)
@@ -590,195 +622,35 @@ def main():
             )
 
     segments = []
-    frontier_breakpoints = []
+    repeats = parse_red_bed(args.red_bed)
+    canon_grs_bp = unplaced_grs_bp = unplaced_uncertain_bp = unplaced_core_bp = 0
 
     for chrom, length in chr_lens.items():
-        raw_bps = breakpoints.get(chrom, [])
-        chr_med = get_median_depth(cov_windows, chrom, 0, length)
-        clustered_bps = clustered_bps_by_chr.get(chrom, [])
-
-        if not raw_bps:
-            # Scaffolds with 0 breakpoints: classify based on calibrated threshold
-            label = "putative_GRS" if chr_med <= t_grs else "putative_core"
-            segments.append((chrom, 0, length, label, chr_med))
-            continue
-
-        # 5. Attempt Pushdown Automaton (bracket matching)
-        pda_success, pda_grs_intervals, pda_frontier = run_pushdown_automaton(
-            chrom,
-            length,
-            clustered_bps,
-            cov_windows,
-            t_grs,
-            max_terminal_arm_bp=max_terminal_arm_bp,
-            max_internal_grs_bp=max_internal_grs_bp,
-            min_transition_contrast=min_transition_contrast,
+        raw_drops, merged_drops = quantize_drops(
+            cov_windows, chrom, t_grs, rules["drop_merge_gap_bp"]
         )
-
-        all_grs = []
-        if pda_success:
-            sys.stderr.write(
-                f"[PDA] Chromosome {chrom}: Successfully resolved {len(pda_grs_intervals)} GRS regions via matching parentheses.\n"
+        if length >= rules["chromosomal_min_bp"]:
+            # Chromosomal: DELFIES-bounded only; repeats are never consulted
+            grs_ivs = delfies_bounded_grs(
+                length, clustered_bps_by_chr.get(chrom, []), raw_drops, merged_drops, rules
             )
-            for s, e in pda_grs_intervals:
-                med = get_median_depth(cov_windows, chrom, s, e)
-                all_grs.append((s, e, med))
-            for b in pda_frontier:
-                if (chrom, b[0]) in bp_records_by_coord:
-                    frontier_breakpoints.append(bp_records_by_coord[(chrom, b[0])])
+            chr_segs = build_chromosomal_segments(chrom, length, grs_ivs, cov_windows)
+            canon_grs_bp += sum(e - s for _c, s, e, lab, _m, _t in chr_segs if lab == "putative_GRS")
+            segments.extend(chr_segs)
         else:
-            # 6. Fallback: Coverage-guided segmentation using policy ceilings & local fold-change
-            sys.stderr.write(
-                f"[Fallback] Chromosome {chrom}: PDA did not resolve neatly. Using coverage-guided segmentation.\n"
-            )
-            bps = sorted(clustered_bps, key=lambda x: x[0])
+            label, subtype = classify_unplaced(chrom, length, raw_drops, repeats, rules)
+            med = get_median_depth(cov_windows, chrom, 0, length)
+            segments.append((chrom, 0, length, label, med, subtype))
+            if label == "putative_GRS_uncertain":
+                unplaced_uncertain_bp += length
+            elif label == "putative_GRS":
+                unplaced_grs_bp += length
+            else:
+                unplaced_core_bp += length
 
-            # 5' Terminal GRS
-            chosen_5p_grs = None
-            chosen_5p_bp = None
-            minus_bps = [
-                bp
-                for bp in bps
-                if bp[1] == "-"
-                and (max_terminal_arm_bp is None or bp[0] <= max_terminal_arm_bp)
-            ]
-            for bp in reversed(minus_bps):
-                pos = bp[0]
-                if pos <= 0 or pos >= length:
-                    continue
-                med_grs = get_median_depth(cov_windows, chrom, 0, pos)
-                adj_end = min(length, pos + 50000)
-                med_adj = get_median_depth(cov_windows, chrom, pos, adj_end)
-
-                if med_adj > t_grs and (
-                    med_grs <= t_grs
-                    or med_adj >= min_transition_contrast * max(med_grs, 0.1)
-                ):
-                    chosen_5p_grs = (0, pos, med_grs)
-                    chosen_5p_bp = pos
-                    break
-
-            # 3' Terminal GRS
-            chosen_3p_grs = None
-            chosen_3p_bp = None
-            plus_bps = [
-                bp
-                for bp in bps
-                if bp[1] == "+"
-                and (
-                    max_terminal_arm_bp is None
-                    or (length - bp[0]) <= max_terminal_arm_bp
-                )
-            ]
-            for bp in plus_bps:
-                pos = bp[0]
-                if pos <= 0 or pos >= length:
-                    continue
-                if chosen_5p_grs and pos <= chosen_5p_grs[1]:
-                    continue
-                med_grs = get_median_depth(cov_windows, chrom, pos, length)
-                adj_start = max(0, pos - 50000)
-                med_adj = get_median_depth(cov_windows, chrom, adj_start, pos)
-
-                if med_adj > t_grs and (
-                    med_grs <= t_grs
-                    or med_adj >= min_transition_contrast * max(med_grs, 0.1)
-                ):
-                    chosen_3p_grs = (pos, length, med_grs)
-                    chosen_3p_bp = pos
-                    break
-
-            # Internal GRS with relative fold-drop
-            internal_min = chosen_5p_grs[1] if chosen_5p_grs else 0
-            internal_max = chosen_3p_grs[0] if chosen_3p_grs else length
-
-            candidate_internal_grs = []
-            internal_plus = [
-                bp
-                for bp in bps
-                if bp[1] == "+" and internal_min <= bp[0] < internal_max
-            ]
-            internal_minus = [
-                bp
-                for bp in bps
-                if bp[1] == "-" and internal_min < bp[0] <= internal_max
-            ]
-
-            for p_left in internal_plus:
-                for p_right in internal_minus:
-                    if p_right[0] > p_left[0] and (
-                        max_internal_grs_bp is None
-                        or (p_right[0] - p_left[0]) <= max_internal_grs_bp
-                    ):
-                        med_grs = get_median_depth(
-                            cov_windows, chrom, p_left[0], p_right[0]
-                        )
-                        seg_len = p_right[0] - p_left[0]
-                        up_start = max(internal_min, p_left[0] - 50000)
-                        med_up = get_median_depth(
-                            cov_windows, chrom, up_start, p_left[0]
-                        )
-                        down_end = min(internal_max, p_right[0] + 50000)
-                        med_down = get_median_depth(
-                            cov_windows, chrom, p_right[0], down_end
-                        )
-
-                        flank_min = min(med_up, med_down)
-                        if (
-                            (
-                                med_grs <= t_grs
-                                or med_grs <= 0.45 * flank_min
-                                or seg_len < 1000
-                            )
-                            and med_up > t_grs
-                            and med_down > t_grs
-                        ):
-                            candidate_internal_grs.append(
-                                (
-                                    p_left[0],
-                                    p_right[0],
-                                    seg_len,
-                                    med_grs,
-                                    p_left[0],
-                                    p_right[0],
-                                )
-                            )
-
-            candidate_internal_grs.sort(key=lambda x: x[2], reverse=True)
-            chosen_internal_grs = []
-            chosen_internal_bps = []
-            for s, e, l, med, b_l, b_r in candidate_internal_grs:
-                overlaps = False
-                for cs, ce, _ in chosen_internal_grs:
-                    if not (e <= cs or s >= ce):
-                        overlaps = True
-                        break
-                if not overlaps:
-                    chosen_internal_grs.append((s, e, med))
-                    chosen_internal_bps.extend([b_l, b_r])
-
-            chosen_internal_grs.sort(key=lambda x: x[0])
-
-            if chosen_5p_grs:
-                all_grs.append((chosen_5p_grs[0], chosen_5p_grs[1], chosen_5p_grs[2]))
-                if (chrom, chosen_5p_bp) in bp_records_by_coord:
-                    frontier_breakpoints.append(bp_records_by_coord[(chrom, chosen_5p_bp)])
-
-            for s, e, med in chosen_internal_grs:
-                all_grs.append((s, e, med))
-            for b_pos in chosen_internal_bps:
-                if (chrom, b_pos) in bp_records_by_coord:
-                    frontier_breakpoints.append(bp_records_by_coord[(chrom, b_pos)])
-
-            if chosen_3p_grs:
-                all_grs.append((chosen_3p_grs[0], chosen_3p_grs[1], chosen_3p_grs[2]))
-                if (chrom, chosen_3p_bp) in bp_records_by_coord:
-                    frontier_breakpoints.append(bp_records_by_coord[(chrom, chosen_3p_bp)])
-
-        chr_segs = build_chromosome_segments(
-            chrom, length, all_grs, cov_windows, t_grs
-        )
-        segments.extend(chr_segs)
+    min_elim_bp = canon_grs_bp + unplaced_grs_bp
+    max_elim_bp = min_elim_bp + unplaced_uncertain_bp
+    est_elim_bp = (min_elim_bp + max_elim_bp) // 2
 
     # Write outputs
     prefix = args.prefix
@@ -798,11 +670,16 @@ def main():
             f"# SOFTWARE=pde_identify_grs.py\tVERSION={__version__}\tFINGERPRINT={get_script_fingerprint()}\tGRS_THRESHOLD={t_grs:.2f}\tSOMATIC_CORE_BASELINE={somatic_core_baseline:.2f}\n"
         )
         out_tsv.write(
-            "chromosome\tstart\tend\tlength\tclassification\tmedian_depth\n"
+            f"# ELIMINATION_RANGE\tcanon_grs_bp={canon_grs_bp}\tunplaced_grs_bp={unplaced_grs_bp}"
+            f"\tunplaced_uncertain_bp={unplaced_uncertain_bp}\tunplaced_core_bp={unplaced_core_bp}"
+            f"\tmin_elim_bp={min_elim_bp}\tmax_elim_bp={max_elim_bp}\test_elim_bp={est_elim_bp}\n"
         )
-        for chrom, s, e, label, med in segments:
+        out_tsv.write(
+            "chromosome\tstart\tend\tlength\tclassification\tmedian_depth\tsubtype\n"
+        )
+        for chrom, s, e, label, med, subtype in segments:
             out_bed.write(f"{chrom}\t{s}\t{e}\t{label}\n")
-            out_tsv.write(f"{chrom}\t{s}\t{e}\t{e-s}\t{label}\t{med:.2f}\n")
+            out_tsv.write(f"{chrom}\t{s}\t{e}\t{e-s}\t{label}\t{med:.2f}\t{subtype}\n")
 
 
 if __name__ == "__main__":

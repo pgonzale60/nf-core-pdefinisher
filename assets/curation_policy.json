@@ -79,7 +79,15 @@
     "default_grs_coverage_ratio": 0.35,
     "min_em_component_separation": 0.45,
     "max_terminal_arm_bp": null,
-    "max_internal_grs_bp": null
+    "max_internal_grs_bp": null,
+    "chromosomal_min_bp": 1000000,
+    "drop_overlap_fraction": 0.15,
+    "micro_grs_max_bp": 1000,
+    "drop_merge_gap_bp": 1000,
+    "anchor_proximity_bp": 2000,
+    "min_closed_grs_bp": 1000,
+    "unplaced_min_nonrepeat_bp": 1000,
+    "unplaced_grs_drop_fraction": 0.5
   }
 }
 

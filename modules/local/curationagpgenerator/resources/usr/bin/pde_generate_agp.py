@@ -243,20 +243,25 @@ def assign_chromosome_pde_segments(chrom, blocks, input_segs_by_chr, red_repeats
     def is_grs_label(lbl):
         return "grs" in str(lbl).lower()
 
+    def is_canonical_grs_label(lbl):
+        # putative_GRS_uncertain (fully repetitive unplaced scaffolds) must never become the label
+        # that newly assigned GRS blocks inherit
+        return is_grs_label(lbl) and "uncertain" not in str(lbl).lower()
+
     # Identify canonical labels from input segmentation
     core_label = "putative_core"
     grs_label = "putative_GRS"
     for _, _, lbl in input_segs_by_chr.get(chrom, []):
         if is_core_label(lbl):
             core_label = lbl
-        elif is_grs_label(lbl):
+        elif is_canonical_grs_label(lbl):
             grs_label = lbl
     if core_label == "putative_core" and grs_label == "putative_GRS":
         for c_segs in input_segs_by_chr.values():
             for _, _, lbl in c_segs:
                 if is_core_label(lbl):
                     core_label = lbl
-                elif is_grs_label(lbl):
+                elif is_canonical_grs_label(lbl):
                     grs_label = lbl
 
     def resolve_core_label(lbl1, lbl2=None):

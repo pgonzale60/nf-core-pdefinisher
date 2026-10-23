@@ -12,13 +12,43 @@ bin_dir = Path(__file__).resolve().parent.parent / "resources" / "usr" / "bin"
 sys.path.insert(0, str(bin_dir))
 
 from pde_identify_grs import (
-    build_chromosome_segments,
+    build_chromosomal_segments,
+    classify_unplaced,
     cluster_breakpoints_by_strand,
+    delfies_bounded_grs,
+    drop_overlap_bp,
     find_curation_policy,
     fit_em_2comp,
     load_curation_policy,
-    run_pushdown_automaton,
+    quantize_drops,
 )
+
+RULES = {
+    "drop_overlap_fraction": 0.15,
+    "micro_grs_max_bp": 1000,
+    "anchor_proximity_bp": 2000,
+    "min_closed_grs_bp": 1000,
+    "unplaced_min_nonrepeat_bp": 1000,
+    "unplaced_grs_drop_fraction": 0.5,
+}
+
+
+def bp(pos, strand, end=None):
+    return (pos, strand, 10.0, {"end": pos + 1 if end is None else end})
+
+
+def windows(chrom, length, drops, core=60.0, low=5.0, step=10_000):
+    out = []
+    for p in range(0, length, step):
+        in_drop = any(ds <= p and p + step <= de for ds, de in drops)
+        out.append((p, p + step, low if in_drop else core))
+    return {chrom: out}
+
+
+def grs(length, bps, drops, chrom="chr1"):
+    cov = windows(chrom, length, drops)
+    raw, merged = quantize_drops(cov, chrom, 20.0, 1000)
+    return delfies_bounded_grs(length, bps, raw, merged, RULES)
 
 
 class TestIdentifyPutativeGRS(unittest.TestCase):
@@ -56,80 +86,69 @@ class TestIdentifyPutativeGRS(unittest.TestCase):
         self.assertEqual(clustered[1][1], "-")
         self.assertEqual(clustered[1][2], 27.0)
 
-    def test_run_pushdown_automaton(self):
-        # Synthesize coverage windows for Chr I:
-        # 0 to 200 kb: 10x (GRS)
-        # 200 kb to 4 Mb: 60x (Core)
-        # 4 Mb to 4.02 Mb (20 kb): 8x (Internal GRS)
-        # 4.02 Mb to 10 Mb: 60x (Core)
-        # 10 Mb to 10.5 Mb: 12x (3' GRS)
-        cov_windows = {"chr1": []}
-        for pos in range(0, 10_500_000, 10_000):
-            if pos < 200_000:
-                cov = 10.0
-            elif 4_000_000 <= pos < 4_020_000:
-                cov = 8.0
-            elif pos >= 10_000_000:
-                cov = 12.0
-            else:
-                cov = 60.0
-            cov_windows["chr1"].append((pos, pos + 10_000, cov))
 
-        clustered_bps = [
-            (200_000, "-", 25.0, {}),
-            (4_000_000, "+", 30.0, {}),
-            (4_020_000, "-", 30.0, {}),
-            (10_000_000, "+", 20.0, {}),
-        ]
-        t_grs = 25.0
-        ok, grs_intervals, frontier_bps = run_pushdown_automaton(
-            "chr1",
-            10_500_000,
-            clustered_bps,
-            cov_windows,
-            t_grs,
-            max_terminal_arm_bp=None,
-            max_internal_grs_bp=None,
-            min_transition_contrast=2.0,
-        )
-        self.assertTrue(ok)
-        self.assertEqual(len(grs_intervals), 3)
-        self.assertEqual(grs_intervals[0], (0, 200_000))
-        self.assertEqual(grs_intervals[1], (4_000_000, 4_020_000))
-        self.assertEqual(grs_intervals[2], (10_000_000, 10_500_000))
+    def test_policy_defines_delfies_bounded_rules(self):
+        pde = load_curation_policy(find_curation_policy())["pde_segmentation"]
+        for key in RULES:
+            self.assertIn(key, pde)
 
-    def test_run_pushdown_automaton_supports_megabase_terminal_arm(self):
-        # A '-' breakpoint at 4 Mb in an Auanema-scale genome (10 Mb chromosome)
-        # 0 to 4 Mb: 10x (GRS), 4 Mb to 10 Mb: 60x (Core)
-        cov_windows = {"chr1": []}
-        for pos in range(0, 10_000_000, 10_000):
-            cov = 10.0 if pos < 4_000_000 else 60.0
-            cov_windows["chr1"].append((pos, pos + 10_000, cov))
-        clustered_bps = [(4_000_000, "-", 40.0, {})]
+    def test_quantize_and_overlap(self):
+        cov = windows("chr1", 100_000, [(20_000, 40_000), (40_500, 50_000)], step=500)
+        raw, merged = quantize_drops(cov, "chr1", 20.0, 1000)
+        self.assertEqual(merged, [(20_000, 50_000)])
+        self.assertEqual(drop_overlap_bp(raw, 0, 30_000), 10_000)
 
-        # Unbounded (default): accepted based on empirical coverage contrast
-        ok, grs_intervals, _ = run_pushdown_automaton(
-            "chr1",
-            10_000_000,
-            clustered_bps,
-            cov_windows,
-            25.0,
-            max_terminal_arm_bp=None,
-        )
-        self.assertTrue(ok)
-        self.assertEqual(grs_intervals, [(0, 4_000_000)])
+    def test_low_coverage_repeat_without_breakpoint_is_core(self):
+        # MAPQ-filtered somatic repeat shows as a drop but has no DELFIES anchor
+        out = grs(1_000_000, [], [(300_000, 500_000)])
+        self.assertEqual(out, [])
+        segs = build_chromosomal_segments("chr1", 1_000_000, out, windows("chr1", 1_000_000, []))
+        self.assertEqual([s[3] for s in segs], ["putative_core"])
 
-        # When legacy ceiling is explicitly passed, it is rejected as expected
-        ok_capped, grs_intervals_capped, _ = run_pushdown_automaton(
-            "chr1",
-            10_000_000,
-            clustered_bps,
-            cov_windows,
-            25.0,
-            max_terminal_arm_bp=1_500_000,
-        )
-        self.assertFalse(ok_capped)
-        self.assertEqual(len(grs_intervals_capped), 0)
+    def test_paired_macro_grs_requires_drop_support(self):
+        bps = [bp(200_000, "+"), bp(400_000, "-")]
+        supported = grs(1_000_000, bps, [(200_000, 400_000)])
+        self.assertEqual([(s, e, t) for s, e, t, _ in supported], [(200_000, 400_001, "Macro_GRS_Paired")])
+        self.assertEqual(grs(1_000_000, bps, []), [])
+
+    def test_micro_grs_with_reciprocal_cut_needs_no_drop(self):
+        out = grs(1_000_000, [bp(500_000, "+", 500_001), bp(500_300, "-", 500_301)], [])
+        self.assertEqual(out[0][2], "Micro_GRS_Paired")
+
+    def test_distal_grs_5p_and_3p(self):
+        out = grs(1_000_000, [bp(100_000, "-"), bp(900_000, "+")], [(0, 100_000), (900_000, 1_000_000)])
+        self.assertEqual([t for _, _, t, _ in out], ["5_prime_distal_GRS", "3_prime_distal_GRS"])
+        self.assertEqual((out[0][0], out[1][1]), (0, 1_000_000))
+
+    def test_orphan_plus_closed_by_coverage(self):
+        out = grs(1_000_000, [bp(300_000, "+")], [(300_000, 380_000)])
+        self.assertEqual(out[0][:3], (300_000, 380_000, "Start_DELFIES_Anchored_End_Coverage_Closed"))
+
+    def test_orphan_minus_opened_by_coverage(self):
+        out = grs(1_000_000, [bp(100_000, "+"), bp(920_000, "-", 920_001)], [(840_000, 920_000)])
+        # the pair spans 820 kb with <15 % drop, so it is unsupported and the - opens via coverage
+        self.assertIn("Start_Coverage_Opened_End_DELFIES_Anchored", [t for _, _, t, _ in out])
+
+    def test_nested_variable_grs_reports_outer_and_inner(self):
+        bps = [bp(200_000, "+"), bp(210_000, "+"), bp(300_000, "-", 300_001), bp(320_000, "-", 320_001)]
+        out = grs(1_000_000, bps, [(200_000, 320_000)])
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0][:3], (200_000, 320_001, "Nested_Variable_GRS_Outer"))
+        self.assertEqual(out[0][3], "inner=210000-300001")
+
+    def test_chromosomal_tiling_flanks_are_always_core(self):
+        cov = windows("chr1", 1_000_000, [(0, 1_000_000)])  # whole chromosome low depth
+        segs = build_chromosomal_segments("chr1", 1_000_000, [(300_000, 400_000, "Macro_GRS_Paired", "")], cov)
+        self.assertEqual([s[3] for s in segs], ["putative_core", "putative_GRS", "putative_core"])
+
+    def test_unplaced_repeat_aware_classes(self):
+        drops_all = [(0, 50_000)]
+        # mostly repeat: < 1 kb unique sequence -> uncertain, whatever the coverage
+        self.assertEqual(classify_unplaced("u1", 50_000, drops_all, {"u1": [(0, 49_500)]}, RULES)[0],
+                         "putative_GRS_uncertain")
+        # enough unique sequence: deterministic on drop fraction
+        self.assertEqual(classify_unplaced("u1", 50_000, drops_all, {}, RULES)[0], "putative_GRS")
+        self.assertEqual(classify_unplaced("u1", 50_000, [(0, 10_000)], {}, RULES)[0], "putative_core")
 
     def test_fit_em_2comp_unimodal_rejection(self):
         # Unimodal normal-like distribution around 65x (e.g. 50x to 80x)
@@ -156,44 +175,6 @@ class TestIdentifyPutativeGRS(unittest.TestCase):
         # Somatic core (higher component) must be near 65x
         self.assertGreater(em_res["mu_linear"][1], 50.0)
 
-    def test_build_chromosome_segments_low_depth_flanks_labeled_grs(self):
-        # Scenario: SUPER_X with 206 kb candidate GRS in the middle, but flanks are all low depth (~37x-41x <= t_grs=89.5x)
-        # Flanks MUST NOT be mislabeled putative_core, and contiguous GRS intervals must merge.
-        cov_windows = {
-            "SUPER_X": [
-                (0, 10_000_000, 37.0),
-                (10_000_000, 10_200_000, 41.0),
-                (10_200_000, 26_000_000, 41.0),
-            ]
-        }
-        all_grs = [(10_000_000, 10_200_000, 41.0)]
-        t_grs = 89.5
-        segs = build_chromosome_segments("SUPER_X", 26_000_000, all_grs, cov_windows, t_grs)
-        self.assertEqual(len(segs), 1)
-        self.assertEqual(segs[0][0], "SUPER_X")
-        self.assertEqual(segs[0][1], 0)
-        self.assertEqual(segs[0][2], 26_000_000)
-        self.assertEqual(segs[0][3], "putative_GRS")
-
-    def test_build_chromosome_segments_high_depth_flanks_labeled_core(self):
-        # Scenario: Normal chromosome with internal GRS between true core regions
-        cov_windows = {
-            "chr1": [
-                (0, 5_000_000, 240.0),
-                (5_000_000, 6_000_000, 30.0),
-                (6_000_000, 10_000_000, 240.0),
-            ]
-        }
-        all_grs = [(5_000_000, 6_000_000, 30.0)]
-        t_grs = 89.5
-        segs = build_chromosome_segments("chr1", 10_000_000, all_grs, cov_windows, t_grs)
-        self.assertEqual(len(segs), 3)
-        self.assertEqual(segs[0], ("chr1", 0, 5_000_000, "putative_core", 240.0))
-        self.assertEqual(segs[1], ("chr1", 5_000_000, 6_000_000, "putative_GRS", 30.0))
-        self.assertEqual(segs[2], ("chr1", 6_000_000, 10_000_000, "putative_core", 240.0))
-
 
 if __name__ == "__main__":
     unittest.main()
-
-
