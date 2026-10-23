@@ -176,5 +176,52 @@ class TestIdentifyPutativeGRS(unittest.TestCase):
         self.assertGreater(em_res["mu_linear"][1], 50.0)
 
 
+
+    def test_chromosomes_list_filtering(self):
+        import subprocess, tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fa = os.path.join(tmpdir, "a.fa")
+            with open(fa, "w") as f:
+                f.write(">chrA\n" + "A" * 10 + "\n>chrB\n" + "A" * 10 + "\n>u1\n" + "A" * 10 + "\n")
+            with open(fa + ".fai", "w") as f:
+                f.write("chrA\t2000000\t0\t0\t0\nchrB\t500000\t0\t0\t0\nu1\t2000000\t0\t0\t0\n")
+            cov = os.path.join(tmpdir, "cov.bed")
+            with open(cov, "w") as f:
+                for p in range(0, 2000000, 10000):
+                    f.write(f"chrA\t{p}\t{p+10000}\t60\n")
+                for p in range(0, 500000, 10000):
+                    d = 4 if p < 100000 else 60
+                    f.write(f"chrB\t{p}\t{p+10000}\t{d}\n")
+                for p in range(0, 2000000, 10000):
+                    f.write(f"u1\t{p}\t{p+10000}\t4\n")
+            bp = os.path.join(tmpdir, "bp.bed")
+            with open(bp, "w") as f:
+                f.write("chrB\t100000\t100001\tb1\t12\t-\n")
+            red = os.path.join(tmpdir, "red.bed")
+            with open(red, "w") as f:
+                f.write("u1\t0\t1999500\n")
+
+            script = str(bin_dir / "pde_identify_grs.py")
+            cmd = [
+                "python3", script,
+                "--assembly", fa,
+                "--breakpoints-bed", bp,
+                "--regions-bed", cov,
+                "--red-bed", red,
+                "--chromosomes", "chrA,chrB",
+                "--outdir", tmpdir,
+                "--prefix", "test"
+            ]
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            self.assertEqual(res.returncode, 0, f"Error: {res.stderr}")
+            bed_out = os.path.join(tmpdir, "test.pde_segments.bed")
+            with open(bed_out) as bf:
+                rows = [l.split("\t") for l in bf.read().strip().split("\n")]
+            # chrB (500 kb) was recognized as chromosomal despite being < 1 Mb
+            self.assertTrue(any(r[0] == "chrB" and r[3] == "putative_GRS" for r in rows))
+            # u1 (2 Mb) was recognized as unplaced despite being >= 1 Mb, labeled putative_GRS_uncertain
+            u1_rows = [r for r in rows if r[0] == "u1"]
+            self.assertEqual(u1_rows[0][3], "putative_GRS_uncertain")
+
 if __name__ == "__main__":
     unittest.main()

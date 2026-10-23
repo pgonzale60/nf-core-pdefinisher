@@ -274,7 +274,8 @@ workflow PDE_RECONNAISSANCE {
         ch_identify_grs_input.assembly,
         ch_identify_grs_input.delfies,
         ch_identify_grs_input.mosdepth,
-        ch_identify_grs_input.red
+        ch_identify_grs_input.red,
+        val_chromosomes
     )
 
     ch_meta_with_coverage = IDENTIFYPUTATIVEGRS.out.core_coverage

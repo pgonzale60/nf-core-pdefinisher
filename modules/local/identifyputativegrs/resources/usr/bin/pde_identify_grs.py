@@ -90,6 +90,12 @@ def parse_args():
         help="RED repeat intervals BED; used only for non-chromosomal scaffolds",
     )
     parser.add_argument(
+        "--chromosomes",
+        required=False,
+        default=None,
+        help="Optional comma-separated list of canonical chromosome names",
+    )
+    parser.add_argument(
         "--policy",
         required=False,
         default=None,
@@ -525,13 +531,26 @@ def main():
     max_internal_grs_bp = int(raw_internal) if raw_internal is not None and int(raw_internal) > 0 else None
 
     chr_lens = get_chromosome_lengths(args.assembly)
+    canon_chrom_set = None
+    if args.chromosomes:
+        canon_chrom_set = {c.strip() for c in args.chromosomes.split(",") if c.strip()}
+        sys.stderr.write(
+            f"[Chromosomes] Restricting canonical chromosomal evaluation to {len(canon_chrom_set)} chromosomes: "
+            f"{', '.join(sorted(canon_chrom_set))}\n"
+        )
+
+    def is_canonical_chromosome(name, length):
+        if canon_chrom_set is not None:
+            return name in canon_chrom_set
+        return length >= rules["chromosomal_min_bp"]
+
     breakpoints, bp_records_by_coord = parse_breakpoints(args.breakpoints_bed)
     cov_windows = parse_coverage_windows(args.regions_bed)
 
     # 2. Gather whole-genome window depths across major chromosomes (>= 1 Mb)
     all_core_vals = []
     for c, l in chr_lens.items():
-        if l >= rules["chromosomal_min_bp"] and c in cov_windows:
+        if is_canonical_chromosome(c, l) and c in cov_windows:
             all_core_vals.extend([w[2] for w in cov_windows[c]])
 
     # 3. Cluster breakpoints by strand within 3 bp
@@ -590,7 +609,7 @@ def main():
                             d = get_median_depth(cov_windows, c, s, e)
                             if 0 < d <= max_grs_threshold:
                                 candidate_grs_depths.append(d)
-            elif l < rules["chromosomal_min_bp"] and c in cov_windows:
+            elif (not is_canonical_chromosome(c, l)) and c in cov_windows:
                 d = get_median_depth(cov_windows, c, 0, l)
                 if 0 < d <= max_grs_threshold:
                     candidate_grs_depths.append(d)
@@ -629,7 +648,7 @@ def main():
         raw_drops, merged_drops = quantize_drops(
             cov_windows, chrom, t_grs, rules["drop_merge_gap_bp"]
         )
-        if length >= rules["chromosomal_min_bp"]:
+        if is_canonical_chromosome(chrom, length):
             # Chromosomal: DELFIES-bounded only; repeats are never consulted
             grs_ivs = delfies_bounded_grs(
                 length, clustered_bps_by_chr.get(chrom, []), raw_drops, merged_drops, rules

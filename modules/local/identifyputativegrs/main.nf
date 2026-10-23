@@ -12,6 +12,7 @@ process IDENTIFYPUTATIVEGRS {
     tuple val(meta2), path(delfies_bed)
     tuple val(meta3), path(regions_bed)
     tuple val(meta4), path(red_bed)
+    val chromosomes
 
     output:
     tuple val(meta), path("*.pde_segments.bed")         , emit: bed
@@ -30,15 +31,18 @@ process IDENTIFYPUTATIVEGRS {
     def bp_arg   = delfies_bed ? "--breakpoints-bed ${delfies_bed}" : ""
     def cov_arg  = regions_bed ? "--regions-bed ${regions_bed}" : ""
     def red_arg  = (red_bed && red_bed != "" && red_bed != "null") ? "--red-bed ${red_bed}" : ""
+    def chr_val  = meta.chromosomes ?: chromosomes
+    def chr_arg  = (chr_val && chr_val != "" && chr_val != "null") ? "--chromosomes \"${chr_val}\"" : ""
 
     """
-    # Tool: pde_identify_grs.py | Script-SHA: ab690418e8a5ec4b
+    # Tool: pde_identify_grs.py | Script-SHA: 70b3fce863bc8978
     python3 ${moduleDir}/resources/usr/bin/pde_identify_grs.py --version
     python3 ${moduleDir}/resources/usr/bin/pde_identify_grs.py \\
         --assembly "${assembly}" \\
         ${bp_arg} \\
         ${cov_arg} \\
         ${red_arg} \\
+        ${chr_arg} \\
         --prefix "${prefix}" \\
         --outdir "." \\
         ${args}
