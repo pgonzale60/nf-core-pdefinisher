@@ -1020,6 +1020,18 @@ def main():
                 f"  - Putative Somatic Core: **{core_bp:,d} bp** ({core_bp / 1e6:.2f} Mb, {core_pct:.1f}%) | Median Coverage: `{core_cov:.1f}×`\n"
                 f"  - Putative GRS (Eliminated): **{grs_bp:,d} bp** ({grs_bp / 1e6:.2f} Mb, {grs_pct:.1f}%) | Median Coverage: `{grs_cov:.1f}×`\n"
             )
+            elim_range = karyotype_compartments.get("elimination_range", {})
+            if elim_range and (elim_range.get("min_elim_bp", 0) > 0 or elim_range.get("max_elim_bp", 0) > 0):
+                min_elim = elim_range.get("min_elim_bp", 0)
+                max_elim = elim_range.get("max_elim_bp", 0)
+                est_elim = elim_range.get("est_elim_bp", 0)
+                uncert = elim_range.get("unplaced_uncertain_bp", 0)
+                f.write(
+                    f"  - Bounded Elimination Range: **{min_elim:,d} – {max_elim:,d} bp** "
+                    f"({min_elim / 1e6:.2f} – {max_elim / 1e6:.2f} Mb) | "
+                    f"Estimated: **{est_elim:,d} bp** ({est_elim / 1e6:.2f} Mb) | "
+                    f"Unplaced Repetitive Uncertainty: **{uncert:,d} bp**\n"
+                )
         f.write("\n")
 
         f.write("---\n\n")

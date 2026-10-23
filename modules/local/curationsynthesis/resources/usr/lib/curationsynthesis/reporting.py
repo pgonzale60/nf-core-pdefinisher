@@ -39,6 +39,7 @@ def render_markdown_blueprint(
     scaffold_dispositions,
     extension_by_seq,
     telomere_unitig_inventory=None,
+    elimination_range=None,
 ):
     """Render the full Markdown Curation Reconnaissance Blueprint."""
     report_lines = [
@@ -78,8 +79,21 @@ def render_markdown_blueprint(
         f"* **Putative Somatic Core**: **{tot_core_len:,d} bp** ({tot_core_len / 1e6:.2f} Mb, {core_pct:.1f}%) | **Median Coverage**: `{cohort_core_d:.1f}×`"
     )
     report_lines.append(
-        f"* **Putative GRS (Eliminated)**: **{tot_grs_len:,d} bp** ({tot_grs_len / 1e6:.2f} Mb, {grs_pct:.1f}%) | **Median Coverage**: `{cohort_grs_d:.1f}×`\n"
+        f"* **Putative GRS (Eliminated)**: **{tot_grs_len:,d} bp** ({tot_grs_len / 1e6:.2f} Mb, {grs_pct:.1f}%) | **Median Coverage**: `{cohort_grs_d:.1f}×`"
     )
+    if elimination_range:
+        min_elim = elimination_range.get("min_elim_bp", 0)
+        max_elim = elimination_range.get("max_elim_bp", 0)
+        est_elim = elimination_range.get("est_elim_bp", 0)
+        uncert = elimination_range.get("unplaced_uncertain_bp", 0)
+        if min_elim > 0 or max_elim > 0:
+            report_lines.append(
+                f"* **Bounded Elimination Range**: **{min_elim:,d} – {max_elim:,d} bp** "
+                f"({min_elim / 1e6:.2f} – {max_elim / 1e6:.2f} Mb) | "
+                f"**Estimated**: **{est_elim:,d} bp** ({est_elim / 1e6:.2f} Mb) | "
+                f"**Unplaced Repetitive Uncertainty**: **{uncert:,d} bp**"
+            )
+    report_lines.append("")
 
     report_lines.append(
         "| Chromosome | Total Length (bp) | Core Length (bp) | Core Median Depth | GRS Length (bp) | GRS Median Depth | GRS Fraction (%) |"
@@ -412,6 +426,7 @@ def build_manifest_json(
     scaffold_cards,
     scaffold_dispositions,
     telomere_unitig_inventory=None,
+    elimination_range=None,
 ):
     """Assemble the machine-executable curation_manifest.json payload."""
     all_action_cards = internal_cards + telo_cards + rdna_cards + scaffold_cards
@@ -441,6 +456,7 @@ def build_manifest_json(
                 "span_pct": round(karyotype_stats["grs_pct"], 2),
                 "median_coverage": round(karyotype_stats["cohort_grs_d"], 2),
             },
+            "elimination_range": elimination_range or {},
         },
         "policy": policy,
         "summary": {

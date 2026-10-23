@@ -108,6 +108,7 @@ def main():
         grs_arm_depths,
         local_depth_lookup,
         grs_threshold,
+        elimination_range,
     ) = load_grs_summary(args.grs_summary)
     tip_depths_1kb = load_mosdepth_tip_depths(args.mosdepth_regions, chrom_lens)
     sorted_chroms, nuclear_chroms, unplaced_chroms = partition_chromosomes(
@@ -279,6 +280,7 @@ def main():
         scaffold_dispositions=scaffold_dispositions,
         extension_by_seq=extension_by_seq,
         telomere_unitig_inventory=telomere_unitig_inventory,
+        elimination_range=elimination_range,
     )
     print(full_report)
 
@@ -303,6 +305,7 @@ def main():
             scaffold_cards=scaffold_cards,
             scaffold_dispositions=scaffold_dispositions,
             telomere_unitig_inventory=telomere_unitig_inventory,
+            elimination_range=elimination_range,
         )
         os.makedirs(os.path.dirname(os.path.abspath(args.output_json)), exist_ok=True)
         with open(args.output_json, "w") as out:

@@ -249,6 +249,15 @@ def load_grs_summary(grs_file):
     local_depth_lookup = defaultdict(dict)
     grs_rows = []
     parsed_grs_threshold = None
+    elimination_range = {
+        "canon_grs_bp": 0,
+        "unplaced_grs_bp": 0,
+        "unplaced_uncertain_bp": 0,
+        "unplaced_core_bp": 0,
+        "min_elim_bp": 0,
+        "max_elim_bp": 0,
+        "est_elim_bp": 0,
+    }
 
     if os.path.exists(grs_file):
         with open(grs_file) as f:
@@ -257,7 +266,16 @@ def load_grs_summary(grs_file):
                 if not line:
                     continue
                 if line.startswith("#"):
-                    if "GRS_THRESHOLD=" in line:
+                    if "ELIMINATION_RANGE" in line:
+                        for token in line.split():
+                            if "=" in token:
+                                k, v = token.split("=", 1)
+                                if k in elimination_range:
+                                    try:
+                                        elimination_range[k] = int(v)
+                                    except ValueError:
+                                        pass
+                    elif "GRS_THRESHOLD=" in line:
                         for token in line.split():
                             if token.startswith("GRS_THRESHOLD="):
                                 try:
@@ -296,6 +314,13 @@ def load_grs_summary(grs_file):
             f"Missing required metadata '# GRS_THRESHOLD=...' in GRS summary file: {grs_file}"
         )
 
+    if elimination_range["min_elim_bp"] == 0 and elimination_range["max_elim_bp"] == 0:
+        tot_grs = sum(sum(seg[2] for seg in grs_segments[c]) for c in grs_segments)
+        elimination_range["canon_grs_bp"] = tot_grs
+        elimination_range["min_elim_bp"] = tot_grs
+        elimination_range["max_elim_bp"] = tot_grs
+        elimination_range["est_elim_bp"] = tot_grs
+
     return (
         chrom_lens,
         core_segments,
@@ -303,6 +328,7 @@ def load_grs_summary(grs_file):
         grs_arm_depths,
         local_depth_lookup,
         parsed_grs_threshold,
+        elimination_range,
     )
 
 

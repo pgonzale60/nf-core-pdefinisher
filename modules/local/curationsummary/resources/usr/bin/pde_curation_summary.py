@@ -20,7 +20,7 @@ import os
 import sys
 from collections import defaultdict
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 
 def get_script_fingerprint():
@@ -163,6 +163,18 @@ def parse_sample_record(sc):
     tot_pde_len = core_span_bp + grs_span_bp
     grs_frac_pct = round((grs_span_bp / tot_pde_len * 100.0), 2) if tot_pde_len > 0 else 0.0
 
+    elim_range = pde.get("elimination_range", {})
+    canon_grs_bp = elim_range.get("canon_grs_bp", grs_span_bp)
+    unplaced_grs_bp = elim_range.get("unplaced_grs_bp", 0)
+    unplaced_uncertain_bp = elim_range.get("unplaced_uncertain_bp", 0)
+    unplaced_core_bp = elim_range.get("unplaced_core_bp", 0)
+    min_elim_bp = elim_range.get("min_elim_bp", grs_span_bp)
+    max_elim_bp = elim_range.get("max_elim_bp", grs_span_bp)
+    est_elim_bp = elim_range.get("est_elim_bp", grs_span_bp)
+    min_elim_pct = round((min_elim_bp / tot_pde_len * 100.0), 2) if tot_pde_len > 0 else 0.0
+    max_elim_pct = round((max_elim_bp / tot_pde_len * 100.0), 2) if tot_pde_len > 0 else 0.0
+    est_elim_pct = round((est_elim_bp / tot_pde_len * 100.0), 2) if tot_pde_len > 0 else 0.0
+
     data = {
         "sample": sample,
         "chromosomes_count": chrom_count,
@@ -219,6 +231,16 @@ def parse_sample_record(sc):
         "grs_median_cov": grs_median_cov,
         "grs_threshold": grs_thresh,
         "grs_fraction_pct": grs_frac_pct,
+        "canon_grs_bp": canon_grs_bp,
+        "unplaced_grs_bp": unplaced_grs_bp,
+        "unplaced_uncertain_bp": unplaced_uncertain_bp,
+        "unplaced_core_bp": unplaced_core_bp,
+        "min_elim_bp": min_elim_bp,
+        "max_elim_bp": max_elim_bp,
+        "min_elim_pct": min_elim_pct,
+        "max_elim_pct": max_elim_pct,
+        "est_elim_bp": est_elim_bp,
+        "est_elim_pct": est_elim_pct,
     }
 
     telo_u = sc.get("telomere_unitigs", {})
@@ -298,6 +320,17 @@ def compute_cohort_aggregates(samples_data):
     cohort_core_cov = round(weighted_core_cov / tot_core_bp, 1) if tot_core_bp > 0 else 0.0
     cohort_grs_cov = round(weighted_grs_cov / tot_grs_bp, 1) if tot_grs_bp > 0 else 0.0
 
+    tot_canon_grs_bp = sum(s.get("canon_grs_bp", s.get("grs_span_bp", 0)) for s in samples_data)
+    tot_unplaced_grs_bp = sum(s.get("unplaced_grs_bp", 0) for s in samples_data)
+    tot_unplaced_uncertain_bp = sum(s.get("unplaced_uncertain_bp", 0) for s in samples_data)
+    tot_unplaced_core_bp = sum(s.get("unplaced_core_bp", 0) for s in samples_data)
+    tot_min_elim_bp = sum(s.get("min_elim_bp", s.get("grs_span_bp", 0)) for s in samples_data)
+    tot_max_elim_bp = sum(s.get("max_elim_bp", s.get("grs_span_bp", 0)) for s in samples_data)
+    tot_est_elim_bp = sum(s.get("est_elim_bp", s.get("grs_span_bp", 0)) for s in samples_data)
+    cohort_min_elim_pct = round((tot_min_elim_bp / tot_compartment_bp) * 100.0, 2) if tot_compartment_bp > 0 else 0.0
+    cohort_max_elim_pct = round((tot_max_elim_bp / tot_compartment_bp) * 100.0, 2) if tot_compartment_bp > 0 else 0.0
+    cohort_est_elim_pct = round((tot_est_elim_bp / tot_compartment_bp) * 100.0, 2) if tot_compartment_bp > 0 else 0.0
+
     tier_counts = defaultdict(int)
     for s in samples_data:
         tier_counts[s["tier"]] += 1
@@ -344,6 +377,16 @@ def compute_cohort_aggregates(samples_data):
         "cohort_grs_fraction_pct": cohort_grs_fraction_pct,
         "cohort_core_cov": cohort_core_cov,
         "cohort_grs_cov": cohort_grs_cov,
+        "tot_canon_grs_bp": tot_canon_grs_bp,
+        "tot_unplaced_grs_bp": tot_unplaced_grs_bp,
+        "tot_unplaced_uncertain_bp": tot_unplaced_uncertain_bp,
+        "tot_unplaced_core_bp": tot_unplaced_core_bp,
+        "tot_min_elim_bp": tot_min_elim_bp,
+        "tot_max_elim_bp": tot_max_elim_bp,
+        "tot_est_elim_bp": tot_est_elim_bp,
+        "cohort_min_elim_pct": cohort_min_elim_pct,
+        "cohort_max_elim_pct": cohort_max_elim_pct,
+        "cohort_est_elim_pct": cohort_est_elim_pct,
         "total_unitigs_assembled": total_u_assembled,
         "total_unitigs_assigned": total_u_assigned,
         "total_unitigs_unassigned": total_u_unassigned,
@@ -428,10 +471,18 @@ def generate_markdown_report(prefix, agg, samples_data):
         tot_comp_mb = (agg["tot_core_bp"] + agg["tot_grs_bp"]) / 1e6
         core_mb = agg["tot_core_bp"] / 1e6
         grs_mb = agg["tot_grs_bp"] / 1e6
+        min_elim_mb = agg.get("tot_min_elim_bp", agg["tot_grs_bp"]) / 1e6
+        max_elim_mb = agg.get("tot_max_elim_bp", agg["tot_grs_bp"]) / 1e6
+        min_pct = agg.get("cohort_min_elim_pct", agg["cohort_grs_fraction_pct"])
+        max_pct = agg.get("cohort_max_elim_pct", agg["cohort_grs_fraction_pct"])
+        if min_elim_mb != max_elim_mb:
+            elim_str = f"**{min_elim_mb:.2f} – {max_elim_mb:.2f} Mb ({min_pct:.1f}%–{max_pct:.1f}%)**"
+        else:
+            elim_str = f"**{grs_mb:.2f} Mb ({agg['cohort_grs_fraction_pct']:.1f}%)**"
         md.append(
             f"| **Programmed DNA Elimination (PDE)** | "
             f"Core: {core_mb:.2f} Mb (`{agg['cohort_core_cov']:.1f}×`) | "
-            f"GRS: **{grs_mb:.2f} Mb ({agg['cohort_grs_fraction_pct']:.1f}%)** (`{agg['cohort_grs_cov']:.1f}×`) | "
+            f"Eliminated GRS: {elim_str} (`{agg['cohort_grs_cov']:.1f}×`) | "
             f"Total classified: {tot_comp_mb:.2f} Mb across {agg['total_genomes']} assemblies |"
         )
     md.append("")
@@ -548,32 +599,40 @@ def generate_markdown_report(prefix, agg, samples_data):
             "eliminated during developmental diminution, classified via EM mixture modelling and neo-telomeric addition breakpoints:\n"
         )
         md.append(
-            "| Sample | Threshold ($T_{\\text{GRS}}$) | Core Span (bp) | Core (Mb) | Core Median Cov | GRS Span (bp) | GRS (Mb) | GRS Median Cov | GRS Fraction (%) |"
+            "| Sample | Threshold ($T_{\\text{GRS}}$) | Core Span (bp) | Core Cov | Canon GRS (bp) | Unplaced GRS (bp) | Uncertain (bp) | Min Elim (bp) | Max Elim (bp) | Est Elim (bp) | Elim Range (%) |"
         )
         md.append(
-            "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |"
+            "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |"
         )
         for s in sorted(samples_data, key=lambda x: x["sample"]):
             c_bp = s.get("core_span_bp", 0)
-            c_mb = c_bp / 1e6
             c_cov = s.get("core_median_cov", 0.0)
-            g_bp = s.get("grs_span_bp", 0)
-            g_mb = g_bp / 1e6
-            g_cov = s.get("grs_median_cov", 0.0)
             t_grs = s.get("grs_threshold", 0.0)
-            g_frac = s.get("grs_fraction_pct", 0.0)
+            canon_bp = s.get("canon_grs_bp", s.get("grs_span_bp", 0))
+            unpl_grs_bp = s.get("unplaced_grs_bp", 0)
+            uncert_bp = s.get("unplaced_uncertain_bp", 0)
+            min_bp = s.get("min_elim_bp", s.get("grs_span_bp", 0))
+            max_bp = s.get("max_elim_bp", s.get("grs_span_bp", 0))
+            est_bp = s.get("est_elim_bp", s.get("grs_span_bp", 0))
+            min_pct = s.get("min_elim_pct", s.get("grs_fraction_pct", 0.0))
+            max_pct = s.get("max_elim_pct", s.get("grs_fraction_pct", 0.0))
+            range_pct_str = f"**{min_pct:.1f}%–{max_pct:.1f}%**" if min_pct != max_pct else f"**{min_pct:.1f}%**"
             md.append(
-                f"| `{s['sample']}` | `{t_grs:.2f}×` | {c_bp:,d} | {c_mb:.2f} | `{c_cov:.1f}×` | {g_bp:,d} | {g_mb:.2f} | `{g_cov:.1f}×` | **{g_frac:.1f}%** |"
+                f"| `{s['sample']}` | `{t_grs:.2f}×` | {c_bp:,d} | `{c_cov:.1f}×` | {canon_bp:,d} | {unpl_grs_bp:,d} | {uncert_bp:,d} | {min_bp:,d} | {max_bp:,d} | {est_bp:,d} | {range_pct_str} |"
             )
         tot_c_bp = agg.get("tot_core_bp", 0)
-        tot_c_mb = tot_c_bp / 1e6
-        tot_g_bp = agg.get("tot_grs_bp", 0)
-        tot_g_mb = tot_g_bp / 1e6
         cohort_c_cov = agg.get("cohort_core_cov", 0.0)
-        cohort_g_cov = agg.get("cohort_grs_cov", 0.0)
-        cohort_g_frac = agg.get("cohort_grs_fraction_pct", 0.0)
+        tot_canon = agg.get("tot_canon_grs_bp", agg.get("tot_grs_bp", 0))
+        tot_unpl = agg.get("tot_unplaced_grs_bp", 0)
+        tot_uncert = agg.get("tot_unplaced_uncertain_bp", 0)
+        tot_min = agg.get("tot_min_elim_bp", agg.get("tot_grs_bp", 0))
+        tot_max = agg.get("tot_max_elim_bp", agg.get("tot_grs_bp", 0))
+        tot_est = agg.get("tot_est_elim_bp", agg.get("tot_grs_bp", 0))
+        cohort_min_pct = agg.get("cohort_min_elim_pct", agg.get("cohort_grs_fraction_pct", 0.0))
+        cohort_max_pct = agg.get("cohort_max_elim_pct", agg.get("cohort_grs_fraction_pct", 0.0))
+        cohort_range_str = f"**{cohort_min_pct:.1f}%–{cohort_max_pct:.1f}%**" if cohort_min_pct != cohort_max_pct else f"**{cohort_min_pct:.1f}%**"
         md.append(
-            f"| **Cohort Total** | — | **{tot_c_bp:,d}** | **{tot_c_mb:.2f}** | **`{cohort_c_cov:.1f}×`** | **{tot_g_bp:,d}** | **{tot_g_mb:.2f}** | **`{cohort_g_cov:.1f}×`** | **{cohort_g_frac:.1f}%** |\n"
+            f"| **Cohort Total** | — | **{tot_c_bp:,d}** | **`{cohort_c_cov:.1f}×`** | **{tot_canon:,d}** | **{tot_unpl:,d}** | **{tot_uncert:,d}** | **{tot_min:,d}** | **{tot_max:,d}** | **{tot_est:,d}** | {cohort_range_str} |\n"
         )
 
     return "\n".join(md)
@@ -641,6 +700,16 @@ def generate_tsv_table(samples_data):
         "grs_median_cov",
         "grs_threshold",
         "grs_fraction_pct",
+        "canon_grs_bp",
+        "unplaced_grs_bp",
+        "unplaced_uncertain_bp",
+        "unplaced_core_bp",
+        "min_elim_bp",
+        "max_elim_bp",
+        "min_elim_pct",
+        "max_elim_pct",
+        "est_elim_bp",
+        "est_elim_pct",
     ]
 
     lines = ["\t".join(fields)]

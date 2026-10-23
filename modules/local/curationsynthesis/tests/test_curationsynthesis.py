@@ -10,7 +10,7 @@ import unittest
 LIB_DIR = Path(__file__).resolve().parent.parent / "resources" / "usr" / "lib"
 sys.path.insert(0, str(LIB_DIR))
 
-from curationsynthesis import survey_telomere_unitigs
+from curationsynthesis import survey_telomere_unitigs, load_grs_summary
 
 
 class TestCurationsynthesis(unittest.TestCase):
@@ -92,6 +92,35 @@ class TestCurationsynthesis(unittest.TestCase):
 
             # Check that Chr IV 5p is recognized as lacking unitigs and notes cluster cl_17
             self.assertTrue(any("Chr IV 5p (supported by cluster cl_17 with 5 reads)" in s for s in res["termini_lacking_unitigs"]))
+
+    def test_load_grs_summary_elimination_range(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            grs_tsv = os.path.join(tmpdir, "test.grs_summary.tsv")
+            with open(grs_tsv, "w") as f:
+                f.write("# SOFTWARE=pde_identify_grs.py\tVERSION=2.0.0\tFINGERPRINT=abc123\tGRS_THRESHOLD=25.00\tSOMATIC_CORE_BASELINE=60.00\n")
+                f.write("# ELIMINATION_RANGE\tcanon_grs_bp=1500000\tunplaced_grs_bp=250000\tunplaced_uncertain_bp=80000\tunplaced_core_bp=50000\tmin_elim_bp=1750000\tmax_elim_bp=1830000\test_elim_bp=1790000\n")
+                f.write("chromosome\tstart\tend\tlength\tclassification\tmedian_depth\tsubtype\n")
+                f.write("chr1\t0\t500000\t500000\tputative_GRS\t12.50\tDistal_5p\n")
+                f.write("chr1\t500000\t2000000\t1500000\tputative_core\t62.00\tSomatic_Core\n")
+
+            (
+                chrom_lens,
+                core_segments,
+                grs_segments,
+                grs_arm_depths,
+                local_depth_lookup,
+                parsed_grs_threshold,
+                elimination_range,
+            ) = load_grs_summary(grs_tsv)
+
+            self.assertEqual(parsed_grs_threshold, 25.0)
+            self.assertEqual(elimination_range["canon_grs_bp"], 1500000)
+            self.assertEqual(elimination_range["unplaced_grs_bp"], 250000)
+            self.assertEqual(elimination_range["unplaced_uncertain_bp"], 80000)
+            self.assertEqual(elimination_range["unplaced_core_bp"], 50000)
+            self.assertEqual(elimination_range["min_elim_bp"], 1750000)
+            self.assertEqual(elimination_range["max_elim_bp"], 1830000)
+            self.assertEqual(elimination_range["est_elim_bp"], 1790000)
 
 
 if __name__ == "__main__":
