@@ -151,3 +151,76 @@ def authorized_unitig_materialisation(unitigs_path, card, chrom, terminus, c_len
         "unitig_seq": unitig_seq,
         "unitig_len": len(unitig_seq),
     }, None
+
+
+def align_seed_to_unitigs(seed_seq, unitigs_path, motif, rev_motif, min_overlap=300, min_telo_repeats=15, threads=1):
+    """Align outward-oriented tip seed sequence against unitigs FASTA and return extending sequence if it carries telomere."""
+    if not unitigs_path or not os.path.exists(unitigs_path) or not seed_seq:
+        return None
+
+    import tempfile
+    with tempfile.NamedTemporaryFile("w", suffix=".fa", delete=False) as qf:
+        qf_path = qf.name
+        qf.write(f">seed\n{seed_seq}\n")
+
+    try:
+        cmd = ["minimap2", "-x", "map-hifi", "-c", "--secondary=no", "-t", str(threads), unitigs_path, qf_path]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        if res.returncode != 0 or not res.stdout.strip():
+            return None
+
+        best_cand = None
+        for line in res.stdout.splitlines():
+            p = line.strip().split("\t")
+            if len(p) < 12:
+                continue
+            try:
+                qlen, qstart, qend = int(p[1]), int(p[2]), int(p[3])
+                strand = p[4]
+                tname, tlen, tstart, tend = p[5], int(p[6]), int(p[7]), int(p[8])
+                mapq = int(p[11])
+                aln_len = int(p[10])
+            except (ValueError, IndexError):
+                continue
+
+            if aln_len < min_overlap or mapq < 20:
+                continue
+
+            # Ensure alignment reaches near the outward tip of seed (3' end of seed_seq)
+            if (qlen - qend) > 50:
+                continue
+
+            unitig_seq = extract_unitig_by_id(unitigs_path, tname)
+            if not unitig_seq:
+                continue
+
+            if strand == "+":
+                ext = unitig_seq[tend:]
+            else:
+                ext = revcomp(unitig_seq[:tstart])
+
+            if not ext or len(ext) < 50:
+                continue
+
+            k = len(motif)
+            fwd_h = ext[-1000:].count(motif)
+            rev_h = ext[-1000:].count(rev_motif)
+            telo_bp = max(fwd_h, rev_h) * k
+
+            if telo_bp >= min_telo_repeats * k:
+                if best_cand is None or telo_bp > best_cand["telo_bp"]:
+                    best_cand = {
+                        "unitig_id": tname,
+                        "extension_seq": ext,
+                        "added_bp": len(ext),
+                        "telo_bp": telo_bp,
+                        "mapq": mapq,
+                        "strand": strand
+                    }
+        return best_cand
+    finally:
+        if os.path.exists(qf_path):
+            try:
+                os.remove(qf_path)
+            except OSError:
+                pass

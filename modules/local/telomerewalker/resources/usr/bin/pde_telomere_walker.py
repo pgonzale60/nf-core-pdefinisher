@@ -27,6 +27,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
 
 from telocapping import (
+    align_seed_to_unitigs,
     authorized_unitig_materialisation,
     extract_read_by_qname,
     inspect_terminal_reads,
@@ -1124,8 +1125,40 @@ def main():
                     manifest_rows.append(contig_row)
                     continue
 
-                term_max_iters = safe_int(card.get("walker_max_iters") if card else None, default=max_iters)
                 seed_seq = extract_seed_sequence(args.ref, chrom, terminus, c_len, seed_len=seed_len_bp, chrom_start=c_start)
+
+                # Prioritize local unitig bridging from assembled telomeric unitigs (HIFIASM)
+                unitig_ext_match = align_seed_to_unitigs(
+                    seed_seq, args.unitigs, motif, rev_motif,
+                    min_overlap=safe_int(telo_policy.get("tract_anchor_bp", 300), default=300),
+                    min_telo_repeats=min_telo_repeats,
+                    threads=args.threads
+                )
+                if unitig_ext_match:
+                    ext_seq_chrom = (
+                        revcomp(unitig_ext_match["extension_seq"])
+                        if terminus == "5p"
+                        else unitig_ext_match["extension_seq"]
+                    )
+                    ext_fa, added_len, telo_len, non_telo = write_extension_fasta(
+                        outdir, term_id, "unitig_bridge_ext",
+                        f"unitig_id={unitig_ext_match['unitig_id']} telo_bp={unitig_ext_match['telo_bp']}",
+                        ext_seq_chrom, motif, rev_motif
+                    )
+                    bridge_status, tract_bp = cap_status_for(
+                        "RESOLVED_BY_UNITIG", ext_seq_chrom, motif, rev_motif, min_telo_repeats,
+                        terminus=terminus
+                    )
+                    telomere_lengths.append((chrom, terminus, bridge_status, unitig_ext_match["unitig_id"], tract_bp, telo_len))
+                    manifest_rows.append([
+                        chrom, terminus, bridge_status, f"Unitig_{unitig_ext_match['unitig_id']}",
+                        added_len, telo_len, non_telo, ext_fa,
+                        f"Subtelomeric repeat bridged via telomeric unitig {unitig_ext_match['unitig_id']} "
+                        f"({added_len} bp added; {telo_len} bp canonical telomere; terminal tract {tract_bp} bp)"
+                    ])
+                    continue
+
+                term_max_iters = safe_int(card.get("walker_max_iters") if card else None, default=max_iters)
                 walk_cluster_reads = extract_cluster_reads_from_card(card)
                 walk_res = run_iterative_walker(
                     args.bam, seed_seq, motif, rev_motif,

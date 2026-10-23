@@ -11,6 +11,7 @@ from .overhang_capper import (
     terminal_window_lines,
 )
 from .unitig_capper import (
+    align_seed_to_unitigs,
     authorized_unitig_materialisation,
     extract_unitig_by_id,
     outboard_extension,
@@ -18,6 +19,7 @@ from .unitig_capper import (
 )
 
 __all__ = [
+    "align_seed_to_unitigs",
     "outboard_extension",
     "region_extension",
     "extract_unitig_by_id",

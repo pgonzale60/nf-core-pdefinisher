@@ -161,6 +161,28 @@ class TestTelomereWalker(unittest.TestCase):
         self.assertEqual(res["status"], "ZERO_EXTENDING_READS")
 
 
+    def test_align_seed_to_unitigs(self):
+        """Verifies local unitig bridging aligns outward tip seed to telomeric unitigs."""
+        import shutil
+        from telocapping import align_seed_to_unitigs
+        if not shutil.which("minimap2"):
+            self.skipTest("minimap2 not available in test environment")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Chromosome seed: non-palindromic sequence ending at tip
+            seed = ("GACTACGATAGCTAGGACATTAGCTA" * 20)
+            # Unitig: seed followed by 300 bp canonical telomere TTAGGC
+            unitig_seq = seed + ("TTAGGC" * 50)
+            u_path = os.path.join(tmpdir, "unitigs.fa")
+            with open(u_path, "w") as uf:
+                uf.write(f">utg001\n{unitig_seq}\n")
+
+            res = align_seed_to_unitigs(seed, u_path, "TTAGGC", "GCCTAA", min_overlap=200, min_telo_repeats=15)
+            self.assertIsNotNone(res)
+            self.assertEqual(res["unitig_id"], "utg001")
+            self.assertGreaterEqual(res["added_bp"], 300)
+            self.assertGreaterEqual(res["telo_bp"], 300)
+            self.assertTrue(res["extension_seq"].startswith("TTAGGC"))
+
 if __name__ == "__main__":
     unittest.main()
-

@@ -37,7 +37,7 @@ process TELOMEREWALKER {
 
     def blueprint_arg = blueprint_json ? "--blueprint \"${blueprint_json}\"" : ""
     """
-    # Tool: pde_telomere_walker.py | Script-SHA: feb97e7085726a5c
+    # Tool: pde_telomere_walker.py | Script-SHA: f84e64d69e238ee0
     pde_telomere_walker.py \\
         --ref "${ref_fasta}" \\
         --bam "${bam}" \\
