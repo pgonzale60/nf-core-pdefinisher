@@ -25,7 +25,7 @@ process CURATIONVALIDATION {
     def agp_arg = agp ? "--agp \"${agp}\"" : ""
     def bam_arg = bam ? "--bam \"${bam}\"" : ""
     """
-    # Tool: pde_validate_curation.py | Script-SHA: 89cc4dfd1c860c9e
+    # Tool: pde_validate_curation.py | Script-SHA: 6df2369ba5663f7e
     pde_validate_curation.py --version
     pde_validate_curation.py \\
         --audit "${audit}" \\

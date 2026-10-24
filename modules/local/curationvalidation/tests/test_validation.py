@@ -174,7 +174,87 @@ class TestCurationValidation(unittest.TestCase):
         res = validate_edited_regions([purged_region], [], bam_path=None)
         self.assertEqual(len(res), 1)
         self.assertEqual(res[0].status, "PASS")
-        self.assertIn("Purged sequence", res[0].explanation)
+        self.assertIn("Purged/retired sequence", res[0].explanation)
+
+        # Test RETIRE_ABSORBED action
+        absorbed_region = EditedRegion(
+            sample="test_sample",
+            chrom="I_unloc_1",
+            card_id="SCAFF-I_unloc_1",
+            action="RETIRE_ABSORBED",
+            edit_type="RETIRE_ABSORBED",
+            curated_start=0,
+            curated_end=8500,
+            orig_start=0,
+            orig_end=8500,
+            delta_bp=-8500
+        )
+        res_abs = validate_edited_regions([absorbed_region], [], bam_path=None)
+        self.assertEqual(len(res_abs), 1)
+        self.assertEqual(res_abs[0].status, "PASS")
+        self.assertIn("Purged/retired sequence verified absent", res_abs[0].explanation)
+
+    def test_compensating_tandem_repeat_shift(self):
+        # DEL 58 bp at X:3841 and INS 59 bp at X:3688 (distance 153 bp, diff 1 bp <= 5 bp)
+        svs = [
+            StructuralVariant(
+                sv_id="SV_DEL_58",
+                chrom="X",
+                start=3841,
+                end=3899,
+                sv_type="DEL",
+                sv_len=58,
+                support=10,
+                vaf=0.833,
+                filter_status="PASS",
+                qual=60.0,
+                chr2="X"
+            ),
+            StructuralVariant(
+                sv_id="SV_INS_59",
+                chrom="X",
+                start=3688,
+                end=3688,
+                sv_type="INS",
+                sv_len=59,
+                support=9,
+                vaf=0.692,
+                filter_status="PASS",
+                qual=60.0,
+                chr2="X"
+            )
+        ]
+        errors = find_flagrant_errors(svs)
+        self.assertEqual(len(errors), 2)
+        for err in errors:
+            self.assertEqual(err.error_type, "TANDEM_REPEAT_ALIGNMENT_SHIFT")
+            self.assertEqual(err.severity, "LOW")
+
+    def test_agp_coordinate_projection(self):
+        with tempfile.TemporaryDirectory() as td:
+            agp_path = os.path.join(td, "test.agp")
+            with open(agp_path, "w") as f:
+                # 5' telomere extension of 5000 bp, then draft contig slice of 50000 bp
+                f.write("chr1\t1\t5000\t1\tW\tchr1_5p_telo_ext\t1\t5000\t+\n")
+                f.write("chr1\t5001\t55000\t2\tW\tcontig_1\t1\t50000\t+\n")
+                f.write("chr1\t55001\t58000\t3\tW\tchr1_3p_telo_ext\t1\t3000\t+\n")
+
+            agp_res = parse_agp_regions(agp_path)
+
+            audit_path = os.path.join(td, "test.audit.tsv")
+            with open(audit_path, "w") as f:
+                f.write("sample\tchrom\tcard_id\taction\tedit_type\torig_start\torig_end\tdelta_bp\n")
+                f.write("sample1\tchr1\tTELO-chr1-5p\tEXTEND_TELOMERE\tTELO_5P\t0\t0\t5000\n")
+                f.write("sample1\tchr1\tTELO-chr1-3p\tEXTEND_TELOMERE\tTELO_3P\t50000\t50000\t3000\n")
+
+            regions = parse_curation_audit(audit_path, agp_entries=agp_res)
+            self.assertEqual(len(regions), 2)
+            # 5' extension boundary: [5000 - 250, 5000 + 250] = [4750, 5250]
+            self.assertEqual(regions[0].curated_start, 4750)
+            self.assertEqual(regions[0].curated_end, 5250)
+            # 3' extension boundary: [55001 - 250, 55001 + 250] = [54751, 55251]
+            self.assertEqual(regions[1].curated_start, 54751)
+            self.assertEqual(regions[1].curated_end, 55251)
 
     def test_mutually_exclusive_flagrant_errors(self):
         region = EditedRegion(

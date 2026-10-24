@@ -104,7 +104,14 @@ def render_validation_markdown(data: Dict[str, Any]) -> str:
             status_badge = f"**{e['status']}**" if e['status'] == "PASS" else f"<span style='color:orange;'>**{e['status']}**</span>"
             span_str = f"{e['chrom']}:{e['curated_start']:,}-{e['curated_end']:,}"
             delta_str = f"+{e['delta_bp']:,} bp" if e['delta_bp'] > 0 else f"{e['delta_bp']:,} bp"
-            is_purged = "PURGE" in e.get("action", "").upper() or "PURGE" in e.get("edit_type", "").upper()
+            is_purged = (
+                "PURGE" in e.get("action", "").upper()
+                or "PURGE" in e.get("edit_type", "").upper()
+                or "RETIRE" in e.get("action", "").upper()
+                or "RETIRE" in e.get("edit_type", "").upper()
+                or "ABSORBED" in e.get("action", "").upper()
+                or "ABSORBED" in e.get("edit_type", "").upper()
+            )
             cov_str = "-" if is_purged else f"{e['mean_coverage']}x"
             span_reads_str = "-" if is_purged else str(e['spanning_reads'])
             lines.append(

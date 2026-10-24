@@ -75,10 +75,91 @@ def parse_curation_audit(audit_path: str, agp_entries: Optional[Dict[str, List[D
 
             cur_start = orig_start
             cur_end = orig_end
-            if edit_type == "TELOMERE_CAPPING_5P":
-                cur_start = 1
-                cur_end = max(1, delta_bp)
-            elif edit_type == "GAP_PATCH" or edit_type == "GAP_EXCISION":
+
+            agp_list = agp_entries.get(chrom, []) if agp_entries else []
+            e_upper = edit_type.upper()
+            act_upper = action.upper()
+
+            # 1. 5' Telomere extension
+            if ("5P" in e_upper or "5P" in act_upper) and "TELO" in (e_upper + act_upper):
+                if agp_list and delta_bp > 0:
+                    w_first = next((e for e in agp_list if e.get("type") == "W"), None)
+                    ext_len = (w_first["end"] - w_first["start"] + 1) if w_first else delta_bp
+                    cur_start = max(1, ext_len - 250)
+                    cur_end = ext_len + 250
+                elif delta_bp > 0:
+                    cur_start = max(1, delta_bp - 250)
+                    cur_end = delta_bp + 250
+            # 2. 3' Telomere extension
+            elif ("3P" in e_upper or "3P" in act_upper) and "TELO" in (e_upper + act_upper):
+                if agp_list and delta_bp > 0:
+                    w_last = next((e for e in reversed(agp_list) if e.get("type") == "W"), None)
+                    j_pos = w_last["start"] if w_last else orig_end
+                    cur_start = max(1, j_pos - 250)
+                    cur_end = j_pos + 250
+                elif delta_bp > 0:
+                    cur_start = max(1, orig_end - 250)
+                    cur_end = orig_end + delta_bp + 250
+            # 3. Gap patch
+            elif "PATCH" in e_upper or "PATCH" in act_upper:
+                matched_entry = None
+                if agp_list:
+                    for e in agp_list:
+                        cid = e.get("comp_id", "")
+                        if card_id and card_id in cid:
+                            matched_entry = e
+                            break
+                        if "_patch" in cid and chrom in cid:
+                            if abs(e["start"] - orig_start) <= 500000 or (e["start"] <= orig_end + 100000 and e["end"] >= orig_start - 100000):
+                                matched_entry = e
+                                break
+                if matched_entry:
+                    cur_start = max(1, matched_entry["start"] - 200)
+                    cur_end = matched_entry["end"] + 200
+                else:
+                    cur_start = max(1, orig_start - 200)
+                    cur_end = max(cur_start + 1, orig_end + delta_bp + 200)
+            # 4. Gap excision
+            elif "EXCISE" in e_upper or "EXCISE" in act_upper:
+                matched_junction = None
+                if agp_list:
+                    for i in range(len(agp_list) - 1):
+                        e1, e2 = agp_list[i], agp_list[i + 1]
+                        if e1.get("type") == "W" and e2.get("type") == "W":
+                            s1 = e1.get("comp_end", 0)
+                            s2 = e2.get("comp_start", 0)
+                            if s1 <= orig_end + 500 and s2 >= orig_start - 500:
+                                matched_junction = e1["end"]
+                                break
+                if matched_junction:
+                    cur_start = max(1, matched_junction - 250)
+                    cur_end = matched_junction + 250
+                else:
+                    cur_start = max(1, orig_start - 200)
+                    cur_end = max(cur_start + 1, orig_end + delta_bp + 200)
+            # 5. rDNA insertion / sequence insertion
+            elif "RDNA" in e_upper or "INSERT" in e_upper:
+                matched_entry = None
+                if agp_list:
+                    for e in agp_list:
+                        cid = e.get("comp_id", "")
+                        if card_id and card_id in cid:
+                            matched_entry = e
+                            break
+                        if "rdna" in cid.lower():
+                            matched_entry = e
+                            break
+                if matched_entry:
+                    cur_start = max(1, matched_entry["start"] - 200)
+                    cur_end = matched_entry["end"] + 200
+                else:
+                    cur_start = max(1, orig_start - 200)
+                    cur_end = max(cur_start + 1, orig_end + delta_bp + 200)
+            # 6. Legacy/default handling
+            elif edit_type == "TELOMERE_CAPPING_5P":
+                cur_start = max(1, delta_bp - 250)
+                cur_end = delta_bp + 250
+            elif edit_type in ("GAP_PATCH", "GAP_EXCISION"):
                 cur_start = max(1, orig_start - 200)
                 cur_end = max(cur_start + 1, orig_end + delta_bp + 200)
 
