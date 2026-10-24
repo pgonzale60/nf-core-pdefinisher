@@ -6,9 +6,9 @@ lint: {}
 
 template:
   org: nf-core
-  name: pdecuration
-  description: Automated genome assembly curation and validation for species with
-    Programmed DNA Elimination
+  name: pdefinisher
+  description: Automated T2T and PDE finishing for genomes undergoing Programmed DNA
+    Elimination
   author: Pablo M. Gonzalez de la Rosa
   version: 1.0.0
   force: true

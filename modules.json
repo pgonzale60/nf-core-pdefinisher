@@ -1,6 +1,6 @@
 {
-    "name": "nf-core/pdecuration",
-    "homePage": "https://github.com/nf-core/pdecuration",
+    "name": "nf-core/pdefinisher",
+    "homePage": "https://github.com/nf-core/pdefinisher",
     "repos": {
         "https://github.com/nf-core/modules.git": {
             "modules": {

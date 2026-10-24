@@ -1,4 +1,4 @@
-# nf-core/pdecuration: Output
+# nf-core/pdefinisher: Output
 
 ## Introduction
 

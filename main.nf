@@ -1,11 +1,11 @@
 #!/usr/bin/env nextflow
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    nf-core/pdecuration
+    nf-core/pdefinisher
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    Github : https://github.com/nf-core/pdecuration
-    Website: https://nf-co.re/pdecuration
-    Slack  : https://nfcore.slack.com/channels/pdecuration
+    Github : https://github.com/nf-core/pdefinisher
+    Website: https://nf-co.re/pdefinisher
+    Slack  : https://nfcore.slack.com/channels/pdefinisher
 ----------------------------------------------------------------------------------------
 */
 
@@ -15,9 +15,10 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { PDECURATION             } from './workflows/pdecuration'
-include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_pdecuration_pipeline'
-include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_pdecuration_pipeline'
+include { PDEFINISHER             } from './workflows/pdefinisher'
+include { PDEFINISHER as PDECURATION } from './workflows/pdefinisher'
+include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_pdefinisher_pipeline'
+include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_pdefinisher_pipeline'
 
 
 /*
@@ -29,7 +30,7 @@ include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_pdec
 //
 // WORKFLOW: Run main analysis pipeline depending on type of input
 //
-workflow NFCORE_PDECURATION {
+workflow NFCORE_PDEFINISHER {
 
     take:
     samplesheet // channel: samplesheet read in from --input
@@ -39,7 +40,7 @@ workflow NFCORE_PDECURATION {
     //
     // WORKFLOW: Run pipeline
     //
-    PDECURATION (
+    PDEFINISHER (
         samplesheet,
         params.multiqc_config,
         params.multiqc_logo,
@@ -47,7 +48,18 @@ workflow NFCORE_PDECURATION {
         params.outdir,
     )
     emit:
-    multiqc_report = PDECURATION.out.multiqc_report // channel: /path/to/multiqc_report.html
+    multiqc_report = PDEFINISHER.out.multiqc_report // channel: /path/to/multiqc_report.html
+}
+
+workflow NFCORE_PDECURATION {
+    take:
+    samplesheet
+
+    main:
+    NFCORE_PDEFINISHER(samplesheet)
+
+    emit:
+    multiqc_report = NFCORE_PDEFINISHER.out.multiqc_report
 }
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -76,7 +88,7 @@ workflow {
     //
     // WORKFLOW: Run main workflow
     //
-    NFCORE_PDECURATION (
+    NFCORE_PDEFINISHER (
         PIPELINE_INITIALISATION.out.samplesheet
     )
     //
@@ -88,7 +100,7 @@ workflow {
         params.plaintext_email,
         params.outdir,
         params.monochrome_logs,
-        NFCORE_PDECURATION.out.multiqc_report
+        NFCORE_PDEFINISHER.out.multiqc_report
     )
 }
 

@@ -1,13 +1,13 @@
-# nf-core/pdecuration
+# nf-core/pdefinisher
 
 [![Nextflow](https://img.shields.io/badge/version-%E2%89%A525.04.0-green?style=flat&logo=nextflow&logoColor=white&color=%230DC09D&link=https%3A%2F%2Fnextflow.io)](https://www.nextflow.io/)
 [![nf-core template version](https://img.shields.io/badge/nf--core_template-3.5.2-green?style=flat&logo=nfcore&logoColor=white&color=%2324B064&link=https%3A%2F%2Fnf-co.re)](https://github.com/nf-core/tools/releases/tag/3.5.2)
 
 ## Introduction
 
-**nf-core/pdecuration** is a bioinformatics pipeline for **automated genome assembly curation and validation in species undergoing Programmed DNA Elimination (PDE)** (chromatin diminution).
+**nf-core/pdefinisher** is a bioinformatics pipeline for **automated T2T finishing, gap resolution, and programmed DNA elimination (PDE) analysis** in species undergoing chromatin diminution.
 
-In species with PDE, mixed germline/somatic sequencing libraries produce complex assembly bifurcations at germline-soma elimination boundaries, internal scaffold gaps across eliminated satellites, uncapped neo-telomeric chromosome ends, and unplaced germline-restricted sequences (GRS). `nf-core/pdecuration` automates the end-to-end curation and validation of these assemblies from a draft genome FASTA and long-read sequencing data (PacBio HiFi / ONT).
+In species with PDE, mixed germline/somatic sequencing libraries produce complex assembly bifurcations at germline-soma elimination boundaries, internal scaffold gaps across eliminated satellites, uncapped neo-telomeric chromosome ends, and unplaced germline-restricted sequences (GRS). `nf-core/pdefinisher` automates the end-to-end finishing, curation, and validation of these assemblies from a draft genome FASTA and long-read sequencing data (PacBio HiFi / ONT).
 
 ### Pipeline Architecture
 
@@ -37,7 +37,7 @@ oscheius_onirici,/path/to/draft_assembly.fasta.gz,/path/to/hifi_reads.fasta.gz
 ### Running the Pipeline
 
 ```bash
-nextflow run nf-core/pdecuration \
+nextflow run nf-core/pdefinisher \
    -profile singularity \
    --input samplesheet.csv \
    --telomere_repeat 'TTAGGC' \
@@ -51,8 +51,8 @@ Optional parameters:
 
 ## Credits
 
-`nf-core/pdecuration` was originally written by **Pablo M. Gonzalez de la Rosa** (Wellcome Sanger Institute).
+`nf-core/pdefinisher` was originally written by **Pablo M. Gonzalez de la Rosa** (Wellcome Sanger Institute).
 
 ## Citations
 
-If you use `nf-core/pdecuration` for your analysis, please cite it using the metadata in [`CITATION.cff`](CITATION.cff) and see [`CITATIONS.md`](CITATIONS.md) for the full list of tools used by the pipeline.
+If you use `nf-core/pdefinisher` for your analysis, please cite it using the metadata in [`CITATION.cff`](CITATION.cff) and see [`CITATIONS.md`](CITATIONS.md) for the full list of tools used by the pipeline.

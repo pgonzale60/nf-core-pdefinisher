@@ -9,7 +9,7 @@ include { MULTIQC                } from '../modules/nf-core/multiqc/main'
 include { paramsSummaryMap       } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc   } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
-include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_pdecuration_pipeline'
+include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_pdefinisher_pipeline'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -17,7 +17,7 @@ include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_pdec
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-workflow PDECURATION {
+workflow PDEFINISHER {
 
     take:
     ch_samplesheet // channel: [ val(meta), path(assembly), path(bam), path(bai) ]
@@ -87,7 +87,7 @@ workflow PDECURATION {
         .mix(topic_versions_string)
         .collectFile(
             storeDir: "${outdir}/pipeline_info",
-            name: 'nf_core_'  +  'pdecuration_software_'  + 'mqc_'  + 'versions.yml',
+            name: 'nf_core_'  +  'pdefinisher_software_'  + 'mqc_'  + 'versions.yml',
             sort: true,
             newLine: true
         )
@@ -107,7 +107,7 @@ workflow PDECURATION {
     MULTIQC(
         ch_multiqc_files.flatten().collect().map { files ->
             [
-                [id: 'pdecuration'],
+                [id: 'pdefinisher'],
                 files,
                 multiqc_config
                     ? file(multiqc_config, checkIfExists: true)
@@ -136,6 +136,42 @@ workflow PDECURATION {
     motif_distribution_report  = AUTOMATED_PDE_CURATION.out.motif_distribution_report
     multiqc_report             = MULTIQC.out.report.map { _meta, report -> [report] }.toList()
     versions                   = ch_versions
+}
+
+workflow PDECURATION {
+    take:
+    ch_samplesheet
+    multiqc_config
+    multiqc_logo
+    multiqc_methods_description
+    outdir
+
+    main:
+    PDEFINISHER(
+        ch_samplesheet,
+        multiqc_config,
+        multiqc_logo,
+        multiqc_methods_description,
+        outdir
+    )
+
+    emit:
+    curated_fasta              = PDEFINISHER.out.curated_fasta
+    curated_agp                = PDEFINISHER.out.curated_agp
+    blueprint_json             = PDEFINISHER.out.blueprint_json
+    curated_pde_segments       = PDEFINISHER.out.curated_pde_segments
+    curated_repeats            = PDEFINISHER.out.curated_repeats
+    scorecard_json             = PDEFINISHER.out.scorecard_json
+    validation_json            = PDEFINISHER.out.validation_json
+    summary_md                 = PDEFINISHER.out.summary_md
+    best_core_motif            = PDEFINISHER.out.best_core_motif
+    best_auxiliary_motif       = PDEFINISHER.out.best_auxiliary_motif
+    motif_discovery_report_md  = PDEFINISHER.out.motif_discovery_report_md
+    fimo_annotated_hits        = PDEFINISHER.out.fimo_annotated_hits
+    motif_distribution_summary = PDEFINISHER.out.motif_distribution_summary
+    motif_distribution_report  = PDEFINISHER.out.motif_distribution_report
+    multiqc_report             = PDEFINISHER.out.multiqc_report
+    versions                   = PDEFINISHER.out.versions
 }
 
 /*
