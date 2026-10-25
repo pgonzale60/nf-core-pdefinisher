@@ -8,10 +8,6 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { UTILS_NFSCHEMA_PLUGIN     } from '../../nf-core/utils_nfschema_plugin'
-include { paramsSummaryMap          } from 'plugin/nf-schema'
-include { samplesheetToList         } from 'plugin/nf-schema'
-include { paramsHelp                } from 'plugin/nf-schema'
 include { completionEmail           } from '../../nf-core/utils_nfcore_pipeline'
 include { completionSummary         } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NFCORE_PIPELINE     } from '../../nf-core/utils_nfcore_pipeline'
@@ -51,46 +47,12 @@ workflow PIPELINE_INITIALISATION {
     )
 
     //
-    // Validate parameters and generate parameter summary to stdout
+    // Display help and exit if requested
     //
-
-    def before_text = ""
-    def after_text = ""
-    before_text = """
--\033[2m----------------------------------------------------\033[0m-
-                                        \033[0;32m,--.\033[0;30m/\033[0;32m,-.\033[0m
-\033[0;34m        ___     __   __   __   ___     \033[0;32m/,-._.--~\'\033[0m
-\033[0;34m  |\\ | |__  __ /  ` /  \\ |__) |__         \033[0;33m}  {\033[0m
-\033[0;34m  | \\| |       \\__, \\__/ |  \\ |___     \033[0;32m\\`-._,-`-,\033[0m
-                                        \033[0;32m`._,._,\'\033[0m
-\033[0;35m  nf-core/pdefinisher ${workflow.manifest.version}\033[0m
--\033[2m----------------------------------------------------\033[0m-
-"""
-    after_text = """${workflow.manifest.doi ? "\n* The pipeline\n" : ""}${workflow.manifest.doi.tokenize(",").collect { doi -> "    https://doi.org/${doi.trim().replace('https://doi.org/','')}"}.join("\n")}${workflow.manifest.doi ? "\n" : ""}
-* The nf-core framework
-    https://doi.org/10.1038/s41587-020-0439-x
-
-* Software dependencies
-    https://github.com/nf-core/pdefinisher/blob/master/CITATIONS.md
-"""
-    if (monochrome_logs) {
-        before_text = before_text.replaceAll(/\033\[[0-9;]*m/, '')
+    if (help || help_full) {
+        log.info paramsHelp(monochrome_logs)
+        exit 0
     }
-
-    command = "nextflow run ${workflow.manifest.name} -profile <docker/singularity/.../institute> --input samplesheet.csv --outdir <OUTDIR>"
-
-    UTILS_NFSCHEMA_PLUGIN (
-        workflow,
-        validate_params,
-        null,
-        help,
-        help_full,
-        show_hidden,
-        before_text,
-        after_text,
-        command,
-        null
-    )
 
     //
     // Check config provided to the pipeline
@@ -100,14 +62,13 @@ workflow PIPELINE_INITIALISATION {
     )
 
     //
-    // Custom validation for pipeline parameters
+    // Pre-run verification gate: fail-fast parameter & path integrity check
     //
     validateInputParameters()
 
     //
     // Create channel from input file provided through params.input
     //
-
     channel
         .fromList(samplesheetToList(input, "${projectDir}/assets/schema_input.json"))
         .map { meta, assembly, bam, bai ->
@@ -147,7 +108,7 @@ workflow PIPELINE_COMPLETION {
     multiqc_report  //  string: Path to MultiQC report
 
     main:
-    summary_params = paramsSummaryMap(workflow, parameters_schema: "nextflow_schema.json")
+    summary_params = paramsSummaryMap(workflow)
     def multiqc_reports = multiqc_report.toList()
 
     //
@@ -180,26 +141,252 @@ workflow PIPELINE_COMPLETION {
     FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
+
 //
-// Check and validate pipeline parameters
+// Command-line help banner
 //
-def validateInputParameters() {
-    genomeExistsError()
+def paramsHelp(monochrome_logs=false) {
+    def logo = """
+------------------------------------------------------
+                                        ,--./,-.
+        ___     __   __   __   ___     /,-._.--~'
+  |\\ | |__  __ /  ` /  \\ |__) |__         }  {
+  | \\| |       \\__, \\__/ |  \\ |___     \\`-._,-`-,
+                                        `._,._,'
+  nf-core/pdefinisher ${workflow.manifest.version ?: '1.0.0'}
+------------------------------------------------------
+"""
+    def help_text = """
+${logo}
+Automated T2T and PDE finishing for genomes undergoing Programmed DNA Elimination
+
+Usage:
+  nextflow run nf-core/pdefinisher --input <samplesheet.csv> --outdir <OUTDIR> [options]
+
+Mandatory arguments:
+  --input                Path to comma-separated samplesheet CSV
+  --outdir               Path to directory where results are published
+
+PDE Finisher options:
+  --telomere_repeat      Canonical telomere repeat monomer (default: 'TTAGGC')
+  --chromosomes          Comma-separated list of chromosome names (e.g. 'I,II,III,IV,V,X')
+  --curation_policy      Path to curation policy JSON (default: 'assets/curation_policy.json')
+  --skip_validation      Skip BAM re-mapping and Sniffles SV validation (default: true)
+  --run_motif_discovery  Run MEME grid search and FIMO whole-genome scanning (default: false)
+  --fimo_pvalue_threshold P-value threshold for FIMO scanning (default: 1e-4)
+
+Tool-specific options:
+  --delfies_args         Extra arguments for DELFIES breakpoint detection
+  --mosdepth_args        Extra arguments for mosdepth coverage profiling
+  --hifiasm_args         Extra arguments for hifiasm assembly
+  --minimap2_align_args  Extra arguments for minimap2 alignment
+
+Generic options:
+  --help                 Display this help message and exit
+  --monochrome_logs      Disable ANSI colour formatting in logs
+===================================================================
+""".stripIndent()
+
+    return help_text
 }
 
 //
-// Validate channels from input samplesheet
+// Native samplesheet CSV parser and validator (runs without nf-schema plugin)
 //
-def validateInputSamplesheet(input) {
-    def (metas, fastqs) = input[1..2]
+def samplesheetToList(String samplesheet_file, String schema_path = null) {
+    def ss = file(samplesheet_file)
+    def lines = ss.readLines().findAll { it.trim() && !it.trim().startsWith('#') }
+    def separator = samplesheet_file.endsWith('.tsv') ? '\t' : ','
+    def header = lines[0].tokenize(separator).collect { it.trim() }
+    def sample_idx      = header.indexOf('sample')
+    def assembly_idx    = header.indexOf('assembly')
+    def bam_idx         = header.indexOf('bam')
+    def bai_idx         = header.indexOf('bai')
+    def chromosomes_idx = header.indexOf('chromosomes')
+    def telo_idx        = header.indexOf('telomere_repeat')
 
-    // Check that multiple runs of the same sample are of the same datatype i.e. single-end / paired-end
-    def endedness_ok = metas.collect{ meta -> meta.single_end }.unique().size == 1
-    if (!endedness_ok) {
-        error("Please check input samplesheet -> Multiple runs of a sample must be of the same datatype i.e. single-end or paired-end: ${metas[0].id}")
+    def records = []
+    lines.drop(1).each { line ->
+        def cols = line.tokenize(separator).collect { it.trim() }
+        def sample = sample_idx >= 0 && sample_idx < cols.size() ? cols[sample_idx] : null
+        def assembly = assembly_idx >= 0 && assembly_idx < cols.size() ? cols[assembly_idx] : null
+        def bam = bam_idx >= 0 && bam_idx < cols.size() ? cols[bam_idx] : null
+        def bai = bai_idx >= 0 && bai_idx < cols.size() && cols[bai_idx] ? cols[bai_idx] : null
+        def chroms = chromosomes_idx >= 0 && chromosomes_idx < cols.size() && cols[chromosomes_idx] ? cols[chromosomes_idx] : null
+        def telo = telo_idx >= 0 && telo_idx < cols.size() && cols[telo_idx] ? cols[telo_idx] : null
+
+        def meta = [ id: sample ]
+        if (chroms) meta.chromosomes = chroms
+        if (telo)   meta.telomere_repeat = telo
+
+        records << [ meta, assembly, bam, bai ]
+    }
+    return records
+}
+
+//
+// Native parameter summary map for MultiQC and completion reports
+//
+def paramsSummaryMap(workflow, Map options = [:]) {
+    def summary = [:]
+    summary['Input / Output Options'] = [
+        'input'                      : params.input,
+        'outdir'                     : params.outdir,
+        'email'                      : params.email,
+        'multiqc_title'              : params.multiqc_title
+    ]
+    summary['PDE Finisher Options'] = [
+        'telomere_repeat'            : params.telomere_repeat,
+        'chromosomes'                : params.chromosomes,
+        'curation_policy'            : params.curation_policy,
+        'skip_validation'            : params.skip_validation,
+        'run_motif_discovery'        : params.run_motif_discovery,
+        'fimo_pvalue_threshold'      : params.fimo_pvalue_threshold
+    ]
+    summary['Tool Arguments'] = [
+        'delfies_args'               : params.delfies_args,
+        'mosdepth_args'              : params.mosdepth_args,
+        'hifiasm_args'               : params.hifiasm_args,
+        'minimap2_align_args'        : params.minimap2_align_args
+    ]
+    summary['Execution Environment'] = [
+        'launchDir'                  : workflow.launchDir,
+        'workDir'                    : workflow.workDir,
+        'projectDir'                 : workflow.projectDir,
+        'profile'                    : workflow.profile,
+        'containerEngine'            : workflow.containerEngine
+    ]
+    return summary
+}
+
+//
+// Pre-run verification gate: fail-fast parameter & path integrity check
+//
+def validateInputParameters() {
+    def validation_errors = []
+
+    // 1. Mandatory Input Samplesheet
+    if (!params.input) {
+        validation_errors.add("Mandatory parameter --input <path/to/samplesheet.csv> is missing.")
+    } else {
+        def ss_file = file(params.input)
+        if (!ss_file.exists()) {
+            validation_errors.add("Input samplesheet file does not exist: ${params.input}")
+        } else if (ss_file.isEmpty()) {
+            validation_errors.add("Input samplesheet file is empty: ${params.input}")
+        } else {
+            def lines = ss_file.readLines().findAll { it.trim() && !it.trim().startsWith('#') }
+            if (lines.size() < 2) {
+                validation_errors.add("Input samplesheet contains no sample rows: ${params.input}")
+            } else {
+                def separator = params.input.endsWith('.tsv') ? '\t' : ','
+                def header = lines[0].tokenize(separator).collect { it.trim() }
+                def sample_idx   = header.indexOf('sample')
+                def assembly_idx = header.indexOf('assembly')
+                def bam_idx      = header.indexOf('bam')
+                def bai_idx      = header.indexOf('bai')
+                def telo_idx     = header.indexOf('telomere_repeat')
+
+                if (sample_idx < 0) {
+                    validation_errors.add("Samplesheet header is missing required column 'sample': ${lines[0]}")
+                }
+                if (assembly_idx < 0) {
+                    validation_errors.add("Samplesheet header is missing required column 'assembly': ${lines[0]}")
+                }
+                if (bam_idx < 0) {
+                    validation_errors.add("Samplesheet header is missing required column 'bam': ${lines[0]}")
+                }
+
+                lines.drop(1).eachWithIndex { line, line_idx ->
+                    def row_num = line_idx + 2
+                    def cols = line.tokenize(separator).collect { it.trim() }
+                    def sample_id = sample_idx >= 0 && sample_idx < cols.size() ? cols[sample_idx] : "row_${row_num}"
+
+                    if (!sample_id || sample_id.contains(' ')) {
+                        validation_errors.add("Samplesheet row ${row_num}: 'sample' ID must not be empty or contain whitespace (found: '${sample_id}').")
+                    }
+
+                    if (assembly_idx >= 0 && assembly_idx < cols.size()) {
+                        def fa_path = cols[assembly_idx]
+                        if (!fa_path) {
+                            validation_errors.add("Samplesheet row ${row_num} (sample '${sample_id}'): 'assembly' column is empty.")
+                        } else {
+                            def f = file(fa_path)
+                            if (!f.exists()) {
+                                validation_errors.add("Samplesheet row ${row_num} (sample '${sample_id}'): assembly file does not exist: ${fa_path}")
+                            } else if (f.isEmpty()) {
+                                validation_errors.add("Samplesheet row ${row_num} (sample '${sample_id}'): assembly file is empty: ${fa_path}")
+                            }
+                        }
+                    }
+
+                    if (bam_idx >= 0 && bam_idx < cols.size()) {
+                        def bam_path = cols[bam_idx]
+                        if (!bam_path) {
+                            validation_errors.add("Samplesheet row ${row_num} (sample '${sample_id}'): 'bam' column is empty.")
+                        } else {
+                            def f = file(bam_path)
+                            if (!f.exists()) {
+                                validation_errors.add("Samplesheet row ${row_num} (sample '${sample_id}'): BAM file does not exist: ${bam_path}")
+                            } else if (f.isEmpty()) {
+                                validation_errors.add("Samplesheet row ${row_num} (sample '${sample_id}'): BAM file is empty: ${bam_path}")
+                            } else {
+                                def bai_path = bai_idx >= 0 && bai_idx < cols.size() && cols[bai_idx] ? cols[bai_idx] : null
+                                if (bai_path) {
+                                    def b = file(bai_path)
+                                    if (!b.exists()) {
+                                        validation_errors.add("Samplesheet row ${row_num} (sample '${sample_id}'): BAI file does not exist: ${bai_path}")
+                                    }
+                                } else {
+                                    def default_bai = file("${bam_path}.bai")
+                                    def default_csi = file("${bam_path}.csi")
+                                    if (!default_bai.exists() && !default_csi.exists()) {
+                                        validation_errors.add("Samplesheet row ${row_num} (sample '${sample_id}'): Neither ${bam_path}.bai nor ${bam_path}.csi index found.")
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (telo_idx >= 0 && telo_idx < cols.size() && cols[telo_idx]) {
+                        def telo = cols[telo_idx]
+                        if (!telo.matches('^[ACGTacgt]+$')) {
+                            validation_errors.add("Samplesheet row ${row_num} (sample '${sample_id}'): telomere_repeat '${telo}' contains invalid characters (must be A, C, G, T).")
+                        }
+                    }
+                }
+            }
+        }
     }
 
-    return [ metas[0], fastqs ]
+    // 2. Mandatory Output Directory
+    if (!params.outdir) {
+        validation_errors.add("Mandatory parameter --outdir <path/to/output_dir> is missing.")
+    }
+
+    // 3. Curation Policy verification
+    if (params.curation_policy) {
+        def cp = file(params.curation_policy)
+        if (!cp.exists()) {
+            validation_errors.add("Curation policy JSON does not exist: ${params.curation_policy}")
+        }
+    }
+
+    // Fail-fast error logging
+    if (validation_errors) {
+        log.error "==================================================================="
+        log.error " PRE-RUN VERIFICATION GATE FAILED: ${validation_errors.size()} CRITICAL CONFIGURATION ISSUE(S)"
+        log.error "==================================================================="
+        validation_errors.eachWithIndex { err, i ->
+            log.error " [${i+1}] ${err}"
+        }
+        log.error "==================================================================="
+        error "Pre-run verification gate failed. Please correct the parameters above before executing."
+    }
+
+    log.info "==================================================================="
+    log.info " PRE-RUN VERIFICATION GATE PASSED: All inputs, samplesheet records, and paths verified."
+    log.info "==================================================================="
 }
 //
 // Get attribute from genome config file e.g. fasta

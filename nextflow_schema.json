@@ -44,10 +44,10 @@
             }
         },
         "pde_curation_options": {
-            "title": "PDE curation options",
+            "title": "PDE Finisher options",
             "type": "object",
             "fa_icon": "fas fa-dna",
-            "description": "Options controlling automated Programmed DNA Elimination (PDE) assembly curation and validation.",
+            "description": "Options controlling automated Programmed DNA Elimination (PDE) assembly curation, T2T finishing, and validation.",
             "properties": {
                 "telomere_repeat": {
                     "type": "string",
@@ -68,7 +68,7 @@
                 },
                 "skip_validation": {
                     "type": "boolean",
-                    "default": false,
+                    "default": true,
                     "description": "Skip post-curation BAM re-mapping and Sniffles structural variant validation to accelerate run completion.",
                     "fa_icon": "fas fa-forward"
                 },

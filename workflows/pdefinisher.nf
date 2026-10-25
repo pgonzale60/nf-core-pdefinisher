@@ -6,10 +6,9 @@
 include { AUTOMATED_PDE_CURATION } from '../subworkflows/local/automated_pde_curation/main'
 include { CURATIONSUMMARY        } from '../modules/local/curationsummary/main'
 include { MULTIQC                } from '../modules/nf-core/multiqc/main'
-include { paramsSummaryMap       } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc   } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
-include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_pdefinisher_pipeline'
+include { methodsDescriptionText ; paramsSummaryMap } from '../subworkflows/local/utils_nfcore_pdefinisher_pipeline'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
