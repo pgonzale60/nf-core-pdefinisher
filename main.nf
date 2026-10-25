@@ -16,7 +16,6 @@
 */
 
 include { PDEFINISHER             } from './workflows/pdefinisher'
-include { PDEFINISHER as PDECURATION } from './workflows/pdefinisher'
 include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_pdefinisher_pipeline'
 include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_pdefinisher_pipeline'
 
@@ -51,16 +50,6 @@ workflow NFCORE_PDEFINISHER {
     multiqc_report = PDEFINISHER.out.multiqc_report // channel: /path/to/multiqc_report.html
 }
 
-workflow NFCORE_PDECURATION {
-    take:
-    samplesheet
-
-    main:
-    NFCORE_PDEFINISHER(samplesheet)
-
-    emit:
-    multiqc_report = NFCORE_PDEFINISHER.out.multiqc_report
-}
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     RUN MAIN WORKFLOW

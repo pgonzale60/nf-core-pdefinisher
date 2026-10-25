@@ -138,42 +138,6 @@ workflow PDEFINISHER {
     versions                   = ch_versions
 }
 
-workflow PDECURATION {
-    take:
-    ch_samplesheet
-    multiqc_config
-    multiqc_logo
-    multiqc_methods_description
-    outdir
-
-    main:
-    PDEFINISHER(
-        ch_samplesheet,
-        multiqc_config,
-        multiqc_logo,
-        multiqc_methods_description,
-        outdir
-    )
-
-    emit:
-    curated_fasta              = PDEFINISHER.out.curated_fasta
-    curated_agp                = PDEFINISHER.out.curated_agp
-    blueprint_json             = PDEFINISHER.out.blueprint_json
-    curated_pde_segments       = PDEFINISHER.out.curated_pde_segments
-    curated_repeats            = PDEFINISHER.out.curated_repeats
-    scorecard_json             = PDEFINISHER.out.scorecard_json
-    validation_json            = PDEFINISHER.out.validation_json
-    summary_md                 = PDEFINISHER.out.summary_md
-    best_core_motif            = PDEFINISHER.out.best_core_motif
-    best_auxiliary_motif       = PDEFINISHER.out.best_auxiliary_motif
-    motif_discovery_report_md  = PDEFINISHER.out.motif_discovery_report_md
-    fimo_annotated_hits        = PDEFINISHER.out.fimo_annotated_hits
-    motif_distribution_summary = PDEFINISHER.out.motif_distribution_summary
-    motif_distribution_report  = PDEFINISHER.out.motif_distribution_report
-    multiqc_report             = PDEFINISHER.out.multiqc_report
-    versions                   = PDEFINISHER.out.versions
-}
-
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     THE END
