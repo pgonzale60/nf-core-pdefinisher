@@ -121,20 +121,34 @@ workflow PDEFINISHER {
     emit:
     curated_fasta              = AUTOMATED_PDE_CURATION.out.curated_fasta
     curated_agp                = AUTOMATED_PDE_CURATION.out.curated_agp
-    blueprint_json             = AUTOMATED_PDE_CURATION.out.blueprint_json
+    components_fasta           = AUTOMATED_PDE_CURATION.out.components_fasta
+    segregated_fastas          = AUTOMATED_PDE_CURATION.out.segregated_fastas
+    curation_audit             = AUTOMATED_PDE_CURATION.out.curation_audit
     curated_pde_segments       = AUTOMATED_PDE_CURATION.out.curated_pde_segments
     curated_repeats            = AUTOMATED_PDE_CURATION.out.curated_repeats
+    blueprint_json             = AUTOMATED_PDE_CURATION.out.blueprint_json
+    blueprint_md               = AUTOMATED_PDE_CURATION.out.blueprint_md
     scorecard_json             = AUTOMATED_PDE_CURATION.out.scorecard_json
+    report_md                  = AUTOMATED_PDE_CURATION.out.report_md
     validation_json            = AUTOMATED_PDE_CURATION.out.validation_json
-    summary_md                 = CURATIONSUMMARY.out.summary_md
+    validation_md              = AUTOMATED_PDE_CURATION.out.validation_md
+    curated_bam                = AUTOMATED_PDE_CURATION.out.curated_bam
+    curated_bai                = AUTOMATED_PDE_CURATION.out.curated_bai
     best_core_motif            = AUTOMATED_PDE_CURATION.out.best_core_motif
+    core_motif_metrics_json    = AUTOMATED_PDE_CURATION.out.core_motif_metrics_json
+    grid_summary_tsv           = AUTOMATED_PDE_CURATION.out.grid_summary_tsv
     best_auxiliary_motif       = AUTOMATED_PDE_CURATION.out.best_auxiliary_motif
+    bipartite_spacing_tsv      = AUTOMATED_PDE_CURATION.out.bipartite_spacing_tsv
     motif_discovery_report_md  = AUTOMATED_PDE_CURATION.out.motif_discovery_report_md
+    fimo_genome_hits           = AUTOMATED_PDE_CURATION.out.fimo_genome_hits
     fimo_annotated_hits        = AUTOMATED_PDE_CURATION.out.fimo_annotated_hits
     motif_distribution_summary = AUTOMATED_PDE_CURATION.out.motif_distribution_summary
     motif_distribution_report  = AUTOMATED_PDE_CURATION.out.motif_distribution_report
+    summary_md                 = CURATIONSUMMARY.out.summary_md
+    summary_tsv                = CURATIONSUMMARY.out.summary_tsv
+    summary_json               = CURATIONSUMMARY.out.summary_json
     multiqc_report             = MULTIQC.out.report.map { _meta, report -> [report] }.toList()
-    versions                   = ch_versions
+    versions                   = ch_collated_versions
 }
 
 /*

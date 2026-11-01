@@ -44,6 +44,24 @@
                 "meta": ["telomere_repeat"],
                 "pattern": "^[ACGTacgt]+$",
                 "description": "Optional per-sample canonical telomere repeat motif override (e.g. 'TTAGGC')"
+            },
+            "species": {
+                "type": "string",
+                "pattern": "^\\S+$",
+                "errorMessage": "Species identifier cannot contain spaces",
+                "meta": ["species"]
+            },
+            "tolid": {
+                "type": "string",
+                "pattern": "^\\S+$",
+                "errorMessage": "ToLID identifier cannot contain spaces",
+                "meta": ["tolid"]
+            },
+            "specimen_id": {
+                "type": "string",
+                "pattern": "^\\S+$",
+                "errorMessage": "Specimen or strain identifier cannot contain spaces",
+                "meta": ["specimen_id"]
             }
         },
         "required": ["sample", "assembly", "bam"]
