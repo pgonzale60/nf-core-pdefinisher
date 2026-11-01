@@ -11,9 +11,11 @@ LIB_DIR = Path(__file__).resolve().parent.parent / "resources" / "usr" / "lib"
 sys.path.insert(0, str(LIB_DIR))
 
 from curationsynthesis import (
+    build_execution_plan,
     detect_chimeric_terminus,
     load_grs_summary,
     load_terminal_softclips,
+    reconcile_unplaced_contigs_into_terminus_cards,
     survey_telomere_unitigs,
     synthesize_telomere_cards,
 )
@@ -353,6 +355,168 @@ class TestCurationsynthesis(unittest.TestCase):
             self.assertEqual(ext_info[2], "read1")
             self.assertEqual(ext_info[3], 25)
             self.assertEqual(ext_info[4], ["read1", "read2"])
+
+    def test_execution_plan_assembly_first_priority(self):
+        """Verifies curationsynthesis emits execution_plan in strict assembly-first priority order."""
+        # 1. Major rDNA array precedence -> DEFER_TO_RDNA_RESOLVER
+        rdna_card = {
+            "classification": "TERMINUS_RDNA_ARRAY",
+            "action": "TERMINUS_RDNA_ARRAY",
+            "chrom": "chr1",
+            "terminus": "5p",
+        }
+        plan_rdna = build_execution_plan(rdna_card)
+        self.assertEqual(plan_rdna, [{"step": "DEFER_TO_RDNA_RESOLVER"}])
+
+        # 2. Chimeric terminus pruning -> PRUNE_CHIMERIC_TERMINUS
+        chimera_card = {
+            "classification": "RESOLVABLE_BY_READ",
+            "action": "PRUNE_CHIMERIC_TERMINUS",
+            "chrom": "chr1",
+            "terminus": "3p",
+            "start": 980000,
+            "end": 1000000,
+            "effective_chrom_len": 980000,
+            "authorized_read_qname": "read_chimera",
+        }
+        plan_chimera = build_execution_plan(chimera_card)
+        self.assertEqual(len(plan_chimera), 1)
+        self.assertEqual(plan_chimera[0]["step"], "PRUNE_CHIMERIC_TERMINUS")
+        self.assertEqual(plan_chimera[0]["junction_coord"], 980000)
+        self.assertEqual(plan_chimera[0]["authorized_read_qname"], "read_chimera")
+
+        # 3. Plain ALREADY_CAPPED without deeper extension -> ALREADY_CAPPED
+        capped_card = {
+            "classification": "ALREADY_CAPPED",
+            "action": "SKIP_WALKER",
+            "chrom": "chr1",
+            "terminus": "5p",
+        }
+        plan_capped = build_execution_plan(capped_card)
+        self.assertEqual(plan_capped, [{"step": "ALREADY_CAPPED"}])
+
+        # 4. Terminus with unitig, satellite, unplaced contig, and read evidence -> strict priority
+        complex_card = {
+            "classification": "RESOLVABLE_BY_UNITIG",
+            "action": "EXTEND_TO_TELOMERE",
+            "mechanism": "CAP_WITH_UNITIG",
+            "authorized_unitig_id": "utg000010l",
+            "authorized_read_qname": "read_backup",
+            "chrom": "chr1",
+            "terminus": "5p",
+            "evidence": {
+                "unitig_extension_region": {"q_start": 0, "q_end": 5000, "strand": "+", "unitig_len": 10000},
+                "distal_cluster_id": "cl_distal_1",
+                "associated_scaffolds": ["scaff_repeat_1"],
+            },
+        }
+        nom = {
+            "scaffold": "scaff_unplaced_1",
+            "overhang_bp": 3500,
+            "strand": "+",
+            "ext_qstart": 0,
+            "ext_qend": 3500,
+        }
+        plan_complex = build_execution_plan(complex_card, unplaced_nomination=nom)
+        step_names = [s["step"] for s in plan_complex]
+        expected_order = [
+            "CAP_WITH_UNITIG",
+            "INTEGRATE_UNPLACED_CONTIG",
+            "SCAFFOLD_REPEAT_TO_TELOMERE",
+            "ALIGN_SEED_TO_UNITIGS",
+            "CAP_WITH_READ",
+            "ITERATIVE_READ_WALKER",
+        ]
+        self.assertEqual(step_names, expected_order)
+        self.assertEqual(plan_complex[0]["unitig_id"], "utg000010l")
+        self.assertEqual(plan_complex[1]["scaffold"], "scaff_unplaced_1")
+        self.assertEqual(plan_complex[2]["cluster_id"], "cl_distal_1")
+        self.assertEqual(plan_complex[4]["authorized_read_qname"], "read_backup")
+
+    def test_reconcile_unplaced_contigs_into_terminus_cards(self):
+        """Verifies reconcile_unplaced_contigs_into_terminus_cards incorporates nominations in assembly-first order."""
+        telo_cards = [
+            {
+                "card_id": "CARD-TELO-01",
+                "chrom": "chr1",
+                "terminus": "5p",
+                "action": "EXTEND_TO_TELOMERE",
+                "classification": "RESOLVABLE_BY_UNITIG",
+                "authorized_unitig_id": "utg001",
+                "evidence": {},
+                "execution_plan": [
+                    {"step": "CAP_WITH_UNITIG", "unitig_id": "utg001"},
+                    {"step": "ALIGN_SEED_TO_UNITIGS"},
+                    {"step": "ITERATIVE_READ_WALKER"},
+                ],
+            },
+            {
+                "card_id": "CARD-TELO-02",
+                "chrom": "chr1",
+                "terminus": "3p",
+                "action": "EXTEND_TO_TELOMERE",
+                "classification": "UNCAPPED_SUBTELOMERE",
+                "evidence": {},
+                "execution_plan": [
+                    {"step": "ALIGN_SEED_TO_UNITIGS"},
+                    {"step": "ITERATIVE_READ_WALKER"},
+                ],
+            },
+        ]
+
+        scaffold_cards = [
+            {
+                "card_id": "CARD-SCAFF-INT-01",
+                "chrom": "chr1",
+                "terminus": "5p",
+                "scaffold": "unplaced_scaff_A",
+                "length": 15000,
+                "ext_qstart": 0,
+                "ext_qend": 8000,
+                "orientation": "+",
+                "action": "INTEGRATE_INTO_CHROMOSOME",
+                "evidence": {"extension_beyond_terminus": "8,000 bp"},
+            },
+            {
+                "card_id": "CARD-SCAFF-INT-02",
+                "chrom": "chr1",
+                "terminus": "3p",
+                "scaffold": "unplaced_scaff_B",
+                "length": 10000,
+                "ext_qstart": 1000,
+                "ext_qend": 5000,
+                "orientation": "-",
+                "action": "INTEGRATE_INTO_CHROMOSOME",
+                "evidence": {"extension_beyond_terminus": "4,000 bp"},
+            },
+        ]
+
+        reconcile_unplaced_contigs_into_terminus_cards(telo_cards, scaffold_cards=scaffold_cards)
+
+        # chr1 5p: nomination reconciled into evidence and placed after CAP_WITH_UNITIG
+        c5 = telo_cards[0]
+        self.assertIn("nominated_unplaced_contig", c5["evidence"])
+        self.assertEqual(c5["evidence"]["nominated_unplaced_contig"]["scaffold"], "unplaced_scaff_A")
+        plan_5p = c5["execution_plan"]
+        self.assertEqual([s["step"] for s in plan_5p], [
+            "CAP_WITH_UNITIG",
+            "INTEGRATE_UNPLACED_CONTIG",
+            "ALIGN_SEED_TO_UNITIGS",
+            "ITERATIVE_READ_WALKER",
+        ])
+        self.assertEqual(plan_5p[1]["scaffold"], "unplaced_scaff_A")
+
+        # chr1 3p: nomination placed at index 0 (no unitig present)
+        c3 = telo_cards[1]
+        self.assertIn("nominated_unplaced_contig", c3["evidence"])
+        self.assertEqual(c3["evidence"]["nominated_unplaced_contig"]["scaffold"], "unplaced_scaff_B")
+        plan_3p = c3["execution_plan"]
+        self.assertEqual([s["step"] for s in plan_3p], [
+            "INTEGRATE_UNPLACED_CONTIG",
+            "ALIGN_SEED_TO_UNITIGS",
+            "ITERATIVE_READ_WALKER",
+        ])
+        self.assertEqual(plan_3p[0]["scaffold"], "unplaced_scaff_B")
 
 
 if __name__ == "__main__":

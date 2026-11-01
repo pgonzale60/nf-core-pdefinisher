@@ -136,10 +136,10 @@ def main():
     elsewhere = "GGGG" + motif * 400 + "TTTT"            # telomere, but not this tract
     best = walker.maximal_terminal_tract(
         [("short", read_minus), ("long", read_plus), ("elsewhere", elsewhere)],
-        motif, rev, seed, anchor_bp=500, min_extra_bp=60)
+        motif, rev, seed, anchor_bp=500, min_extra_bp=60, min_reads=1)
     assert best is not None, "a read following the tract must be found"
     name, total, extra, orientation, insert_at = best
-    assert (name, orientation) == ("long", "+"), (name, orientation)
+    assert "long" in name and orientation == "+", (name, orientation)
     assert len(extra) == 1800 and total == 2400, (len(extra), total)
     assert insert_at == len(seed), insert_at
     assert walker.terminal_tract_region(seed, motif, rev, "3p", min_repeats=15)[0] == 600

@@ -45,6 +45,7 @@ from curationsynthesis import (
     parse_telo_paf,
     parse_unplaced_paf,
     partition_chromosomes,
+    reconcile_unplaced_contigs_into_terminus_cards,
     reconstruct_rdna_operons,
     render_markdown_blueprint,
     survey_telomere_unitigs,
@@ -246,6 +247,14 @@ def main():
         internal_cards=internal_cards,
         open_termini=open_termini,
         policy=policy,
+    )
+
+    # Reconcile Domain 4 INTEGRATE_INTO_CHROMOSOME nominations directly into Domain 2 terminus cards
+    reconcile_unplaced_contigs_into_terminus_cards(
+        telo_cards,
+        scaffold_cards=scaffold_cards,
+        scaffold_dispositions=scaffold_dispositions,
+        min_overhang_bp=min_ext_bp,
     )
 
     # 6. Render Markdown Blueprint and Machine-Executable JSON Manifest

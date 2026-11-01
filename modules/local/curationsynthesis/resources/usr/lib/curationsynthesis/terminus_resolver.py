@@ -171,6 +171,246 @@ def detect_chimeric_terminus(chrom, terminus, chrom_len, clips, d_soma, delfies_
     return None
 
 
+def build_execution_plan(card, unplaced_nomination=None):
+    """Build an explicit, ordered execution_plan list of candidate step dicts in strict assembly-first priority order.
+
+    Strict assembly-first priority order:
+      1. CAP_WITH_UNITIG (if authorized_unitig_id / valid germline unitig is present)
+      2. INTEGRATE_UNPLACED_CONTIG (if Domain 4 INTEGRATE_INTO_CHROMOSOME unplaced contig is nominated for this port)
+      3. SCAFFOLD_REPEAT_TO_TELOMERE (if satellite cluster + unplaced scaffold is present)
+      4. ALIGN_SEED_TO_UNITIGS (local Hifiasm unitig seed bridge, applicable when unitigs FASTA is provided and terminus is open/uncapped/somatic boundary)
+      5. EXTEND_TELOMERE_TRACT or CAP_WITH_READ (multi-read consensus overhang / read cap when authorized by Synthesis)
+      6. ITERATIVE_READ_WALKER (Phase 2 run_iterative_walker as strict last resort when terminus is uncapped / somatic boundary / fallback)
+    """
+    if not card or not isinstance(card, dict):
+        return []
+
+    classification = card.get("classification", "")
+    action = card.get("action", "")
+    mechanism = card.get("mechanism", "")
+
+    # For TERMINUS_RDNA_ARRAY: [{"step": "DEFER_TO_RDNA_RESOLVER"}]
+    if classification == "TERMINUS_RDNA_ARRAY" or action in ("TERMINUS_RDNA_ARRAY", "BYPASS_WALKER"):
+        return [{"step": "DEFER_TO_RDNA_RESOLVER"}]
+
+    # For PRUNE_CHIMERIC_TERMINUS: [{"step": "PRUNE_CHIMERIC_TERMINUS", "junction_coord": ..., "authorized_read_qname": ...}]
+    if action == "PRUNE_CHIMERIC_TERMINUS":
+        term = card.get("terminus", "")
+        junc = card.get("effective_chrom_start") if term == "5p" else card.get("effective_chrom_len")
+        if junc is None:
+            junc = card.get("start") if term == "5p" else card.get("end")
+        return [{
+            "step": "PRUNE_CHIMERIC_TERMINUS",
+            "junction_coord": safe_int(junc),
+            "authorized_read_qname": card.get("authorized_read_qname"),
+        }]
+
+    # For ALREADY_CAPPED without deeper extension (SKIP_WALKER):
+    if action == "SKIP_WALKER" or (
+        classification == "ALREADY_CAPPED"
+        and not card.get("authorized_unitig_id")
+        and not card.get("authorized_read_qname")
+    ):
+        return [{"step": "ALREADY_CAPPED"}]
+
+    plan = []
+    evidence = card.get("evidence", {}) or {}
+
+    # 1. CAP_WITH_UNITIG (if authorized_unitig_id / valid germline unitig is present)
+    auth_u = card.get("authorized_unitig_id")
+    if auth_u and auth_u != "None":
+        u_step = {"step": "CAP_WITH_UNITIG", "unitig_id": auth_u}
+        if "unitig_extension_region" in evidence:
+            u_step["unitig_extension_region"] = evidence["unitig_extension_region"]
+        plan.append(u_step)
+    elif mechanism == "CAP_WITH_UNITIG" or classification == "RESOLVABLE_BY_UNITIG":
+        u_id = evidence.get("unitig_id", "UNKNOWN_UNITIG")
+        u_step = {"step": "CAP_WITH_UNITIG", "unitig_id": u_id}
+        if "unitig_extension_region" in evidence:
+            u_step["unitig_extension_region"] = evidence["unitig_extension_region"]
+        plan.append(u_step)
+
+    # 2. INTEGRATE_UNPLACED_CONTIG (if Domain 4 nomination present)
+    nom = unplaced_nomination or evidence.get("nominated_unplaced_contig")
+    if nom:
+        nom_step = {
+            "step": "INTEGRATE_UNPLACED_CONTIG",
+            "scaffold": nom.get("scaffold"),
+            "overhang_bp": safe_int(nom.get("overhang_bp", 0)),
+            "strand": nom.get("strand", "+"),
+        }
+        if "ext_qstart" in nom:
+            nom_step["ext_qstart"] = nom["ext_qstart"]
+        if "ext_qend" in nom:
+            nom_step["ext_qend"] = nom["ext_qend"]
+        plan.append(nom_step)
+
+    # 3. SCAFFOLD_REPEAT_TO_TELOMERE (if satellite cluster + unplaced scaffold is present)
+    has_satellite = (
+        classification == "SATELLITE_LINKED_TELOMERE"
+        or action == "SCAFFOLD_REPEAT_TO_TELOMERE"
+        or evidence.get("associated_scaffolds")
+        or evidence.get("associated_scaffold")
+        or evidence.get("distal_cluster_id")
+        or evidence.get("junction_cluster_id")
+    )
+    if has_satellite:
+        s_step = {"step": "SCAFFOLD_REPEAT_TO_TELOMERE"}
+        cl_id = evidence.get("junction_cluster_id") or evidence.get("distal_cluster_id")
+        if cl_id:
+            s_step["cluster_id"] = cl_id
+        scaffs = evidence.get("associated_scaffolds") or (
+            [evidence.get("associated_scaffold")] if evidence.get("associated_scaffold") else []
+        )
+        if scaffs:
+            s_step["associated_scaffolds"] = scaffs
+        plan.append(s_step)
+
+    # 4. ALIGN_SEED_TO_UNITIGS (local Hifiasm unitig seed bridge)
+    if action != "EXTEND_TELOMERE_TRACT":
+        plan.append({"step": "ALIGN_SEED_TO_UNITIGS"})
+
+    # 5. EXTEND_TELOMERE_TRACT or CAP_WITH_READ (multi-read consensus overhang / read cap)
+    if action == "EXTEND_TELOMERE_TRACT" or classification == "DRAFT_HAS_TELOMERE":
+        t_step = {"step": "EXTEND_TELOMERE_TRACT"}
+        if card.get("authorized_read_qname"):
+            t_step["authorized_read_qname"] = card.get("authorized_read_qname")
+        plan.append(t_step)
+        plan.append({"step": "RETAIN_AS_IS"})
+    else:
+        auth_read = card.get("authorized_read_qname")
+        if (
+            auth_read
+            or mechanism == "CAP_WITH_READ"
+            or classification == "RESOLVABLE_BY_READ"
+            or action == "EXTEND_FROM_OVERHANG"
+            or classification == "TELOMERE_IN_OVERHANG"
+        ):
+            r_step = {"step": "CAP_WITH_READ"}
+            if auth_read:
+                r_step["authorized_read_qname"] = auth_read
+            plan.append(r_step)
+
+    # 6. ITERATIVE_READ_WALKER (Phase 2 run_iterative_walker as strict last resort)
+    if action != "EXTEND_TELOMERE_TRACT":
+        w_step = {"step": "ITERATIVE_READ_WALKER"}
+        if card.get("walker_max_iters"):
+            w_step["walker_max_iters"] = card.get("walker_max_iters")
+        plan.append(w_step)
+
+    return plan
+
+
+def reconcile_unplaced_contigs_into_terminus_cards(
+    telo_cards,
+    scaffold_cards=None,
+    scaffold_dispositions=None,
+    min_overhang_bp=200,
+):
+    """Reconcile Domain 4 INTEGRATE_INTO_CHROMOSOME nominations directly into Domain 2 terminus cards.
+
+    Updates card['evidence']['nominated_unplaced_contig'] and inserts/updates
+    INTEGRATE_UNPLACED_CONTIG in card['execution_plan'] in strict assembly-first priority order.
+    """
+    nominations = {}
+    if scaffold_cards:
+        for s_card in scaffold_cards:
+            if s_card.get("action") == "INTEGRATE_INTO_CHROMOSOME":
+                c = s_card.get("chrom")
+                e = s_card.get("terminus")
+                if not c or not e:
+                    continue
+                oh = safe_int(s_card.get("evidence", {}).get("extension_beyond_terminus", 0))
+                ext_s = s_card.get("ext_qstart")
+                ext_e = s_card.get("ext_qend")
+                if ext_s is not None and ext_e is not None:
+                    calc_oh = safe_int(ext_e) - safe_int(ext_s)
+                    if calc_oh > oh:
+                        oh = calc_oh
+                if oh >= min_overhang_bp:
+                    prev = nominations.get((c, e))
+                    if prev is None or oh > prev["overhang_bp"]:
+                        nominations[(c, e)] = {
+                            "scaffold": s_card.get("scaffold"),
+                            "scaffold_length": s_card.get("length", 0),
+                            "target_chrom": c,
+                            "terminus": e,
+                            "overhang_bp": oh,
+                            "strand": s_card.get("orientation", "+"),
+                            "ext_qstart": ext_s,
+                            "ext_qend": ext_e,
+                        }
+
+    if scaffold_dispositions:
+        for d in scaffold_dispositions:
+            if d.get("action") == "INTEGRATE_INTO_CHROMOSOME" and d.get("scaffold"):
+                c = d.get("chromosome")
+                e = d.get("terminus")
+                if not c or not e:
+                    continue
+                ext_s = d.get("ext_qstart")
+                ext_e = d.get("ext_qend")
+                oh = safe_int(ext_e) - safe_int(ext_s) if (ext_s is not None and ext_e is not None) else 0
+                if oh >= min_overhang_bp:
+                    prev = nominations.get((c, e))
+                    if prev is None or oh > prev["overhang_bp"]:
+                        nominations[(c, e)] = {
+                            "scaffold": d.get("scaffold"),
+                            "scaffold_length": safe_int(d.get("length", oh)),
+                            "target_chrom": c,
+                            "terminus": e,
+                            "overhang_bp": oh,
+                            "strand": d.get("strand", "+"),
+                            "ext_qstart": ext_s,
+                            "ext_qend": ext_e,
+                        }
+
+    for card in telo_cards:
+        c = card.get("chrom")
+        e = card.get("terminus")
+        nom = nominations.get((c, e))
+        if nom:
+            if "evidence" not in card or not isinstance(card["evidence"], dict):
+                card["evidence"] = {}
+            card["evidence"]["nominated_unplaced_contig"] = nom
+
+            # Update or rebuild execution_plan
+            plan = card.get("execution_plan")
+            if not plan:
+                card["execution_plan"] = build_execution_plan(card, unplaced_nomination=nom)
+            else:
+                found = False
+                for step in plan:
+                    if step.get("step") == "INTEGRATE_UNPLACED_CONTIG":
+                        step["scaffold"] = nom["scaffold"]
+                        step["overhang_bp"] = nom["overhang_bp"]
+                        step["strand"] = nom.get("strand", "+")
+                        if "ext_qstart" in nom:
+                            step["ext_qstart"] = nom["ext_qstart"]
+                        if "ext_qend" in nom:
+                            step["ext_qend"] = nom["ext_qend"]
+                        found = True
+                        break
+                if not found:
+                    nom_step = {
+                        "step": "INTEGRATE_UNPLACED_CONTIG",
+                        "scaffold": nom["scaffold"],
+                        "overhang_bp": nom["overhang_bp"],
+                        "strand": nom.get("strand", "+"),
+                    }
+                    if "ext_qstart" in nom:
+                        nom_step["ext_qstart"] = nom["ext_qstart"]
+                    if "ext_qend" in nom:
+                        nom_step["ext_qend"] = nom["ext_qend"]
+
+                    insert_idx = 0
+                    for idx, step in enumerate(plan):
+                        if step.get("step") == "CAP_WITH_UNITIG":
+                            insert_idx = idx + 1
+                            break
+                    plan.insert(insert_idx, nom_step)
+
+
 def synthesize_telomere_cards(
     nuclear_chroms,
     chrom_lens,
@@ -188,6 +428,7 @@ def synthesize_telomere_cards(
     terminal_matches=None,
     raw_softclips=None,
     internal_cards=None,
+    unplaced_nominations=None,
 ):
     """Synthesise Domain 2 (Terminus) and Domain 3 (Terminal rDNA) Curation Action Cards."""
     if policy is None:
@@ -813,5 +1054,11 @@ def synthesize_telomere_cards(
                 }
             )
             card_idx += 1
+
+    for c_dict in cards:
+        if "execution_plan" not in c_dict:
+            k = (c_dict.get("chrom"), c_dict.get("terminus"))
+            u_nom = (unplaced_nominations or {}).get(k)
+            c_dict["execution_plan"] = build_execution_plan(c_dict, unplaced_nomination=u_nom)
 
     return cards
