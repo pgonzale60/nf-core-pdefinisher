@@ -45,6 +45,8 @@ def detect_chimeric_terminus(chrom, terminus, chrom_len, clips, d_soma, delfies_
     chimeric_max_dist = policy.get("telomere", {}).get("chimeric_terminus_max_dist_bp", 50000) if policy else 50000
     subtelo_overlap = policy.get("telomere", {}).get("subtelomeric_min_overlap_bp", 500) if policy else 500
     anchor_len = policy.get("mapping_and_anchors", {}).get("anchor_min_length_bp", 1000) if policy else 1000
+    min_chimeric_clip_support = policy.get("telomere", {}).get("min_chimeric_clip_support", 3) if policy else 3
+    cluster_window = policy.get("telomere", {}).get("chimeric_cluster_window_bp", 50) if policy else 50
 
     if terminus == "3p":
         cands = []
@@ -73,6 +75,18 @@ def detect_chimeric_terminus(chrom, terminus, chrom_len, clips, d_soma, delfies_
 
         for best_cand in cands:
             junc_coord = best_cand["align_end"]
+            supporting_cands = [
+                c for c in cands
+                if abs(c["align_end"] - junc_coord) <= cluster_window
+            ]
+            if len(supporting_cands) < min_chimeric_clip_support:
+                continue
+
+            if best_cand.get("collinear_spanning_reads", 0) > 0 or any(
+                c.get("collinear_spanning_reads", 0) > 0 for c in supporting_cands
+            ):
+                continue
+
             spanning_reads = [
                 r
                 for r in clips
@@ -90,6 +104,8 @@ def detect_chimeric_terminus(chrom, terminus, chrom_len, clips, d_soma, delfies_
                     "clip_len": best_cand["clip_len"],
                     "telo_cnt": best_cand["telo_cnt"],
                     "mapq": best_cand["mapq"],
+                    "supporting_read_count": len(supporting_cands),
+                    "supporting_reads": [c["qname"] for c in supporting_cands],
                 }
 
     elif terminus == "5p":
@@ -119,6 +135,18 @@ def detect_chimeric_terminus(chrom, terminus, chrom_len, clips, d_soma, delfies_
 
         for best_cand in cands:
             junc_coord = best_cand["align_start"]
+            supporting_cands = [
+                c for c in cands
+                if abs(c["align_start"] - junc_coord) <= cluster_window
+            ]
+            if len(supporting_cands) < min_chimeric_clip_support:
+                continue
+
+            if best_cand.get("collinear_spanning_reads", 0) > 0 or any(
+                c.get("collinear_spanning_reads", 0) > 0 for c in supporting_cands
+            ):
+                continue
+
             spanning_reads = [
                 r
                 for r in clips
@@ -136,6 +164,8 @@ def detect_chimeric_terminus(chrom, terminus, chrom_len, clips, d_soma, delfies_
                     "clip_len": best_cand["clip_len"],
                     "telo_cnt": best_cand["telo_cnt"],
                     "mapq": best_cand["mapq"],
+                    "supporting_read_count": len(supporting_cands),
+                    "supporting_reads": [c["qname"] for c in supporting_cands],
                 }
 
     return None
@@ -165,6 +195,7 @@ def synthesize_telomere_cards(
 
     min_ext_bp = policy.get("telomere", {}).get("min_extension_bp", 200)
     min_t_reps = policy.get("telomere", {}).get("min_repeats", 15)
+    min_read_support = policy.get("telomere", {}).get("min_read_support_terminal_tract", 3)
     rdna_dist_bp = policy.get("repeat_and_rdna", {}).get("rdna_dist_from_end", 25000)
     germline_buf_bp = policy.get("genomic_architecture", {}).get("germline_buffer_bp", 100)
     motif_len = len(policy.get("telomere", {}).get("motif", "TTAGGC"))
@@ -290,6 +321,11 @@ def synthesize_telomere_cards(
             read_cnt = read_info[1]
             read_qname = read_info[2] if len(read_info) > 2 else "None"
             read_telo_cnt = read_info[3] if len(read_info) > 3 else 0
+            read_qnames = (
+                read_info[4]
+                if len(read_info) > 4
+                else ([read_qname] if read_qname and read_qname != "None" else [])
+            )
 
             is_valid_germline_read = (
                 read_ext_bp >= min_ext_bp and read_qname != "None" and read_telo_cnt >= min_t_reps
@@ -354,12 +390,16 @@ def synthesize_telomere_cards(
                                 "action": "EXTEND_FROM_OVERHANG",
                                 "classification": "TELOMERE_IN_OVERHANG",
                                 "confidence": "HIGH" if deeper_ext >= min_ext_bp else "MEDIUM",
-                                "authorized_read_qname": read_qname
-                                if (valid_read_ext_bp >= best_u_bp and is_valid_germline_read)
-                                else None,
-                                "authorized_unitig_id": best_u_name
-                                if (best_u_bp > valid_read_ext_bp and best_u_name != "None")
-                                else None,
+                                "authorized_read_qname": (
+                                    None
+                                    if (best_u_name != "None" and best_u_bp >= min_ext_bp)
+                                    else (read_qname if is_valid_germline_read else None)
+                                ),
+                                "authorized_unitig_id": (
+                                    best_u_name
+                                    if (best_u_name != "None" and best_u_bp >= min_ext_bp)
+                                    else None
+                                ),
                                 "effective_chrom_start": eff_start,
                                 "effective_chrom_len": eff_len,
                                 "evidence": evidence_dict,
@@ -388,12 +428,16 @@ def synthesize_telomere_cards(
                             "action": "EXTEND_TELOMERE_TRACT",
                             "classification": "DRAFT_HAS_TELOMERE",
                             "confidence": "HIGH",
-                            "authorized_read_qname": read_qname
-                            if (valid_read_ext_bp >= best_u_bp and is_valid_germline_read)
-                            else None,
-                            "authorized_unitig_id": best_u_name
-                            if (best_u_bp > valid_read_ext_bp and best_u_name != "None")
-                            else None,
+                            "authorized_read_qname": (
+                                None
+                                if (best_u_name != "None" and best_u_bp >= min_ext_bp)
+                                else (read_qname if is_valid_germline_read else None)
+                            ),
+                            "authorized_unitig_id": (
+                                best_u_name
+                                if (best_u_name != "None" and best_u_bp >= min_ext_bp)
+                                else None
+                            ),
                             "effective_chrom_start": eff_start,
                             "effective_chrom_len": eff_len,
                             "evidence": {
@@ -605,13 +649,13 @@ def synthesize_telomere_cards(
                 continue
 
             # LEVEL 5c: Phase 1 Deterministic Read Capping
-            if is_valid_germline_read:
+            if is_valid_germline_read and read_cnt >= min_read_support:
                 evidence_dict = {
                     "authorized_read_qname": read_qname,
                     "read_extension_bp": f"+{read_ext_bp:,} bp",
                     "telo_repeats": read_telo_cnt,
                     "read_count": read_cnt,
-                    "supporting_reads": [read_qname] if read_qname and read_qname != "None" else [],
+                    "supporting_reads": read_qnames,
                 }
                 if somatic_boundary_found:
                     evidence_dict["somatic_diminution_resolved"] = (
@@ -683,6 +727,8 @@ def synthesize_telomere_cards(
                             "telomeric_repeats": telo_reps,
                             "softclip_bp": clip_bp,
                             "mapq": chimera["mapq"],
+                            "supporting_read_count": chimera.get("supporting_read_count", 1),
+                            "supporting_reads": chimera.get("supporting_reads", [qname]),
                         },
                         "instructions": [
                             f"Terminal sequence {c}:{c_start:,}-{c_end:,} bp ({c_len_pruned:,} bp) represents a chimeric misassembly scaffolded beyond the authentic telomere.",
