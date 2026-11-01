@@ -359,6 +359,57 @@ class TestCurationAGPGenerator(unittest.TestCase):
         self.assertEqual(merged[1], (1000, 1800, "putative_GRS"))
         self.assertEqual(merged[2], (1800, 2800, "putative_core"))
 
+    def test_e2e_agp_rejects_extended_subtelomere_only(self):
+        """Verifies that EXTENDED_SUBTELOMERE_ONLY records in walker manifest are rejected from AGP splicing."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ref_path = os.path.join(tmpdir, "ref.fa")
+            with open(ref_path, "w") as f:
+                f.write(">chr1\n" + ("A" * 1000) + "\n")
+
+            blueprint_path = os.path.join(tmpdir, "blueprint.json")
+            blueprint = {"action_cards": []}
+            with open(blueprint_path, "w") as f:
+                json.dump(blueprint, f)
+
+            ext_fa = os.path.join(tmpdir, "chr1_5p_subtelo.fa")
+            with open(ext_fa, "w") as f:
+                f.write(">chr1_5p_subtelo\n" + ("G" * 300) + "\n")
+
+            walker_manifest = os.path.join(tmpdir, "walker_manifest.tsv")
+            with open(walker_manifest, "w") as f:
+                f.write("chrom\tterminus\tstatus\tread_id\tadded_bp\ttelo_bp\tnon_telo_bp\textension_fasta\tnotes\n")
+                f.write(f"chr1\t5p\tEXTENDED_SUBTELOMERE_ONLY\tread_dummy\t300\t0\t300\t{ext_fa}\tSubtelomere only\n")
+
+            outdir = os.path.join(tmpdir, "out")
+            cmd = [
+                sys.executable,
+                str(BIN_DIR / "pde_generate_agp.py"),
+                "--blueprint", blueprint_path,
+                "--ref", ref_path,
+                "--sample", "TEST_SAMPLE",
+                "--outdir", outdir,
+                "--walker-manifest", walker_manifest,
+                "--synthesize-fasta"
+            ]
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            self.assertEqual(res.returncode, 0, f"STDOUT: {res.stdout}\nSTDERR: {res.stderr}")
+
+            agp_file = os.path.join(outdir, "TEST_SAMPLE.curated.agp")
+            self.assertTrue(os.path.exists(agp_file))
+            with open(agp_file) as f:
+                content = f.read()
+
+            # Must NOT contain the 5' extension
+            self.assertNotIn("chr1_5p_telo_ext", content)
+            self.assertNotIn("EXTENDED_SUBTELOMERE_ONLY", content)
+
+            # Audit manifest must record REJECT_SUBTELOMERE_ONLY
+            audit_file = os.path.join(outdir, "TEST_SAMPLE.curation_audit.tsv")
+            self.assertTrue(os.path.exists(audit_file))
+            with open(audit_file) as f:
+                audit_content = f.read()
+            self.assertIn("REJECT_SUBTELOMERE_ONLY", audit_content)
+
 
 if __name__ == "__main__":
     unittest.main()

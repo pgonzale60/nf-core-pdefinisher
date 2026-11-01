@@ -24,9 +24,10 @@ def overhang_of_read(line, terminus, chrom_len, min_clip_bp=50, chrom_start=0):
     try:
         flag = int(parts[1])
         pos = int(parts[3])
+        mapq = int(parts[4])
     except ValueError:
         return 0, ""
-    if flag & 0x100 or flag & 0x800:
+    if (flag & 0x904) != 0 or mapq < 20:
         return 0, ""
     ops = re.findall(r"(\d+)([MIDNSHP=X])", parts[5])
     if not ops:
@@ -66,13 +67,13 @@ def terminal_window_lines(bam_path, chrom, terminus, chrom_len, window, chrom_st
         region = "{}:{}-{}".format(chrom, max(1, chrom_start + 1), chrom_start + window)
     else:
         region = "{}:{}-{}".format(chrom, max(1, chrom_len - window + 1), chrom_len)
-    res = subprocess.run(["samtools", "view", bam_path, region], capture_output=True, text=True)
+    res = subprocess.run(["samtools", "view", "-q", "20", "-F", "0x904", bam_path, region], capture_output=True, text=True)
     if res.returncode != 0:
         return []
     return res.stdout.splitlines()
 
 
-def maximal_tip_overhang(bam_path, chrom, terminus, chrom_len, window=10000, chrom_start=0, min_clip_bp=50):
+def maximal_tip_overhang(bam_path, chrom, terminus, chrom_len, window=10000, chrom_start=0, min_clip_bp=50, min_reads=3):
     """Compute the outward overhang across terminal soft-clips using abpoa for multi-read consensus."""
     candidates = []
     for line in terminal_window_lines(bam_path, chrom, terminus, chrom_len, window, chrom_start=chrom_start):
@@ -81,11 +82,8 @@ def maximal_tip_overhang(bam_path, chrom, terminus, chrom_len, window=10000, chr
             qname = line.split("\t")[0]
             candidates.append((qname, clip, overhang))
 
-    if not candidates:
+    if len(candidates) < min_reads:
         return None
-
-    if len(candidates) == 1:
-        return candidates[0]
 
     abpoa_bin = shutil.which("abpoa")
     if not abpoa_bin:
@@ -105,7 +103,7 @@ def maximal_tip_overhang(bam_path, chrom, terminus, chrom_len, window=10000, chr
             top_qname = max(candidates, key=lambda x: x[1])[0]
             label = f"abpoa_consensus_{len(candidates)}reads_{top_qname}"
             return (label, len(consensus_seq), consensus_seq)
-        return max(candidates, key=lambda x: x[1])
+        return None
     finally:
         if os.path.exists(tmp_fa_path):
             os.remove(tmp_fa_path)
@@ -128,13 +126,20 @@ def terminal_read_candidates(bam_path, chrom, terminus, chrom_len, motif, rev_mo
         region = "{}:{}-{}".format(chrom, max(1, chrom_start + 1), chrom_start + window)
     else:
         region = "{}:{}-{}".format(chrom, max(1, chrom_len - window), chrom_len)
-    res = subprocess.run(["samtools", "view", bam_path, region], capture_output=True, text=True)
+    res = subprocess.run(["samtools", "view", "-q", "20", "-F", "0x904", bam_path, region], capture_output=True, text=True)
     if res.returncode != 0:
         return []
     candidates = []
     for line in res.stdout.splitlines():
         parts = line.split("\t")
         if len(parts) < 11:
+            continue
+        try:
+            flag = int(parts[1])
+            mapq = int(parts[4])
+        except ValueError:
+            continue
+        if (flag & 0x904) != 0 or mapq < 20:
             continue
         seq = parts[9]
         if max(seq.count(motif), seq.count(rev_motif)) >= min_copies:
@@ -149,7 +154,7 @@ def inspect_terminal_reads(bam_path, chrom, end_type, chrom_len, motif, rev_moti
     else:
         region = f"{chrom}:{max(1, chrom_len - window)}-{chrom_len}"
 
-    cmd = ["samtools", "view", bam_path, region]
+    cmd = ["samtools", "view", "-q", "20", "-F", "0x904", bam_path, region]
     res = subprocess.run(cmd, capture_output=True, text=True)
     if res.returncode != 0:
         return None
@@ -160,6 +165,13 @@ def inspect_terminal_reads(bam_path, chrom, end_type, chrom_len, motif, rev_moti
     for line in res.stdout.splitlines():
         parts = line.split("\t")
         if len(parts) < 11:
+            continue
+        try:
+            flag = int(parts[1])
+            mapq = int(parts[4])
+        except ValueError:
+            continue
+        if (flag & 0x904) != 0 or mapq < 20:
             continue
         cigar = parts[5]
         if "S" not in cigar and "H" not in cigar:
@@ -195,11 +207,17 @@ def extract_read_by_qname(bam_path, qname, chrom=None, end_type=None, chrom_len=
             region = f"{chrom}:{max(1, chrom_start + 1)}-{chrom_start + window}"
         else:
             region = f"{chrom}:{max(1, chrom_len - window)}-{chrom_len}"
-        cmd = ["samtools", "view", bam_path, region]
+        cmd = ["samtools", "view", "-q", "20", "-F", "0x904", bam_path, region]
         res = subprocess.run(cmd, capture_output=True, text=True)
         for line in res.stdout.splitlines():
             p = line.split("\t")
             if len(p) >= 11 and p[0] == qname:
-                return p[9]
+                try:
+                    flag = int(p[1])
+                    mapq = int(p[4])
+                    if (flag & 0x904) == 0 and mapq >= 20:
+                        return p[9]
+                except ValueError:
+                    pass
 
     return None

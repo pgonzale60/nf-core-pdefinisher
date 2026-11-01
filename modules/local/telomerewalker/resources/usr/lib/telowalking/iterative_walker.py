@@ -239,6 +239,7 @@ def _walk_loop(unmapped, seed_seq, motif, rev_motif, max_iters, min_telo_bp,
         raise RuntimeError("minimap2 is required for iterative telomere walking but not found in PATH")
 
     effective_max_iters = max(1, max_iters)
+    rolled_back = False
 
     with tempfile.TemporaryDirectory() as tmpdir:
         candidates_fa = os.path.join(tmpdir, "candidates.fa")
@@ -254,7 +255,7 @@ def _walk_loop(unmapped, seed_seq, motif, rev_motif, max_iters, min_telo_bp,
             else:
                 reg = f"{chrom}:{max(1, c_len - 50000)}-{c_len}"
             try:
-                cmd_v = ["samtools", "view", "-b", bam_path, reg]
+                cmd_v = ["samtools", "view", "-b", "-q", "20", "-F", "0x904", bam_path, reg]
                 cmd_f = ["samtools", "fasta", "-"]
                 p1 = subprocess.Popen(cmd_v, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
                 p2 = subprocess.Popen(cmd_f, stdin=p1.stdout, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
@@ -454,6 +455,7 @@ def _walk_loop(unmapped, seed_seq, motif, rev_motif, max_iters, min_telo_bp,
 
             if gate["decision"] == "ROLLBACK":
                 # Information state did not improve: roll back to Step 0 immediately!
+                rolled_back = True
                 rollback_reason = f"Step {iteration} rolled back to Step 0: {gate['reason']}"
                 consensus = seed_seq
                 total_added = 0
@@ -473,11 +475,15 @@ def _walk_loop(unmapped, seed_seq, motif, rev_motif, max_iters, min_telo_bp,
         consensus = seed_seq
         total_added = 0
 
-    # Opportunity 2: Cluster-seeded abPOA micro-gap assembly fallback
+    has_repeat_rollback = rolled_back or (rollback_reason and any(
+        x in rollback_reason for x in ("Polyvalent", "Stationary repeat array", "Low anchor MAPQ", "Extension shorter than")
+    ))
+
+    # Opportunity 2: Cluster-seeded abPOA micro-gap assembly fallback (only if no repeat rollback occurred)
     abpoa_bin = shutil.which("abpoa")
-    if abpoa_bin and local_reads:
+    if not has_repeat_rollback and abpoa_bin and local_reads:
         telo_local = [seq for seq in local_reads.values() if max(seq.count(motif), seq.count(rev_motif)) * k >= min_telo_bp]
-        if telo_local:
+        if len(telo_local) >= 3:
             with tempfile.NamedTemporaryFile("w", suffix=".fa", delete=False) as poa_in:
                 poa_in_path = poa_in.name
                 poa_in.write(f">seed\n{seed_seq[-1000:]}\n")
@@ -495,13 +501,15 @@ def _walk_loop(unmapped, seed_seq, motif, rev_motif, max_iters, min_telo_bp,
                     rev_h = ext_part[-1000:].count(rev_motif)
                     ext_telo = max(fwd_h, rev_h) * k
                     if ext_telo >= min_telo_bp and len(ext_part) >= 50:
-                        return {
-                            "status": "EXTEND_TO_TELOMERE",
-                            "added_bp": len(ext_part),
-                            "telo_bp": ext_telo,
-                            "extension_seq": ext_part,
-                            "notes": f"Closed subtelomeric micro-gap via cluster-seeded abPOA assembly ({len(ext_part)} bp added, {ext_telo} bp telomere)"
-                        }
+                        # Enforce somatic neo-telomere exclusion check
+                        if not (is_somatic_boundary and (len(ext_part) - ext_telo) < min_germline_extension_bp):
+                            return {
+                                "status": "EXTEND_TO_TELOMERE",
+                                "added_bp": len(ext_part),
+                                "telo_bp": ext_telo,
+                                "extension_seq": ext_part,
+                                "notes": f"Closed subtelomeric micro-gap via cluster-seeded abPOA assembly ({len(ext_part)} bp added, {ext_telo} bp telomere)"
+                            }
             except Exception:
                 pass
             finally:

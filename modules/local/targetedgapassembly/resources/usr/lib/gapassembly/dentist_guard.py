@@ -98,5 +98,5 @@ def evaluate_dentist_guard(bam_path, chrom, g_start, g_end, min_mapq=20, min_cli
         "excess": right_excess,
     }
 
-    is_vetoed = left_excess and right_excess
+    is_vetoed = left_excess or right_excess
     return is_vetoed, left_stats, right_stats
