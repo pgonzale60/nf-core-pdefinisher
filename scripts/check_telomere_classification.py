@@ -426,17 +426,20 @@ def main():
     assert card_o["evidence"]["unitig_extension_region"] == {"q_start": 8500, "q_end": 10000, "strand": "+", "unitig_len": 10000}
     print("O ok: EXTEND_TELOMERE_TRACT arbitrates unitig vs valid_read_ext_bp and carries unitig_extension_region")
 
-    # --- Case P: detect_chimeric_terminus enforces min_repeats on 5p, and overhang_of_read respects chrom_start
+    # --- Case P: detect_chimeric_terminus enforces min_repeats on 5p, multi-read support (>= 3), and overhang_of_read respects chrom_start
 
     clips_5p = [
-        {"qname": "r_12_reps", "align_start": 2000, "align_end": 8000, "clip_len": 900, "telo_cnt": 12, "mapq": 60},
+        {"qname": f"r_12_reps_{i}", "align_start": 2000, "align_end": 8000, "clip_len": 900, "telo_cnt": 12, "mapq": 60, "collinear_spanning_reads": 0}
+        for i in range(3)
     ]
     assert detect_chimeric_terminus("I", "5p", 100000, clips_5p, d_soma=0, delfies_pts=[], policy=policy) is None, (
         "5p read with 12 repeats (< min_repeats=15) must not trigger chimeric terminus pruning"
     )
-    clips_5p[0]["telo_cnt"] = 20
+    for c in clips_5p:
+        c["telo_cnt"] = 20
     chim_5p = detect_chimeric_terminus("I", "5p", 100000, clips_5p, d_soma=0, delfies_pts=[], policy=policy)
     assert chim_5p is not None and chim_5p["junction_coord"] == 2000
+    assert chim_5p["supporting_read_count"] == 3
 
     # Verify overhang_of_read at 5p with chrom_start=2000 (pos=2001, 1-based -> gap=0 relative to pruned junction 2000)
     sam_line_5p = "r_12_reps\t0\tI\t2001\t60\t300S1000M\t*\t0\t0\t" + ("G" * 300) + ("A" * 1000) + "\t*"

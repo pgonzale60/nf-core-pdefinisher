@@ -25,7 +25,7 @@ process SOFTCLIPENDS {
     def prefix = task.ext.prefix ?: "${meta.id}"
 
     """
-    # Tool: pde_terminal_softclips.py | Script-SHA: c349e9ba65b9c698
+    # Tool: pde_terminal_softclips.py | Script-SHA: e22b38679263028f
     # softclipends v1.2 - FastaReader fallback for plain-gzip FASTA
     pde_terminal_softclips.py \\
         --bam "${bam}" \\

@@ -10,7 +10,13 @@ import unittest
 LIB_DIR = Path(__file__).resolve().parent.parent / "resources" / "usr" / "lib"
 sys.path.insert(0, str(LIB_DIR))
 
-from curationsynthesis import survey_telomere_unitigs, load_grs_summary
+from curationsynthesis import (
+    detect_chimeric_terminus,
+    load_grs_summary,
+    load_terminal_softclips,
+    survey_telomere_unitigs,
+    synthesize_telomere_cards,
+)
 
 
 class TestCurationsynthesis(unittest.TestCase):
@@ -121,6 +127,232 @@ class TestCurationsynthesis(unittest.TestCase):
             self.assertEqual(elimination_range["min_elim_bp"], 1750000)
             self.assertEqual(elimination_range["max_elim_bp"], 1830000)
             self.assertEqual(elimination_range["est_elim_bp"], 1790000)
+
+    def test_detect_chimeric_terminus_guardrails(self):
+        # 3p Arm Test
+        chrom = "chr1"
+        chrom_len = 1000000
+        policy = {
+            "telomere": {
+                "min_repeats": 15,
+                "chimeric_terminus_min_dist_bp": 1000,
+                "chimeric_terminus_max_dist_bp": 50000,
+                "subtelomeric_min_overlap_bp": 500,
+                "min_chimeric_clip_support": 3,
+                "chimeric_cluster_window_bp": 50,
+            },
+            "mapping_and_anchors": {
+                "mapq_anchored": 30,
+                "mapq_evidence_floor": 20,
+                "anchor_min_length_bp": 1000,
+            },
+            "genomic_architecture": {"germline_buffer_bp": 100},
+        }
+
+        # 1. Reject when < 3 clips (1 or 2 reads)
+        cands_3p = [
+            {
+                "qname": f"read_3p_{i}",
+                "align_start": 965000,
+                "align_end": 980000 + (i * 10),
+                "clip_len": 500,
+                "overhang_bp": 0,
+                "telo_cnt": 20,
+                "mapq": 60,
+                "collinear_spanning_reads": 0,
+            }
+            for i in range(2)
+        ]
+        self.assertIsNone(detect_chimeric_terminus(chrom, "3p", chrom_len, cands_3p, 0, [], policy))
+
+        # 2. Accept when >= 3 clips clustered near breakpoint and 0 collinear spanning reads
+        cands_3p.append(
+            {
+                "qname": "read_3p_2",
+                "align_start": 965000,
+                "align_end": 980005,
+                "clip_len": 520,
+                "overhang_bp": 0,
+                "telo_cnt": 25,
+                "mapq": 60,
+                "collinear_spanning_reads": 0,
+            }
+        )
+        res = detect_chimeric_terminus(chrom, "3p", chrom_len, cands_3p, 0, [], policy)
+        self.assertIsNotNone(res)
+        self.assertEqual(res["chimeric_start"], 980005)
+        self.assertEqual(res["chimeric_end"], chrom_len)
+        self.assertEqual(res["authorized_read_qname"], "read_3p_2")
+        self.assertEqual(res["supporting_read_count"], 3)
+        self.assertEqual(len(res["supporting_reads"]), 3)
+
+        # 3. Reject when collinear_spanning_reads > 0 on candidate record
+        cands_with_collinear = [dict(c) for c in cands_3p]
+        cands_with_collinear[0]["collinear_spanning_reads"] = 2
+        self.assertIsNone(detect_chimeric_terminus(chrom, "3p", chrom_len, cands_with_collinear, 0, [], policy))
+
+        # 4. Reject when an unclipped spanning read is in clips
+        cands_with_clip_span = list(cands_3p) + [
+            {
+                "qname": "unclipped_span",
+                "align_start": 975000,
+                "align_end": 985000,
+                "clip_len": 0,
+                "overhang_bp": 0,
+                "telo_cnt": 0,
+                "mapq": 60,
+                "collinear_spanning_reads": 0,
+            }
+        ]
+        self.assertIsNone(detect_chimeric_terminus(chrom, "3p", chrom_len, cands_with_clip_span, 0, [], policy))
+
+        # 5p Arm Test
+        cands_5p = [
+            {
+                "qname": f"read_5p_{i}",
+                "align_start": 20000 + (i * 10),
+                "align_end": 35000,
+                "clip_len": 500,
+                "overhang_bp": 0,
+                "telo_cnt": 20,
+                "mapq": 60,
+                "collinear_spanning_reads": 0,
+            }
+            for i in range(3)
+        ]
+        res_5p = detect_chimeric_terminus(chrom, "5p", chrom_len, cands_5p, 0, [], policy)
+        self.assertIsNotNone(res_5p)
+        self.assertEqual(res_5p["chimeric_start"], 0)
+        self.assertEqual(res_5p["chimeric_end"], 20020)
+        self.assertEqual(res_5p["supporting_read_count"], 3)
+
+        # Reject 5p when collinear_spanning_reads > 0
+        cands_5p_coll = [dict(c) for c in cands_5p]
+        cands_5p_coll[1]["collinear_spanning_reads"] = 1
+        self.assertIsNone(detect_chimeric_terminus(chrom, "5p", chrom_len, cands_5p_coll, 0, [], policy))
+
+    def test_level_4_unitig_priority_over_longer_read(self):
+        # Even if a single read overhang is significantly longer (+2500 bp vs +500 bp unitig),
+        # assembly-first hierarchy must strictly prefer the unitig.
+        chrom_lens = {"chr1": 1000000}
+        nuclear_chroms = ["chr1"]
+        unitig_extensions = {
+            ("chr1", "3p"): [
+                (500, "utg000010l", 600, 0, 0, 10000, "+", 10000, 990000, 1000000)
+            ]
+        }
+        single_read_ext = {
+            ("chr1", "3p"): (2500, 5, "m64000_long_read", 25, ["r1", "r2", "r3", "r4", "r5"])
+        }
+
+        # Case 1: ALREADY_CAPPED
+        cards_capped = synthesize_telomere_cards(
+            nuclear_chroms=nuclear_chroms,
+            chrom_lens=chrom_lens,
+            grs_segments={},
+            core_segments={},
+            delfies_points={},
+            rdna_intervals={},
+            baseline_status={("chr1", "3p"): "ALREADY_CAPPED"},
+            unitig_extensions=unitig_extensions,
+            single_read_ext=single_read_ext,
+            tip_tract_bp={("chr1", "3p"): 500},
+        )
+        card_3p = next(c for c in cards_capped if c["chrom"] == "chr1" and c["terminus"] == "3p")
+        self.assertEqual(card_3p["action"], "EXTEND_TELOMERE_TRACT")
+        self.assertEqual(card_3p["authorized_unitig_id"], "utg000010l")
+        self.assertIsNone(card_3p["authorized_read_qname"])
+
+        # Case 2: TELOMERE_IN_OVERHANG
+        cards_overhang = synthesize_telomere_cards(
+            nuclear_chroms=nuclear_chroms,
+            chrom_lens=chrom_lens,
+            grs_segments={},
+            core_segments={},
+            delfies_points={},
+            rdna_intervals={},
+            baseline_status={("chr1", "3p"): "TELOMERE_IN_OVERHANG"},
+            unitig_extensions=unitig_extensions,
+            single_read_ext=single_read_ext,
+            tip_tract_bp={("chr1", "3p"): 0},
+        )
+        card_oh = next(c for c in cards_overhang if c["chrom"] == "chr1" and c["terminus"] == "3p")
+        self.assertEqual(card_oh["action"], "EXTEND_FROM_OVERHANG")
+        self.assertEqual(card_oh["authorized_unitig_id"], "utg000010l")
+        self.assertIsNone(card_oh["authorized_read_qname"])
+
+    def test_level_5c_cap_with_read_multi_read_support(self):
+        chrom_lens = {"chr1": 1000000}
+        nuclear_chroms = ["chr1"]
+
+        # Case A: < 3 supporting reads (e.g. 2 reads) -> must NOT trigger RESOLVABLE_BY_READ / CAP_WITH_READ
+        single_read_insufficient = {
+            ("chr1", "3p"): (500, 2, "read_capper_2x", 20, ["r1", "r2"])
+        }
+        cards_insufficient = synthesize_telomere_cards(
+            nuclear_chroms=nuclear_chroms,
+            chrom_lens=chrom_lens,
+            grs_segments={},
+            core_segments={},
+            delfies_points={},
+            rdna_intervals={},
+            baseline_status={("chr1", "3p"): "NO_CLIPS"},
+            unitig_extensions={},
+            single_read_ext=single_read_insufficient,
+            tip_tract_bp={("chr1", "3p"): 0},
+        )
+        card_rej = next(c for c in cards_insufficient if c["chrom"] == "chr1" and c["terminus"] == "3p")
+        self.assertNotEqual(card_rej.get("mechanism"), "CAP_WITH_READ")
+        self.assertEqual(card_rej["action"], "EXTEND_TO_TELOMERE")
+        self.assertEqual(card_rej["classification"], "UNCAPPED_SUBTELOMERE")
+
+        # Case B: >= 3 supporting reads (e.g. 3 reads) -> successfully authorizes CAP_WITH_READ
+        single_read_sufficient = {
+            ("chr1", "3p"): (500, 3, "read_capper_3x", 20, ["r1", "r2", "r3"])
+        }
+        cards_sufficient = synthesize_telomere_cards(
+            nuclear_chroms=nuclear_chroms,
+            chrom_lens=chrom_lens,
+            grs_segments={},
+            core_segments={},
+            delfies_points={},
+            rdna_intervals={},
+            baseline_status={("chr1", "3p"): "NO_CLIPS"},
+            unitig_extensions={},
+            single_read_ext=single_read_sufficient,
+            tip_tract_bp={("chr1", "3p"): 0},
+        )
+        card_acc = next(c for c in cards_sufficient if c["chrom"] == "chr1" and c["terminus"] == "3p")
+        self.assertEqual(card_acc["classification"], "RESOLVABLE_BY_READ")
+        self.assertEqual(card_acc["mechanism"], "CAP_WITH_READ")
+        self.assertEqual(card_acc["authorized_read_qname"], "read_capper_3x")
+        self.assertEqual(card_acc["evidence"]["read_count"], 3)
+        self.assertEqual(card_acc["evidence"]["supporting_reads"], ["r1", "r2", "r3"])
+
+    def test_load_terminal_softclips_collinear_and_multi_read(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tsv_path = os.path.join(tmpdir, "test.terminal_softclips.tsv")
+            with open(tsv_path, "w") as f:
+                f.write("read_id\tchrom\tside\talign_start\talign_end\tclip_len\toverhang_bp\ttelo_count\tmapq\tcollinear_spanning_reads\n")
+                # 10-column record with collinear_spanning_reads = 4
+                f.write("read1\tchr1\t3p\t980000\t995000\t500\t200\t25\t60\t4\n")
+                # 9-column legacy record (backward compatibility)
+                f.write("read2\tchr1\t3p\t980000\t995000\t450\t180\t20\t50\n")
+
+            raw_clips, single_ext = load_terminal_softclips(tsv_path)
+            clips_3p = raw_clips[("chr1", "3p")]
+            self.assertEqual(len(clips_3p), 2)
+            self.assertEqual(clips_3p[0]["collinear_spanning_reads"], 4)
+            self.assertEqual(clips_3p[1]["collinear_spanning_reads"], 0)
+
+            self.assertIn(("chr1", "3p"), single_ext)
+            ext_info = single_ext[("chr1", "3p")]
+            # ext_info format: (overhang_bp, read_count, best_qname, best_telo_cnt, [qnames])
+            self.assertEqual(ext_info[0], 200)
+            self.assertEqual(ext_info[1], 2)
+            self.assertEqual(ext_info[2], "read1")
+            self.assertEqual(ext_info[3], 25)
+            self.assertEqual(ext_info[4], ["read1", "read2"])
 
 
 if __name__ == "__main__":

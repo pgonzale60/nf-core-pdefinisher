@@ -169,6 +169,7 @@ def scan_end(bam, ref, length, side, motif, rev_motif, fasta):
         fetch_start, fetch_end = max(0, length - WINDOW), length
 
     records = []
+    collinear_reads = []
     try:
         for r in bam.fetch(ref, fetch_start, fetch_end):
             # Secondary and supplementary alignments are excluded: an end must be established by
@@ -177,24 +178,26 @@ def scan_end(bam, ref, length, side, motif, rev_motif, fasta):
                 continue
             if side == "5p":
                 cigar_terminal = r.cigartuples[0]
-                if cigar_terminal[0] != 4:
-                    continue
-                clip_len = cigar_terminal[1]
+                clip_len = cigar_terminal[1] if cigar_terminal[0] == 4 else 0
                 align_start = r.reference_start
                 overhang_bp = max(0, clip_len - align_start)
-                clip_seq = (r.query_sequence or "")[:clip_len].upper()
-                records.append((r.query_name, ref, "5p", align_start, r.reference_end,
-                                clip_len, overhang_bp, clip_seq, r.mapping_quality))
+                if clip_len >= MIN_CLIP_BP or overhang_bp > 0:
+                    clip_seq = (r.query_sequence or "")[:clip_len].upper()
+                    records.append((r.query_name, ref, "5p", align_start, r.reference_end,
+                                    clip_len, overhang_bp, clip_seq, r.mapping_quality))
+                elif r.mapping_quality >= 20:
+                    collinear_reads.append((r.reference_start, r.reference_end))
             else:
                 cigar_terminal = r.cigartuples[-1]
-                if cigar_terminal[0] != 4:
-                    continue
-                clip_len = cigar_terminal[1]
+                clip_len = cigar_terminal[1] if cigar_terminal[0] == 4 else 0
                 align_end = r.reference_end
                 overhang_bp = max(0, clip_len - (length - align_end))
-                clip_seq = (r.query_sequence or "")[-clip_len:].upper()
-                records.append((r.query_name, ref, "3p", r.reference_start, align_end,
-                                clip_len, overhang_bp, clip_seq, r.mapping_quality))
+                if clip_len >= MIN_CLIP_BP or overhang_bp > 0:
+                    clip_seq = (r.query_sequence or "")[-clip_len:].upper()
+                    records.append((r.query_name, ref, "3p", r.reference_start, align_end,
+                                    clip_len, overhang_bp, clip_seq, r.mapping_quality))
+                elif r.mapping_quality >= 20:
+                    collinear_reads.append((r.reference_start, r.reference_end))
     except Exception as exc:
         sys.stderr.write(f"Warning: fetch error on {ref} {side}: {exc}\n")
 
@@ -203,8 +206,13 @@ def scan_end(bam, ref, length, side, motif, rev_motif, fasta):
         clip_len, overhang_bp, clip_seq = rec[5], rec[6], rec[7]
         telo_count = clip_seq.count(motif) + clip_seq.count(rev_motif)
         if clip_len >= MIN_CLIP_BP or overhang_bp > 0:
+            junc_coord = rec[3] if side == "5p" else rec[4]
+            collinear_spanning = sum(
+                1 for (cs, ce) in collinear_reads
+                if cs < (junc_coord - 500) and ce > (junc_coord + 500)
+            )
             kept.append((rec[0], rec[1], rec[2], rec[3], rec[4], clip_len, overhang_bp,
-                         telo_count, rec[8]))
+                         telo_count, rec[8], collinear_spanning))
 
     n_telo = sum(1 for x in kept if x[7] >= MIN_TELO_UNITS_IN_READ)
     max_oh = max([x[6] for x in kept], default=0)
@@ -218,7 +226,7 @@ def scan_end(bam, ref, length, side, motif, rev_motif, fasta):
         # Reads carry telomere and the draft's own tip ends in a tandem run: the end holds a tract,
         # and the action is to extend that tract.
         status = "ALREADY_CAPPED"
-    elif n_telo >= 1:
+    elif n_telo >= 3:
         # Reads carry telomere but the draft's tip does not. The draft is NOT capped: the telomere
         # is in the reads' overhang tails, so the end needs an overhang extension, not a tract
         # extension. Calling this ALREADY_CAPPED is what let the walker conclude there was nothing
@@ -232,7 +240,7 @@ def scan_end(bam, ref, length, side, motif, rev_motif, fasta):
 def write_outputs(prefix, clip_records, end_summaries):
     with open(f"{prefix}.terminal_softclips.tsv", "w") as f:
         f.write("read_id\tchrom\tside\talign_start\talign_end\tclip_len"
-                "\toverhang_bp\ttelo_count\tmapq\n")
+                "\toverhang_bp\ttelo_count\tmapq\tcollinear_spanning_reads\n")
         for rec in clip_records:
             f.write("\t".join(map(str, rec)) + "\n")
 

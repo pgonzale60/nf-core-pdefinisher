@@ -463,6 +463,7 @@ def load_terminal_softclips(terminal_softclips, policy=None):
                         overhang_bp = int(p[6])
                         telo_cnt = int(p[7])
                         mapq = int(p[8])
+                        collinear_spanning = int(p[9]) if len(p) >= 10 else 0
                     except ValueError:
                         continue
                     rec = {
@@ -473,6 +474,7 @@ def load_terminal_softclips(terminal_softclips, policy=None):
                         "overhang_bp": overhang_bp,
                         "telo_cnt": telo_cnt,
                         "mapq": mapq,
+                        "collinear_spanning_reads": collinear_spanning,
                     }
                     raw_softclips[(ref, end_type)].append(rec)
                     if mapq >= 20 and telo_cnt >= min_t_reps and overhang_bp >= 50:
@@ -485,7 +487,8 @@ def load_terminal_softclips(terminal_softclips, policy=None):
         if cand_list:
             cand_list.sort(key=lambda x: (x[0] // 10, x[1], x[0]), reverse=True)
             best = cand_list[0]
-            single_read_ext[(c, e)] = (best[0], len(cand_list), best[2], best[1])
+            supporting_qnames = [x[2] for x in cand_list]
+            single_read_ext[(c, e)] = (best[0], len(cand_list), best[2], best[1], supporting_qnames)
 
     return raw_softclips, single_read_ext
 
