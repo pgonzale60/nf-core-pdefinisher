@@ -46,7 +46,12 @@ from .port_valency import (
     terminus_state,
 )
 from .reporting import build_manifest_json, render_markdown_blueprint
-from .terminus_resolver import detect_chimeric_terminus, synthesize_telomere_cards
+from .terminus_resolver import (
+    build_execution_plan,
+    detect_chimeric_terminus,
+    reconcile_unplaced_contigs_into_terminus_cards,
+    synthesize_telomere_cards,
+)
 from .unplaced_triage import evaluate_extension_candidacy, triage_unplaced_scaffolds
 
 __all__ = [
@@ -55,6 +60,7 @@ __all__ = [
     "UnplacedSegment",
     "__version__",
     "assign_unitigs_to_termini",
+    "build_execution_plan",
     "build_manifest_json",
     "build_molecule_ids",
     "build_open_port_graph",
@@ -83,6 +89,7 @@ __all__ = [
     "parse_telo_paf",
     "parse_unplaced_paf",
     "partition_chromosomes",
+    "reconcile_unplaced_contigs_into_terminus_cards",
     "reconstruct_rdna_operons",
     "render_markdown_blueprint",
     "synthesize_curation_cards",

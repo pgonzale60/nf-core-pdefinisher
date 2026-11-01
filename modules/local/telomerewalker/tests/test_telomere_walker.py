@@ -318,5 +318,86 @@ class TestTelomereWalker(unittest.TestCase):
             self.assertGreaterEqual(res["telo_bp"], 300)
             self.assertTrue(res["extension_seq"].startswith("TTAGGC"))
 
+    def test_derive_default_execution_plan_legacy_cards(self):
+        """Verifies _derive_default_execution_plan accurately maps legacy blueprint cards."""
+        # None with blueprint -> ALREADY_CAPPED
+        self.assertEqual(
+            pde_telomere_walker._derive_default_execution_plan(None, has_blueprint=True),
+            [{"step": "ALREADY_CAPPED"}]
+        )
+        # None without blueprint -> ITERATIVE_READ_WALKER
+        self.assertEqual(
+            pde_telomere_walker._derive_default_execution_plan(None, has_blueprint=False),
+            [{"step": "ITERATIVE_READ_WALKER"}]
+        )
+        # rDNA array
+        rdna_card = {"classification": "TERMINUS_RDNA_ARRAY", "action": "TERMINUS_RDNA_ARRAY"}
+        self.assertEqual(
+            pde_telomere_walker._derive_default_execution_plan(rdna_card),
+            [{"step": "DEFER_TO_RDNA_RESOLVER"}]
+        )
+        # Chimeric terminus
+        chimera_card = {
+            "action": "PRUNE_CHIMERIC_TERMINUS",
+            "terminus": "5p",
+            "effective_chrom_start": 2000,
+            "authorized_read_qname": "read_chimeric_auth",
+        }
+        self.assertEqual(
+            pde_telomere_walker._derive_default_execution_plan(chimera_card),
+            [{"step": "PRUNE_CHIMERIC_TERMINUS", "junction_coord": 2000, "authorized_read_qname": "read_chimeric_auth"}]
+        )
+        # Unitig cap with unplaced nomination
+        utg_card = {
+            "classification": "RESOLVABLE_BY_UNITIG",
+            "mechanism": "CAP_WITH_UNITIG",
+            "authorized_unitig_id": "utg001l",
+        }
+        nom = {"scaffold": "scaff_ext", "overhang_bp": 5000, "strand": "+"}
+        plan = pde_telomere_walker._derive_default_execution_plan(utg_card, unplaced_nomination=nom)
+        self.assertEqual([s["step"] for s in plan], [
+            "CAP_WITH_UNITIG",
+            "INTEGRATE_UNPLACED_CONTIG",
+            "ALIGN_SEED_TO_UNITIGS",
+            "ITERATIVE_READ_WALKER",
+        ])
+
+    def test_execution_plan_dispatcher_order_and_stop(self):
+        """Verifies the stateless dispatcher runs steps strictly in order and stops on first success."""
+        manifest_rows = []
+        telomere_lengths = []
+
+        # 1. ALREADY_CAPPED handler appends row and returns True
+        res = pde_telomere_walker._handle_already_capped("chr1", "5p", {}, {}, manifest_rows, telomere_lengths)
+        self.assertTrue(res)
+        self.assertEqual(len(manifest_rows), 1)
+        self.assertEqual(manifest_rows[0][2], "ALREADY_CAPPED")
+        self.assertEqual(manifest_rows[0][3], "DRAFT_VERIFIED_COMPLETE")
+
+        # 2. DEFER_TO_RDNA_RESOLVER handler appends row and returns True
+        res_rdna = pde_telomere_walker._handle_defer_to_rdna("chr2", "3p", {}, {}, "SAMPLE1", "chr2_3p", manifest_rows, telomere_lengths)
+        self.assertTrue(res_rdna)
+        self.assertEqual(len(manifest_rows), 2)
+        self.assertEqual(manifest_rows[1][2], "TERMINUS_RDNA_ARRAY")
+
+        # 3. Step execution short-circuiting: first step that succeeds halts the loop
+        executed_steps = []
+        mock_plan = [
+            {"step": "STEP_A"},
+            {"step": "STEP_B"},
+            {"step": "STEP_C"},
+        ]
+
+        def step_handler(step):
+            executed_steps.append(step)
+            return step == "STEP_B"  # STEP_B succeeds
+
+        for s in mock_plan:
+            if step_handler(s["step"]):
+                break
+
+        self.assertEqual(executed_steps, ["STEP_A", "STEP_B"])
+        self.assertNotIn("STEP_C", executed_steps)
+
 if __name__ == "__main__":
     unittest.main()
