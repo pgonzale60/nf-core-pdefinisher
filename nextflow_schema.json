@@ -29,6 +29,12 @@
                     "description": "The output directory where the results will be saved. You have to use absolute paths to storage on Cloud infrastructure.",
                     "fa_icon": "fas fa-folder-open"
                 },
+                "per_species_outdir": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Publish sample outputs hierarchically under per-species directories (<Species>/analysis/pdefinisher/).",
+                    "fa_icon": "fas fa-folder-tree"
+                },
                 "email": {
                     "type": "string",
                     "description": "Email address for completion summary.",
