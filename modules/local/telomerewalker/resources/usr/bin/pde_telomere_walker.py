@@ -781,7 +781,55 @@ def main():
                     d_soma = card.get("somatic_boundary_coord", card.get("forbidden_zone_bp", 0))
                     min_buf = card.get("min_germline_extension_bp", germline_buffer_bp)
                     term_max_iters = safe_int(card.get("walker_max_iters") if card else None, default=max_iters)
+
+                    # Check unplaced contigs and unitig bridging before read-based iterative walking
+                    nom = unplaced_nominations.get((chrom, terminus))
+                    if nom:
+                        ext, note = materialise_unplaced_extension(nom, args.ref)
+                        ext_fa = os.path.join(outdir, f"{term_id}_unplaced_contig_ext.fa")
+                        with open(ext_fa, "w") as f:
+                            f.write(f">{term_id}_unplaced_contig_ext scaffold={nom['scaffold']} strand={nom['strand']} overhang={nom['overhang_bp']}bp\n{ext}\n")
+                        telo_len = count_telomeric_bp(ext, motif, rev_motif)
+                        manifest_rows.append([
+                            chrom, terminus, "EXTENDED_BY_UNPLACED_CONTIG",
+                            f"UnplacedContig_{nom['scaffold']}", len(ext), telo_len, len(ext) - telo_len, ext_fa,
+                            f"Terminus continued by unplaced sequence {nom['scaffold']} ({note})"
+                        ])
+                        continue
+
                     seed_seq = extract_seed_sequence(args.ref, chrom, terminus, c_len, seed_len=seed_len_bp, chrom_start=c_start)
+
+                    # Prioritize local unitig bridging from assembled telomeric unitigs (HIFIASM)
+                    unitig_ext_match = align_seed_to_unitigs(
+                        seed_seq, args.unitigs, motif, rev_motif,
+                        min_overlap=safe_int(telo_policy.get("tract_anchor_bp", 300), default=300),
+                        min_telo_repeats=min_telo_repeats,
+                        threads=args.threads
+                    )
+                    if unitig_ext_match:
+                        ext_seq_chrom = (
+                            revcomp(unitig_ext_match["extension_seq"])
+                            if terminus == "5p"
+                            else unitig_ext_match["extension_seq"]
+                        )
+                        ext_fa, added_len, telo_len, non_telo = write_extension_fasta(
+                            outdir, term_id, "unitig_bridge_ext",
+                            f"unitig_id={unitig_ext_match['unitig_id']} telo_bp={unitig_ext_match['telo_bp']}",
+                            ext_seq_chrom, motif, rev_motif
+                        )
+                        bridge_status, tract_bp = cap_status_for(
+                            "RESOLVED_BY_UNITIG", ext_seq_chrom, motif, rev_motif, min_telo_repeats,
+                            terminus=terminus
+                        )
+                        telomere_lengths.append((chrom, terminus, bridge_status, unitig_ext_match["unitig_id"], tract_bp, telo_len))
+                        manifest_rows.append([
+                            chrom, terminus, bridge_status, f"Unitig_{unitig_ext_match['unitig_id']}",
+                            added_len, telo_len, non_telo, ext_fa,
+                            f"Subtelomeric repeat bridged via telomeric unitig {unitig_ext_match['unitig_id']} "
+                            f"({added_len} bp added; {telo_len} bp canonical telomere; terminal tract {tract_bp} bp)"
+                        ])
+                        continue
+
                     walk_res = run_iterative_walker(
                         args.bam, seed_seq, motif, rev_motif,
                         max_iters=term_max_iters,
@@ -819,6 +867,65 @@ def main():
                 # 4. Telomere at the draft tip
                 if action in ("EXTEND_TELOMERE_TRACT", "EXTEND_FROM_OVERHANG") or classification in (
                         "DRAFT_HAS_TELOMERE", "TELOMERE_IN_OVERHANG"):
+                    tried = []
+
+                    # (a) First try the unitig Module 2 endorsed before raw BAM read extraction
+                    materialised, why = authorized_unitig_materialisation(
+                        args.unitigs, card, chrom, terminus, c_len,
+                        profile_hits=profile_hits)
+                    if materialised:
+                        net_seq = materialised["net_seq"]
+                        card_evidence = card.get("evidence", {}) or {}
+                        distal_tract_bp = safe_int(card_evidence.get("distal_telomere_tract_bp", 0))
+                        distal_cl_id = card_evidence.get("distal_cluster_id")
+                        distal_reads = safe_int(card_evidence.get("distal_cluster_reads", 0))
+                        is_unresolved_repeat = bool(card_evidence.get("unresolved_repeat_gap", False))
+
+                        cap_motif = rev_motif if terminus == "5p" else motif
+                        existing_tract = terminal_tract_region(
+                            net_seq, motif, rev_motif, terminus, min_repeats=min_telo_repeats)[0]
+
+                        added_overhang = 0
+                        if distal_tract_bp > 0:
+                            overhang_needed = max(0, distal_tract_bp - existing_tract)
+                            if overhang_needed > 0:
+                                repeats_to_add = max(15, overhang_needed // len(cap_motif))
+                                overhang_seq = cap_motif * repeats_to_add
+                                added_overhang = len(overhang_seq)
+                                if is_unresolved_repeat:
+                                    gap_seq = "N" * 100
+                                    if terminus == "5p":
+                                        net_seq = overhang_seq + gap_seq + net_seq
+                                    else:
+                                        net_seq = net_seq + gap_seq + overhang_seq
+                                    added_overhang += 100
+                                else:
+                                    if terminus == "5p":
+                                        net_seq = overhang_seq + net_seq
+                                    else:
+                                        net_seq = net_seq + overhang_seq
+
+                        ext_fa, added_len, telo_len, non_telo = write_extension_fasta(
+                            outdir, term_id, "tip_unitig_ext",
+                            f"unitig_id={materialised['unitig_id']} from=EXTEND_FROM_OVERHANG",
+                            net_seq, motif, rev_motif)
+                        tip_status, tract_bp = cap_status_for(
+                            "RESOLVED_BY_UNITIG", net_seq, motif, rev_motif, min_telo_repeats,
+                            terminus=terminus)
+                        telomere_lengths.append((chrom, terminus, tip_status,
+                                                 materialised["unitig_id"], tract_bp, telo_len))
+                        notes_cluster = f" + distal cap {distal_cl_id} ({added_overhang} bp overhang, {distal_reads} reads)" if distal_tract_bp > 0 and added_overhang > 0 else ""
+                        manifest_rows.append([
+                            chrom, terminus, tip_status,
+                            f"Unitig_{materialised['unitig_id']}",
+                            added_len, telo_len, non_telo, ext_fa,
+                            f"EXTEND_FROM_OVERHANG: used unitig Module 2 endorsed for this end ({added_len} bp of "
+                            f"{materialised['unitig_len']} bp; {telo_len} bp canonical telomere; terminal tract {tract_bp} bp{notes_cluster})"
+                        ])
+                        continue
+                    if why:
+                        tried.append(f"endorsed unitig: {why}")
+
                     terminal_seq = extract_seed_sequence(args.ref, chrom, terminus, c_len,
                                                          seed_len=terminal_window_bp, chrom_start=c_start)
                     candidates = terminal_read_candidates(args.bam, chrom, terminus, c_len, motif,
@@ -856,64 +963,6 @@ def main():
                             continue
 
                         print(f"[{sample_id}] {term_id}: no telomeric tract at the draft tip; trying endorsed candidates.", flush=True)
-                        tried = []
-
-                        # (a) The unitig Module 2 endorsed
-                        materialised, why = authorized_unitig_materialisation(
-                            args.unitigs, card, chrom, terminus, c_len,
-                            profile_hits=profile_hits)
-                        if materialised:
-                            net_seq = materialised["net_seq"]
-                            card_evidence = card.get("evidence", {}) or {}
-                            distal_tract_bp = safe_int(card_evidence.get("distal_telomere_tract_bp", 0))
-                            distal_cl_id = card_evidence.get("distal_cluster_id")
-                            distal_reads = safe_int(card_evidence.get("distal_cluster_reads", 0))
-                            is_unresolved_repeat = bool(card_evidence.get("unresolved_repeat_gap", False))
-
-                            cap_motif = rev_motif if terminus == "5p" else motif
-                            existing_tract = terminal_tract_region(
-                                net_seq, motif, rev_motif, terminus, min_repeats=min_telo_repeats)[0]
-
-                            added_overhang = 0
-                            if distal_tract_bp > 0:
-                                overhang_needed = max(0, distal_tract_bp - existing_tract)
-                                if overhang_needed > 0:
-                                    repeats_to_add = max(15, overhang_needed // len(cap_motif))
-                                    overhang_seq = cap_motif * repeats_to_add
-                                    added_overhang = len(overhang_seq)
-                                    if is_unresolved_repeat:
-                                        gap_seq = "N" * 100
-                                        if terminus == "5p":
-                                            net_seq = overhang_seq + gap_seq + net_seq
-                                        else:
-                                            net_seq = net_seq + gap_seq + overhang_seq
-                                        added_overhang += 100
-                                    else:
-                                        if terminus == "5p":
-                                            net_seq = overhang_seq + net_seq
-                                        else:
-                                            net_seq = net_seq + overhang_seq
-
-                            ext_fa, added_len, telo_len, non_telo = write_extension_fasta(
-                                outdir, term_id, "tip_unitig_ext",
-                                f"unitig_id={materialised['unitig_id']} from=EXTEND_FROM_OVERHANG",
-                                net_seq, motif, rev_motif)
-                            tip_status, tract_bp = cap_status_for(
-                                "RESOLVED_BY_UNITIG", net_seq, motif, rev_motif, min_telo_repeats,
-                                terminus=terminus)
-                            telomere_lengths.append((chrom, terminus, tip_status,
-                                                     materialised["unitig_id"], tract_bp, telo_len))
-                            notes_cluster = f" + distal cap {distal_cl_id} ({added_overhang} bp overhang, {distal_reads} reads)" if distal_tract_bp > 0 and added_overhang > 0 else ""
-                            manifest_rows.append([
-                                chrom, terminus, tip_status,
-                                f"Unitig_{materialised['unitig_id']}",
-                                added_len, telo_len, non_telo, ext_fa,
-                                f"EXTEND_FROM_OVERHANG: used unitig Module 2 endorsed for this end ({added_len} bp of "
-                                f"{materialised['unitig_len']} bp; {telo_len} bp canonical telomere; terminal tract {tract_bp} bp{notes_cluster})"
-                            ])
-                            continue
-                        if why:
-                            tried.append(f"endorsed unitig: {why}")
 
                         # (b) The read Module 2 endorsed
                         overhang = None
@@ -933,13 +982,16 @@ def main():
                                                             window=terminal_window_bp, chrom_start=c_start)
                         if overhang:
                             qname, clip_bp, overhang_seq = overhang
-                            ext_fa, added_len, telo_len, non_telo = write_extension_fasta(
-                                outdir, term_id, "tip_overhang",
-                                f"qname={qname} overhang_bp={clip_bp}",
-                                overhang_seq, motif, rev_motif)
                             tip_status, tract_bp = cap_status_for(
                                 "EXTEND_TO_TELOMERE", overhang_seq, motif, rev_motif, min_telo_repeats,
                                 terminus=terminus)
+                            if tip_status != "EXTEND_TO_TELOMERE":
+                                ext_fa, added_len, telo_len, non_telo = "NONE", 0, 0, 0
+                            else:
+                                ext_fa, added_len, telo_len, non_telo = write_extension_fasta(
+                                    outdir, term_id, "tip_overhang",
+                                    f"qname={qname} overhang_bp={clip_bp}",
+                                    overhang_seq, motif, rev_motif)
                             telomere_lengths.append((chrom, terminus, tip_status, qname, tract_bp, telo_len))
                             manifest_rows.append([
                                 chrom, terminus, tip_status, f"Read_{qname}",
@@ -1070,43 +1122,7 @@ def main():
                             f"(card reported {ext_bp} bp / {telo_bp} bp telomere); falling back to unplaced contigs and iterative consensus walker.\n"
                         )
 
-                # 6. Phase 1 Deterministic Read Capping
-                if mechanism == "CAP_WITH_READ" or action == "CAP_WITH_READ" or classification == "RESOLVABLE_BY_READ":
-                    auth_qname = card.get("authorized_read_qname")
-                    read_seq = extract_read_by_qname(args.bam, auth_qname, chrom, terminus, c_len, window=terminal_window_bp, chrom_start=c_start) if auth_qname else None
-                    if not read_seq:
-                        read_cap = inspect_terminal_reads(args.bam, chrom, terminus, c_len, motif, rev_motif, window=terminal_window_bp, min_repeats=min_telo_repeats, chrom_start=c_start)
-                        if read_cap:
-                            read_seq = read_cap["seq"]
-                            auth_qname = read_cap["qname"]
-
-                    if read_seq:
-                        clip_bp, overhang_seq = named_read_overhang(args.bam, auth_qname, chrom, terminus, c_len, window=terminal_window_bp, chrom_start=c_start)
-                        if overhang_seq:
-                            ext_fa, added_len, telo_len, non_telo = write_extension_fasta(
-                                outdir, term_id, "read_cap", f"qname={auth_qname} overhang_bp={clip_bp}",
-                                overhang_seq, motif, rev_motif)
-                            cap_status, tract_bp = cap_status_for("RESOLVED_BY_READ", overhang_seq, motif,
-                                                                  rev_motif, min_telo_repeats, terminus=terminus)
-                            telomere_lengths.append((chrom, terminus, cap_status, auth_qname, tract_bp, telo_len))
-                            manifest_rows.append([
-                                chrom, terminus, cap_status, f"Read_{auth_qname}",
-                                added_len, telo_len, non_telo, ext_fa,
-                                f"Terminal HiFi read {auth_qname} ({added_len} bp added, {telo_len} bp canonical telomere, {non_telo} bp non-telo)"
-                            ])
-                            continue
-                        else:
-                            sys.stderr.write(
-                                f"Warning: Authorized read {auth_qname} at {chrom} {terminus} does not reach past the tip; "
-                                f"falling back to unplaced contigs and iterative consensus walker.\n"
-                            )
-                    else:
-                        sys.stderr.write(
-                            f"Warning: Authorized read {auth_qname} at {chrom} {terminus} could not be extracted from BAM; "
-                            f"falling back to unplaced contigs and iterative consensus walker.\n"
-                        )
-
-                # 7. Unplaced Contigs & Phase 2 Iterative Consensus Walker
+                # 6. Unplaced Contigs & Unitig Bridging (checked before single-read capping)
                 contig_row = None
                 nom = unplaced_nominations.get((chrom, terminus))
                 if nom:
@@ -1157,6 +1173,44 @@ def main():
                         f"({added_len} bp added; {telo_len} bp canonical telomere; terminal tract {tract_bp} bp)"
                     ])
                     continue
+
+                # 7. Phase 1 Deterministic Read Capping (if nominated and unitigs did not resolve)
+                if mechanism == "CAP_WITH_READ" or action == "CAP_WITH_READ" or classification == "RESOLVABLE_BY_READ":
+                    auth_qname = card.get("authorized_read_qname")
+                    read_seq = extract_read_by_qname(args.bam, auth_qname, chrom, terminus, c_len, window=terminal_window_bp, chrom_start=c_start) if auth_qname else None
+                    if not read_seq:
+                        read_cap = inspect_terminal_reads(args.bam, chrom, terminus, c_len, motif, rev_motif, window=terminal_window_bp, min_repeats=min_telo_repeats, chrom_start=c_start)
+                        if read_cap:
+                            read_seq = read_cap["seq"]
+                            auth_qname = read_cap["qname"]
+
+                    if read_seq:
+                        clip_bp, overhang_seq = named_read_overhang(args.bam, auth_qname, chrom, terminus, c_len, window=terminal_window_bp, chrom_start=c_start)
+                        if overhang_seq:
+                            ext_fa, added_len, telo_len, non_telo = write_extension_fasta(
+                                outdir, term_id, "read_cap", f"qname={auth_qname} overhang_bp={clip_bp}",
+                                overhang_seq, motif, rev_motif)
+                            cap_status, tract_bp = cap_status_for("RESOLVED_BY_READ", overhang_seq, motif,
+                                                                  rev_motif, min_telo_repeats, terminus=terminus)
+                            telomere_lengths.append((chrom, terminus, cap_status, auth_qname, tract_bp, telo_len))
+                            manifest_rows.append([
+                                chrom, terminus, cap_status, f"Read_{auth_qname}",
+                                added_len, telo_len, non_telo, ext_fa,
+                                f"Terminal HiFi read {auth_qname} ({added_len} bp added, {telo_len} bp canonical telomere, {non_telo} bp non-telo)"
+                            ])
+                            continue
+                        else:
+                            sys.stderr.write(
+                                f"Warning: Authorized read {auth_qname} at {chrom} {terminus} does not reach past the tip; "
+                                f"falling back to iterative consensus walker.\n"
+                            )
+                    else:
+                        sys.stderr.write(
+                            f"Warning: Authorized read {auth_qname} at {chrom} {terminus} could not be extracted from BAM; "
+                            f"falling back to iterative consensus walker.\n"
+                        )
+
+                # 8. Phase 2 Iterative Consensus Walker
 
                 term_max_iters = safe_int(card.get("walker_max_iters") if card else None, default=max_iters)
                 walk_cluster_reads = extract_cluster_reads_from_card(card)

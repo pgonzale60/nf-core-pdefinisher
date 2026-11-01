@@ -792,7 +792,7 @@ def main():
             status = w_5p.get("status", "")
             added = safe_int(w_5p.get("added_bp", 0))
             fasta_p = w_5p.get("extension_fasta", "")
-            if added > 0 and fasta_p and fasta_p != "NONE" and os.path.exists(fasta_p) and os.path.getsize(fasta_p) > 0:
+            if status != "EXTENDED_SUBTELOMERE_ONLY" and added > 0 and fasta_p and fasta_p != "NONE" and os.path.exists(fasta_p) and os.path.getsize(fasta_p) > 0:
                 ext_seqs = load_fasta(fasta_p)
                 ext_seq = list(ext_seqs.values())[0] if ext_seqs else ""
                 if ext_seq:
@@ -809,6 +809,12 @@ def main():
                     extended_5p = True
                     for c_scaff in cassette_scaffolds_by_end.get((chrom, "5p"), []):
                         materialized_scaffolds.add(c_scaff)
+            elif status == "EXTENDED_SUBTELOMERE_ONLY":
+                audit_rows.append({
+                    "sample": args.sample, "chrom": chrom, "card_id": f"TELO-{chrom}-5p",
+                    "action": "REJECT_SUBTELOMERE_ONLY", "edit_type": "UNCAPPED_SUBTELOMERE",
+                    "orig_start": 0, "orig_end": 0, "delta_bp": 0
+                })
             elif status == "ALREADY_CAPPED" or w_5p.get("action") == "SKIP_WALKER":
                 audit_rows.append({
                     "sample": args.sample, "chrom": chrom, "card_id": f"TELO-{chrom}-5p",
@@ -901,7 +907,7 @@ def main():
             status = w_3p.get("status", "")
             added = safe_int(w_3p.get("added_bp", 0))
             fasta_p = w_3p.get("extension_fasta", "")
-            if added > 0 and fasta_p and fasta_p != "NONE" and os.path.exists(fasta_p) and os.path.getsize(fasta_p) > 0:
+            if status != "EXTENDED_SUBTELOMERE_ONLY" and added > 0 and fasta_p and fasta_p != "NONE" and os.path.exists(fasta_p) and os.path.getsize(fasta_p) > 0:
                 ext_seqs = load_fasta(fasta_p)
                 ext_seq = list(ext_seqs.values())[0] if ext_seqs else ""
                 if ext_seq:
@@ -918,6 +924,12 @@ def main():
                     extended_3p = True
                     for c_scaff in cassette_scaffolds_by_end.get((chrom, "3p"), []):
                         materialized_scaffolds.add(c_scaff)
+            elif status == "EXTENDED_SUBTELOMERE_ONLY":
+                audit_rows.append({
+                    "sample": args.sample, "chrom": chrom, "card_id": f"TELO-{chrom}-3p",
+                    "action": "REJECT_SUBTELOMERE_ONLY", "edit_type": "UNCAPPED_SUBTELOMERE",
+                    "orig_start": chrom_len, "orig_end": chrom_len, "delta_bp": 0
+                })
             elif status == "ALREADY_CAPPED" or w_3p.get("action") == "SKIP_WALKER":
                 audit_rows.append({
                     "sample": args.sample, "chrom": chrom, "card_id": f"TELO-{chrom}-3p",

@@ -4,7 +4,11 @@ Locates and quantifies canonical and variant telomeric repeat tracts in terminal
 British spelling standard enforced.
 """
 
+import os
 import re
+import shutil
+import subprocess
+import tempfile
 
 
 def revcomp(seq):
@@ -104,11 +108,13 @@ def outward_tail(read_seq, anchor, anchor_bp):
 
 
 def maximal_terminal_tract(candidates, motif, rev_motif, terminal_seq,
-                           anchor_bp=500, min_extra_bp=60, min_repeats=15, tip_tolerance_bp=100):
-    """Whichever read follows the telomeric tract furthest out, and how long the tract then is.
+                           anchor_bp=500, min_extra_bp=60, min_repeats=15, tip_tolerance_bp=100, min_reads=3):
+    """Compute multi-read consensus of telomeric tract extension across supporting reads.
 
-    Returns (read_name, total_tract_bp, extra_sequence, orientation, insert_at), or None when no read
-    continues the tract.
+    Requires at least `min_reads` supporting reads matching the anchor with telomeric repeats
+    (telo_len >= 200), and computes their abpoa consensus (falling back to the median supported
+    tract if abpoa is unavailable in unit tests).
+    Returns (read_name, total_tract_bp, extra_sequence, orientation, insert_at), or None.
     """
     current_tract, _tract_seq, insert_at = terminal_tract_region(
         terminal_seq, motif, rev_motif, "3p", min_repeats=min_repeats, tip_tolerance_bp=tip_tolerance_bp)
@@ -119,7 +125,7 @@ def maximal_terminal_tract(candidates, motif, rev_motif, terminal_seq,
     if len(anchor) < anchor_bp:
         return None
 
-    best = None
+    qualifying_reads = []
     for cand in candidates:
         if isinstance(cand, dict):
             name, seq = cand["qname"], cand["seq"]
@@ -130,12 +136,49 @@ def maximal_terminal_tract(candidates, motif, rev_motif, terminal_seq,
             continue
         read_tract, read_tract_seq, _read_insert = terminal_tract_region(
             tail, motif, rev_motif, "3p", min_repeats=min_repeats, tip_tolerance_bp=tip_tolerance_bp)
+        telo_len = count_telomeric_bp(read_tract_seq, motif, rev_motif)
         extra = read_tract - current_tract
-        if extra >= min_extra_bp and (best is None or extra > best[1]):
-            best = (name, extra, read_tract_seq[current_tract:current_tract + extra], orientation)
-    if best is None:
+        if extra >= min_extra_bp and (telo_len >= 200 or read_tract >= 200):
+            qualifying_reads.append({
+                "name": name,
+                "extra": extra,
+                "read_tract": read_tract,
+                "extra_seq": read_tract_seq[current_tract:current_tract + extra],
+                "orientation": orientation,
+            })
+
+    if len(qualifying_reads) < min_reads:
         return None
-    return best[0], current_tract + best[1], best[2], best[3], insert_at
+
+    # Compute abpoa consensus across qualifying reads
+    abpoa_bin = shutil.which("abpoa")
+    if abpoa_bin:
+        with tempfile.NamedTemporaryFile("w", suffix=".fa", delete=False) as tmp_fa:
+            tmp_fa_path = tmp_fa.name
+            for idx, q in enumerate(qualifying_reads):
+                tmp_fa.write(f">seq_{idx}_{q['name']}\n{q['extra_seq']}\n")
+
+        try:
+            cmd = [abpoa_bin, tmp_fa_path, "-r", "0"]
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+            cons_lines = [line.strip() for line in res.stdout.splitlines() if line.strip() and not line.startswith(">")]
+            consensus_seq = "".join(cons_lines)
+            if consensus_seq and len(consensus_seq) >= min_extra_bp:
+                top_qname = max(qualifying_reads, key=lambda x: x["extra"])["name"]
+                orientation = qualifying_reads[0]["orientation"]
+                label = f"abpoa_consensus_{len(qualifying_reads)}reads_{top_qname}"
+                return (label, current_tract + len(consensus_seq), consensus_seq, orientation, insert_at)
+        except Exception:
+            pass
+        finally:
+            if os.path.exists(tmp_fa_path):
+                os.remove(tmp_fa_path)
+
+    # Fallback to median supported tract when abpoa is unavailable
+    sorted_reads = sorted(qualifying_reads, key=lambda x: x["extra"])
+    chosen = sorted_reads[len(sorted_reads) // 2]
+    label = f"median_consensus_{len(qualifying_reads)}reads_{chosen['name']}"
+    return (label, current_tract + chosen["extra"], chosen["extra_seq"], chosen["orientation"], insert_at)
 
 
 def cap_status_for(base_status, extension, motif, rev_motif, min_repeats, terminus):

@@ -316,22 +316,6 @@ def main():
                 flush=True,
             )
 
-            cons_fallback_note = ""
-            if g["action"] in CONSENSUS_ACTIONS:
-                cons_row = resolve_spanned_gap(
-                    g, gap_work, outdir, args.bam, args.ref, args.threads, policy, sample_id, idx, len(gaps)
-                )
-                if cons_row[5] == "PATCH_GAP_INSERTION":
-                    manifest_rows.append(cons_row)
-                    shutil.rmtree(gap_work, ignore_errors=True)
-                    continue
-                cons_fallback_note = f" [abpoa fallback: {cons_row[12]}]"
-                print(
-                    f"[{sample_id}] {gid}: Direct read consensus did not resolve gap ({cons_row[12]}); "
-                    f"falling back to local hifiasm unitig assembly + valency evaluation...",
-                    flush=True,
-                )
-
             # Dentist's Improper-Alignment Guard: veto repeat boundaries with excessive diverging alignments
             dentist_enabled = policy.get("gap_patch", {}).get("dentist_guard_enabled", True)
             if dentist_enabled and args.bam and os.path.exists(args.bam):
@@ -351,6 +335,22 @@ def main():
                     ])
                     shutil.rmtree(gap_work, ignore_errors=True)
                     continue
+
+            cons_fallback_note = ""
+            if g["action"] in CONSENSUS_ACTIONS:
+                cons_row = resolve_spanned_gap(
+                    g, gap_work, outdir, args.bam, args.ref, args.threads, policy, sample_id, idx, len(gaps)
+                )
+                if cons_row[5] == "PATCH_GAP_INSERTION":
+                    manifest_rows.append(cons_row)
+                    shutil.rmtree(gap_work, ignore_errors=True)
+                    continue
+                cons_fallback_note = f" [abpoa fallback: {cons_row[12]}]"
+                print(
+                    f"[{sample_id}] {gid}: Direct read consensus did not resolve gap ({cons_row[12]}); "
+                    f"falling back to local hifiasm unitig assembly + valency evaluation...",
+                    flush=True,
+                )
 
             reads_fa = os.path.join(gap_work, "baited_reads.fa")
             n_reads = bait_reads_for_gap(args.bam, chrom, g_start, g_end, flank_len, reads_fa)
