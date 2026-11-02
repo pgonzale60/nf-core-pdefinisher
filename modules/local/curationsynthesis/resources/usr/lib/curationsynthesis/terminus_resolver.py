@@ -602,8 +602,8 @@ def synthesize_telomere_cards(
                     else:
                         evidence_dict = {
                             "baseline_status": b_stat,
-                            "terminal_tract_bp": f"{measured_tract} bp",
-                            "deep_spanning_overhang_bp": f"+{deeper_ext:,} bp",
+                            "terminal_tract_bp": int(measured_tract),
+                            "deep_spanning_overhang_bp": int(deeper_ext),
                             "candidate_read": read_qname if is_valid_germline_read else "None",
                             "candidate_unitig": best_u_name,
                             **({"unitig_extension_region": best_u_region} if best_u_region else {}),
@@ -683,7 +683,7 @@ def synthesize_telomere_cards(
                             "effective_chrom_len": eff_len,
                             "evidence": {
                                 "baseline_status": "ALREADY_CAPPED",
-                                "deep_spanning_overhang_bp": f"+{deeper_ext:,} bp",
+                                "deep_spanning_overhang_bp": int(deeper_ext),
                                 "candidate_read": read_qname if is_valid_germline_read else "None",
                                 "candidate_unitig": best_u_name,
                                 **({"unitig_extension_region": best_u_region} if best_u_region else {}),
@@ -712,7 +712,7 @@ def synthesize_telomere_cards(
                             "effective_chrom_len": eff_len,
                             "evidence": {
                                 "baseline_status": "ALREADY_CAPPED",
-                                "deep_spanning_overhang_bp": f"+{deeper_ext:,} bp",
+                                "deep_spanning_overhang_bp": int(deeper_ext),
                             },
                             "instructions": [
                                 "Draft tip contains canonical telomeric repeats in baseline assembly.",
@@ -730,9 +730,9 @@ def synthesize_telomere_cards(
 
                 evidence_dict = {
                     "unitig_id": best_u_name,
-                    "unitig_extension_bp": f"+{best_u_bp:,} bp",
-                    "subtelomeric_grs_bp": f"+{best_u_subgap:,} bp",
-                    "telomeric_tract_bp": f"{best_u_tract:,} bp",
+                    "unitig_extension_bp": int(best_u_bp),
+                    "subtelomeric_grs_bp": int(best_u_subgap),
+                    "telomeric_tract_bp": int(best_u_tract),
                 }
                 if best_u_region:
                     evidence_dict["unitig_extension_region"] = best_u_region
@@ -893,7 +893,7 @@ def synthesize_telomere_cards(
             if is_valid_germline_read and read_cnt >= min_read_support:
                 evidence_dict = {
                     "authorized_read_qname": read_qname,
-                    "read_extension_bp": f"+{read_ext_bp:,} bp",
+                    "read_extension_bp": int(read_ext_bp),
                     "telo_repeats": read_telo_cnt,
                     "read_count": read_cnt,
                     "supporting_reads": read_qnames,

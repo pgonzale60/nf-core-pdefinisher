@@ -190,7 +190,7 @@ def main():
                                         {("IV", "5p"): (0, 0, "None", 0)}), "IV", "5p")
     assert card["classification"] == "TELOMERE_IN_OVERHANG", card["classification"]
     assert card["action"] == "EXTEND_FROM_OVERHANG", card["action"]
-    assert card["evidence"]["terminal_tract_bp"] == "0 bp", card["evidence"]
+    assert card["evidence"]["terminal_tract_bp"] == 0, card["evidence"]
     print("I ok: telomere in the reads but not in the tip -> {} / {}".format(
         card["classification"], card["action"]))
 
