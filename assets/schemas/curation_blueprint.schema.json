@@ -1,0 +1,412 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/pgonzale60/nf-core-pdefinisher/blob/dev/assets/schemas/curation_blueprint.schema.json",
+  "title": "PDE Curation Synthesis Blueprint Manifest",
+  "description": "Formal JSON Schema (Draft 2020-12) for curation_manifest.json emitted by pde_curation_synthesis.py (Module 2) and consumed by Module 3 Resolution Engines and Module 4 AGP Integrator.",
+  "type": "object",
+  "required": [
+    "provenance",
+    "nuclear_chromosomes",
+    "unplaced_scaffolds",
+    "karyotype_compartments",
+    "policy",
+    "summary",
+    "scaffold_dispositions",
+    "telomere_unitig_inventory",
+    "action_cards"
+  ],
+  "properties": {
+    "sample_id": {
+      "type": "string",
+      "description": "Optional top-level sample identifier alias (canonical sample ID resides in provenance.sample)."
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "sample",
+        "software",
+        "software_version",
+        "schema_version",
+        "script_fingerprint"
+      ],
+      "properties": {
+        "sample": { "type": "string" },
+        "software": { "type": "string", "const": "pde_curation_synthesis.py" },
+        "software_version": { "type": "string" },
+        "schema_version": { "type": "string" },
+        "script_fingerprint": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "nuclear_chromosomes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Canonical nuclear chromosomes partitioned by Module 2."
+    },
+    "unplaced_scaffolds": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Unplaced scaffolds and non-nuclear sequences."
+    },
+    "karyotype_compartments": {
+      "type": "object",
+      "required": [
+        "classification_threshold",
+        "putative_core",
+        "putative_grs",
+        "elimination_range"
+      ],
+      "properties": {
+        "classification_threshold": { "type": "number" },
+        "putative_core": { "$ref": "#/$defs/compartmentStats" },
+        "putative_grs": { "$ref": "#/$defs/compartmentStats" },
+        "elimination_range": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "policy": {
+      "type": "object",
+      "description": "Single Source of Truth curation policy thresholds embedded at synthesis time."
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "total_action_cards",
+        "domain_internal",
+        "domain_terminus",
+        "domain_rdna",
+        "domain_scaffold"
+      ],
+      "properties": {
+        "total_action_cards": { "type": "integer", "minimum": 0 },
+        "domain_internal": { "type": "integer", "minimum": 0 },
+        "domain_terminus": { "type": "integer", "minimum": 0 },
+        "domain_rdna": { "type": "integer", "minimum": 0 },
+        "domain_scaffold": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "scaffold_dispositions": {
+      "type": "array",
+      "description": "Domain 4 per-scaffold redundancy triage and chromosomal port integration dispositions.",
+      "items": { "$ref": "#/$defs/scaffoldDisposition" }
+    },
+    "telomere_unitig_inventory": {
+      "type": "object",
+      "description": "Comprehensive survey of independently assembled telomeric unitigs and their assignment status."
+    },
+    "action_cards": {
+      "type": "array",
+      "description": "Unified list of Curation Action Cards across Domains 1, 2, 3, and 4.",
+      "items": { "$ref": "#/$defs/actionCard" }
+    },
+    "internal_gaps": {
+      "type": "array",
+      "description": "Optional Domain 1 internal gap and SV cards view.",
+      "items": { "$ref": "#/$defs/internalActionCard" }
+    },
+    "chromosome_termini": {
+      "type": "array",
+      "description": "Optional Domain 2 chromosome terminus cards view.",
+      "items": { "$ref": "#/$defs/terminusActionCard" }
+    },
+    "trans_chromosomal_links": {
+      "type": "array",
+      "description": "Optional Domain 1/3 trans-chromosomal misjoin candidate cards view.",
+      "items": { "$ref": "#/$defs/internalActionCard" }
+    },
+    "domains": {
+      "type": "object",
+      "description": "Optional domain-keyed dictionary view of action cards.",
+      "properties": {
+        "DOMAIN_INTERNAL": { "type": "array", "items": { "$ref": "#/$defs/internalActionCard" } },
+        "DOMAIN_TERMINUS": { "type": "array", "items": { "$ref": "#/$defs/terminusActionCard" } },
+        "DOMAIN_RDNA": { "type": "array", "items": { "$ref": "#/$defs/rdnaActionCard" } },
+        "DOMAIN_SCAFFOLD": { "type": "array", "items": { "$ref": "#/$defs/scaffoldActionCard" } }
+      },
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "compartmentStats": {
+      "type": "object",
+      "required": ["span_bp", "span_mb", "span_pct", "median_coverage"],
+      "properties": {
+        "span_bp": { "type": "integer", "minimum": 0 },
+        "span_mb": { "type": "number", "minimum": 0 },
+        "span_pct": { "type": "number", "minimum": 0 },
+        "median_coverage": { "type": "number", "minimum": 0 }
+      }
+    },
+    "terminusExecutionStepName": {
+      "type": "string",
+      "enum": [
+        "DEFER_TO_RDNA_RESOLVER",
+        "PRUNE_CHIMERIC_TERMINUS",
+        "ALREADY_CAPPED",
+        "CAP_WITH_UNITIG",
+        "INTEGRATE_UNPLACED_CONTIG",
+        "SCAFFOLD_REPEAT_TO_TELOMERE",
+        "ALIGN_SEED_TO_UNITIGS",
+        "EXTEND_TELOMERE_TRACT",
+        "CAP_WITH_READ",
+        "ITERATIVE_READ_WALKER",
+        "RETAIN_AS_IS"
+      ]
+    },
+    "terminusExecutionStep": {
+      "type": "object",
+      "required": ["step"],
+      "properties": {
+        "step": { "$ref": "#/$defs/terminusExecutionStepName" },
+        "unitig_id": { "type": ["string", "null"] },
+        "unitig_extension_region": {
+          "type": "object",
+          "properties": {
+            "q_start": { "type": "integer" },
+            "q_end": { "type": "integer" },
+            "strand": { "type": "string", "enum": ["+", "-"] },
+            "unitig_len": { "type": "integer" }
+          }
+        },
+        "scaffold": { "type": ["string", "null"] },
+        "overhang_bp": { "type": "integer", "minimum": 0 },
+        "strand": { "type": "string", "enum": ["+", "-"] },
+        "ext_qstart": { "type": ["integer", "null"] },
+        "ext_qend": { "type": ["integer", "null"] },
+        "cluster_id": { "type": ["string", "null"] },
+        "associated_scaffolds": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "authorized_read_qname": { "type": ["string", "null"] },
+        "junction_coord": { "type": "integer", "minimum": 0 },
+        "walker_max_iters": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": true
+    },
+    "terminusStatusEnum": {
+      "type": "string",
+      "description": "Canonical Domain 2 terminus classification / status enum produced by synthesize_telomere_cards.",
+      "enum": [
+        "TERMINUS_RDNA_ARRAY",
+        "ALREADY_CAPPED",
+        "DRAFT_HAS_TELOMERE",
+        "TELOMERE_IN_OVERHANG",
+        "RESOLVABLE_BY_UNITIG",
+        "SATELLITE_LINKED_TELOMERE",
+        "RESOLVABLE_BY_READ",
+        "SOMATIC_DIMINUTION_BOUNDARY",
+        "UNCAPPED_SUBTELOMERE"
+      ]
+    },
+    "terminusActionEnum": {
+      "type": "string",
+      "description": "Canonical Domain 2 terminus action / recommended_action enum produced by synthesize_telomere_cards.",
+      "enum": [
+        "TERMINUS_RDNA_ARRAY",
+        "BYPASS_WALKER",
+        "SKIP_WALKER",
+        "EXTEND_TELOMERE_TRACT",
+        "EXTEND_FROM_OVERHANG",
+        "EXTEND_TO_TELOMERE",
+        "SCAFFOLD_REPEAT_TO_TELOMERE",
+        "PRUNE_CHIMERIC_TERMINUS"
+      ]
+    },
+    "terminusActionCard": {
+      "type": "object",
+      "required": [
+        "card_id",
+        "domain",
+        "category",
+        "title",
+        "chrom",
+        "terminus",
+        "start",
+        "end",
+        "action",
+        "classification",
+        "confidence",
+        "evidence",
+        "instructions",
+        "execution_plan"
+      ],
+      "properties": {
+        "card_id": { "type": "string", "pattern": "^CARD-TELO-\\d+$" },
+        "domain": { "type": "string", "enum": ["DOMAIN_TERMINUS", "DOMAIN_RDNA"] },
+        "category": { "type": "string" },
+        "title": { "type": "string" },
+        "chrom": { "type": "string" },
+        "terminus": { "type": "string", "enum": ["5p", "3p"] },
+        "start": { "type": "integer", "minimum": 0 },
+        "end": { "type": "integer", "minimum": 0 },
+        "effective_chrom_start": { "type": "integer", "minimum": 0 },
+        "effective_chrom_len": { "type": "integer", "minimum": 0 },
+        "action": { "$ref": "#/$defs/terminusActionEnum" },
+        "recommended_action": { "$ref": "#/$defs/terminusActionEnum" },
+        "classification": { "$ref": "#/$defs/terminusStatusEnum" },
+        "status": { "$ref": "#/$defs/terminusStatusEnum" },
+        "confidence": { "type": "string", "enum": ["HIGH", "MEDIUM", "LOW"] },
+        "authorized_unitig_id": { "type": ["string", "null"] },
+        "authorized_read_qname": { "type": ["string", "null"] },
+        "evidence": {
+          "type": "object",
+          "properties": {
+            "terminal_tract_bp": { "type": "integer", "minimum": 0 },
+            "deep_spanning_overhang_bp": { "type": "integer", "minimum": 0 },
+            "unitig_extension_bp": { "type": "integer", "minimum": 0 },
+            "subtelomeric_grs_bp": { "type": "integer", "minimum": 0 },
+            "telomeric_tract_bp": { "type": "integer", "minimum": 0 },
+            "read_extension_bp": { "type": "integer", "minimum": 0 },
+            "telo_repeats": { "type": "integer", "minimum": 0 },
+            "read_count": { "type": "integer", "minimum": 0 },
+            "nominated_unplaced_contig": {
+              "type": "object",
+              "required": ["scaffold", "target_chrom", "terminus", "overhang_bp", "strand"],
+              "properties": {
+                "scaffold": { "type": "string" },
+                "scaffold_length": { "type": "integer" },
+                "target_chrom": { "type": "string" },
+                "terminus": { "type": "string", "enum": ["5p", "3p"] },
+                "overhang_bp": { "type": "integer" },
+                "strand": { "type": "string", "enum": ["+", "-"] },
+                "ext_qstart": { "type": ["integer", "null"] },
+                "ext_qend": { "type": ["integer", "null"] }
+              }
+            }
+          },
+          "additionalProperties": true
+        },
+        "instructions": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "execution_plan": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/terminusExecutionStep" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "internalActionCard": {
+      "type": "object",
+      "required": ["card_id", "domain", "category", "action", "title", "chrom", "start", "end", "confidence", "evidence", "instructions"],
+      "properties": {
+        "card_id": { "type": "string" },
+        "domain": { "type": "string", "const": "DOMAIN_INTERNAL" },
+        "category": { "type": "string" },
+        "action": {
+          "type": "string",
+          "enum": [
+            "SUBSUMED_BY_RDNA_ARRAY",
+            "TRANSLOCATE_CONTIG_CANDIDATE",
+            "INVERT_AND_STITCH",
+            "EXCISE_DUMMY_GAP",
+            "EXCISE_GAP",
+            "PATCH_GAP_INSERTION",
+            "CLOSE_GAP_COLINEAR",
+            "REQUIRES_UNITIG_PATCH",
+            "INSERT_SEQUENCE"
+          ]
+        },
+        "title": { "type": "string" },
+        "chrom": { "type": "string" },
+        "start": { "type": "integer", "minimum": 0 },
+        "end": { "type": "integer", "minimum": 0 },
+        "confidence": { "type": "string", "enum": ["HIGH", "MEDIUM", "LOW"] },
+        "evidence": { "type": "object" },
+        "instructions": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "rdnaActionCard": {
+      "type": "object",
+      "required": ["card_id", "domain", "category", "action", "title", "chrom", "start", "end", "confidence", "evidence", "instructions"],
+      "properties": {
+        "card_id": { "type": "string" },
+        "domain": { "type": "string", "const": "DOMAIN_RDNA" },
+        "category": { "type": "string" },
+        "action": {
+          "type": "string",
+          "enum": [
+            "TERMINUS_RDNA_ARRAY",
+            "REPLACE_RDNA_ARRAY"
+          ]
+        },
+        "classification": { "type": "string" },
+        "title": { "type": "string" },
+        "chrom": { "type": "string" },
+        "start": { "type": "integer", "minimum": 0 },
+        "end": { "type": "integer", "minimum": 0 },
+        "confidence": { "type": "string", "enum": ["HIGH", "MEDIUM", "LOW"] },
+        "evidence": { "type": "object" },
+        "instructions": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "scaffoldActionCard": {
+      "type": "object",
+      "required": ["card_id", "domain", "category", "action", "title", "scaffold", "length", "confidence", "evidence", "instructions"],
+      "properties": {
+        "card_id": { "type": "string" },
+        "domain": { "type": "string", "const": "DOMAIN_SCAFFOLD" },
+        "category": { "type": "string" },
+        "action": {
+          "type": "string",
+          "enum": [
+            "PURGE_ORGANELLAR",
+            "PURGE_RDNA_FRAGMENT",
+            "PURGE_HAPLOTIG",
+            "INTEGRATE_UNPLACED_REPEAT",
+            "INTEGRATE_INTO_CHROMOSOME"
+          ]
+        },
+        "classification": { "type": "string" },
+        "title": { "type": "string" },
+        "scaffold": { "type": "string" },
+        "length": { "type": "integer", "minimum": 0 },
+        "confidence": { "type": "string", "enum": ["HIGH", "MEDIUM", "LOW"] },
+        "evidence": { "type": "object" },
+        "instructions": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "actionCard": {
+      "oneOf": [
+        { "$ref": "#/$defs/terminusActionCard" },
+        { "$ref": "#/$defs/internalActionCard" },
+        { "$ref": "#/$defs/rdnaActionCard" },
+        { "$ref": "#/$defs/scaffoldActionCard" }
+      ]
+    },
+    "scaffoldDisposition": {
+      "type": "object",
+      "required": [
+        "scaffold",
+        "length",
+        "triage",
+        "action",
+        "core_aligned_bp",
+        "rdna_operon_bp",
+        "novel_bp",
+        "repeat_density_pct"
+      ],
+      "properties": {
+        "scaffold": { "type": "string" },
+        "length": { "type": "integer", "minimum": 0 },
+        "triage": {
+          "type": "string",
+          "enum": ["Haplotig", "Satellite", "Genuine_Contig", "Organellar", "rDNA_Fragment", "Unknown"]
+        },
+        "action": { "type": "string" },
+        "core_aligned_bp": { "type": "integer", "minimum": 0 },
+        "rdna_operon_bp": { "type": "integer", "minimum": 0 },
+        "novel_bp": { "type": "integer", "minimum": 0 },
+        "repeat_density_pct": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": true
+    }
+  }
+}
