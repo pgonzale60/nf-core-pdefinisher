@@ -8,7 +8,8 @@ process CURATIONEVALUATOR {
         'quay.io/biocontainers/python:3.10.4' }"
 
     input:
-    tuple val(meta), path(pre_ref), path(post_ref), path(blueprint_json), path(curated_agp), path(curation_audit), path(gap_manifest), path(walker_manifest), path(rdna_manifest), path(terminal_summary), path(trans_manifest), path(red_bed)
+    tuple val(meta), path(pre_ref), path(post_ref), path(blueprint_json), path(curated_agp), path(curation_audit), path(gap_manifest), path(walker_manifest), path(rdna_manifest), path(terminal_summary), path(trans_manifest), path(red_bed), path(gap_evidence_json)
+    val chromosomes
 
     output:
     tuple val(meta), path("*.curation_scorecard.json"), emit: scorecard_json
@@ -19,12 +20,19 @@ process CURATIONEVALUATOR {
     task.ext.when == null || task.ext.when
 
     script:
-    def args      = task.ext.args ?: ''
-    def prefix    = task.ext.prefix ?: "${meta.id}"
-    def trans_arg = trans_manifest ? "--trans-manifest \"${trans_manifest}\"" : ""
-    def red_arg   = red_bed ? "--red-bed \"${red_bed}\"" : ""
+    def args       = task.ext.args ?: ''
+    def prefix     = task.ext.prefix ?: "${meta.id}"
+    def trans_arg  = trans_manifest ? "--trans-manifest \"${trans_manifest}\"" : ""
+    def red_arg    = red_bed ? "--red-bed \"${red_bed}\"" : ""
+    def gap_arg    = gap_evidence_json ? "--gap-evidence \"${gap_evidence_json}\"" : ""
+    def eff_chroms = meta.chromosomes ?: chromosomes
+    def chr_arg    = eff_chroms ? "--chromosomes \"${eff_chroms}\"" : ""
     """
-    # Tool: pde_evaluate_curation.py | Script-SHA: eb7d8a1c1b67099e
+<<<<<<< HEAD
+    # Tool: pde_evaluate_curation.py | Script-SHA: 949457b865e09812
+=======
+    # Tool: pde_evaluate_curation.py | Script-SHA: 7fbc2ec0ba6e5b57
+>>>>>>> 4047c32 (fix(topology,params): propagate policy, chromosomes, and gap evidence through Nextflow channels (#21))
     pde_evaluate_curation.py --version
     pde_evaluate_curation.py \\
         --pre-ref "${pre_ref}" \\
@@ -38,6 +46,8 @@ process CURATIONEVALUATOR {
         --terminal-summary "${terminal_summary}" \\
         ${trans_arg} \\
         ${red_arg} \\
+        ${gap_arg} \\
+        ${chr_arg} \\
         --sample "${prefix}" \\
         --outdir "." \\
         ${args}

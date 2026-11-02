@@ -36,11 +36,17 @@ workflow PDEFINISHER {
     //
     // SUBWORKFLOW: Run end-to-end Automated PDE Curation
     //
+    def policy_file = file(params.curation_policy ?: "${projectDir}/assets/curation_policy.json", checkIfExists: true)
+
+    def val_telomere_repeat = ch_samplesheet.map { meta, _assembly, _bam, _bai -> meta.telomere_repeat ?: (params.telomere_repeat ?: 'TTAGGC') }.first()
+    def val_chromosomes     = ch_samplesheet.map { meta, _assembly, _bam, _bai -> meta.chromosomes ?: (params.chromosomes ?: '') }.first()
+
     AUTOMATED_PDE_CURATION (
         ch_assembly,
         ch_bam,
-        params.telomere_repeat ?: 'TTAGGC',
-        params.chromosomes ?: ''
+        policy_file,
+        val_telomere_repeat,
+        val_chromosomes
     )
     ch_versions = ch_versions.mix(AUTOMATED_PDE_CURATION.out.versions)
 
