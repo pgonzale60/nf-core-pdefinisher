@@ -28,11 +28,7 @@ process CURATIONEVALUATOR {
     def eff_chroms = meta.chromosomes ?: chromosomes
     def chr_arg    = eff_chroms ? "--chromosomes \"${eff_chroms}\"" : ""
     """
-<<<<<<< HEAD
     # Tool: pde_evaluate_curation.py | Script-SHA: 949457b865e09812
-=======
-    # Tool: pde_evaluate_curation.py | Script-SHA: 7fbc2ec0ba6e5b57
->>>>>>> 4047c32 (fix(topology,params): propagate policy, chromosomes, and gap evidence through Nextflow channels (#21))
     pde_evaluate_curation.py --version
     pde_evaluate_curation.py \\
         --pre-ref "${pre_ref}" \\
