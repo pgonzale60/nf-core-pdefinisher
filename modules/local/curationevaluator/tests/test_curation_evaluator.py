@@ -289,6 +289,69 @@ class TestCurationEvaluator(unittest.TestCase):
         self.assertEqual(measured_total_delta, -780)
         self.assertTrue(is_conserved)
 
+    def test_e2e_scaffold_underscore_mapping_in_evaluator(self):
+        """End-to-end execution of pde_evaluate_curation.py confirming terminal summary records with underscores (scaffold_1_5p) are correctly loaded and reported."""
+        import json
+        import os
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pre_fa = os.path.join(tmpdir, "pre.fa")
+            with open(pre_fa, "w") as f:
+                f.write(">scaffold_1\n" + ("A" * 1000) + "\n")
+            post_fa = os.path.join(tmpdir, "post.fa")
+            with open(post_fa, "w") as f:
+                f.write(">scaffold_1\n" + ("A" * 1000) + "\n")
+            bp = os.path.join(tmpdir, "bp.json")
+            with open(bp, "w") as f:
+                json.dump({"action_cards": [], "nuclear_chromosomes": ["scaffold_1"]}, f)
+            agp = os.path.join(tmpdir, "test.agp")
+            with open(agp, "w") as f:
+                f.write("scaffold_1\t1\t1000\t1\tW\tscaffold_1\t1\t1000\t+\n")
+            audit = os.path.join(tmpdir, "audit.tsv")
+            with open(audit, "w") as f:
+                f.write("sample\tchrom\tcard_id\taction\tedit_type\torig_start\torig_end\tdelta_bp\n")
+            gap = os.path.join(tmpdir, "gap.tsv")
+            with open(gap, "w") as f:
+                f.write("gap_id\tchrom\tgap_start\tgap_end\tgap_len\tstatus\tpatch_fasta\n")
+            walk = os.path.join(tmpdir, "walk.tsv")
+            with open(walk, "w") as f:
+                f.write("sample\tchrom\tterminus\tstatus\tadded_bp\textension_fasta\taction\n")
+            rdna = os.path.join(tmpdir, "rdna.tsv")
+            with open(rdna, "w") as f:
+                f.write("sample\tchrom\tcard_id\tstatus\tcassette_fasta\n")
+            tsum = os.path.join(tmpdir, "tsum.tsv")
+            with open(tsum, "w") as f:
+                f.write("chrom_end\tchrom_length\tn_softclipped_reads\tn_telomeric_reads\tmax_telo_count\tproposed_status\tterminal_tract_bp\n")
+                f.write("scaffold_1_5p\t1000\t15\t12\t45\tUNCAPPED\t250\n")
+            outdir = os.path.join(tmpdir, "out")
+
+            cmd = [
+                sys.executable,
+                str(bin_dir / "pde_evaluate_curation.py"),
+                "--pre-ref", pre_fa,
+                "--post-ref", post_fa,
+                "--blueprint", bp,
+                "--agp", agp,
+                "--audit", audit,
+                "--gap-manifest", gap,
+                "--walker-manifest", walk,
+                "--rdna-manifest", rdna,
+                "--terminal-summary", tsum,
+                "--sample", "TEST_UNDERSCORE",
+                "--outdir", outdir,
+            ]
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            self.assertEqual(res.returncode, 0, f"STDOUT: {res.stdout}\nSTDERR: {res.stderr}")
+
+            md_path = os.path.join(outdir, "TEST_UNDERSCORE.curation_report.md")
+            self.assertTrue(os.path.exists(md_path))
+            with open(md_path) as mf:
+                content = mf.read()
+            self.assertIn("scaffold_1 5'", content)
+            self.assertIn("12 of 15 terminal reads carry", content)
+
 
 if __name__ == "__main__":
     unittest.main()
+

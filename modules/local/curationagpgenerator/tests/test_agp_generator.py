@@ -491,10 +491,14 @@ class TestCurationAGPGenerator(unittest.TestCase):
             res = subprocess.run(cmd, capture_output=True, text=True)
             self.assertEqual(res.returncode, 0, f"STDOUT: {res.stdout}\nSTDERR: {res.stderr}")
 
-            # 1. Empty purged rDNA fasta must exist and have 0 bytes
+            # 1. Empty purged rDNA and haplotigs fasta must exist and have 0 bytes
             purged_rdna_fa = os.path.join(outdir, "GAP_TEST.purged_rdna.fasta")
             self.assertTrue(os.path.exists(purged_rdna_fa), "purged_rdna.fasta must exist even when empty")
             self.assertEqual(os.path.getsize(purged_rdna_fa), 0)
+
+            haplo_fa = os.path.join(outdir, "GAP_TEST.haplotigs.fasta")
+            self.assertTrue(os.path.exists(haplo_fa), "haplotigs.fasta must exist even when empty")
+            self.assertEqual(os.path.getsize(haplo_fa), 0)
 
             # 2. Audit file must contain TRIM_TERMINAL_GAP with delta_bp == -50
             audit_path = os.path.join(outdir, "GAP_TEST.curation_audit.tsv")
@@ -509,7 +513,51 @@ class TestCurationAGPGenerator(unittest.TestCase):
             self.assertEqual(len(trim_rows), 1)
             self.assertEqual(int(trim_rows[0][delta_idx]), -50)
 
+    def test_purged_rdna_fasta_population(self):
+        """Verifies that purged rDNA contigs are segregated into *.purged_rdna.fasta with sequence contents."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ref_path = os.path.join(tmpdir, "ref.fa")
+            with open(ref_path, "w") as f:
+                f.write(">chr1\n" + ("A" * 1000) + "\n")
+                f.write(">scaffold_rdna_unplaced\n" + ("C" * 600) + "\n")
+
+            blueprint_path = os.path.join(tmpdir, "blueprint.json")
+            blueprint = {
+                "nuclear_chromosomes": ["chr1"],
+                "action_cards": [
+                    {
+                        "card_id": "CARD-PURGE-RDNA",
+                        "chrom": "scaffold_rdna_unplaced",
+                        "domain": "DOMAIN_SCAFFOLD",
+                        "action": "PURGE_RDNA_FRAGMENT",
+                        "classification": "PURGE_RDNA_FRAGMENT"
+                    }
+                ]
+            }
+            with open(blueprint_path, "w") as f:
+                json.dump(blueprint, f)
+
+            outdir = os.path.join(tmpdir, "out")
+            cmd = [
+                sys.executable,
+                str(BIN_DIR / "pde_generate_agp.py"),
+                "--blueprint", blueprint_path,
+                "--ref", ref_path,
+                "--sample", "RDNA_PURGE_TEST",
+                "--outdir", outdir,
+            ]
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            self.assertEqual(res.returncode, 0, f"STDOUT: {res.stdout}\nSTDERR: {res.stderr}")
+
+            purged_rdna_fa = os.path.join(outdir, "RDNA_PURGE_TEST.purged_rdna.fasta")
+            self.assertTrue(os.path.exists(purged_rdna_fa))
+            with open(purged_rdna_fa) as f:
+                content = f.read()
+            self.assertIn(">scaffold_rdna_unplaced", content)
+            self.assertIn("C" * 80, content)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

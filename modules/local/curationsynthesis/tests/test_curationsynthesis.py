@@ -575,6 +575,22 @@ class TestCurationsynthesis(unittest.TestCase):
             self.assertIn(("chr_2_sub", "3p"), baseline_status)
             self.assertEqual(baseline_status[("chr_2_sub", "3p")], "UNCAPPED")
             self.assertEqual(tip_tract_bp[("chr_2_sub", "3p")], 180)
+
+            # Verify that synthesize_telomere_cards correctly consumes baseline_status for scaffold_1
+            cards = synthesize_telomere_cards(
+                nuclear_chroms=["scaffold_1"],
+                chrom_lens={"scaffold_1": 1000000},
+                grs_segments={},
+                core_segments={},
+                delfies_points={},
+                rdna_intervals={},
+                baseline_status=baseline_status,
+                unitig_extensions={},
+                single_read_ext={},
+                tip_tract_bp=tip_tract_bp,
+            )
+            scaff_5p_card = next(c for c in cards if c["chrom"] == "scaffold_1" and c["terminus"] == "5p")
+            self.assertEqual(scaff_5p_card["classification"], "ALREADY_CAPPED")
         finally:
             os.unlink(tf_path)
 
