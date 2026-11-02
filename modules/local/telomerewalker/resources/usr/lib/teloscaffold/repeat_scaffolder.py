@@ -153,7 +153,15 @@ def materialise_satellite_scaffold(card, chrom, terminus, motif, rev_motif,
     evidence = card.get("evidence", {}) or {}
     supporting_reads = evidence.get("supporting_reads") or []
     read_count = len(supporting_reads) if isinstance(supporting_reads, list) else int(supporting_reads or 0)
-    tract_bp = int(evidence.get("telomeric_tract_bp") or nominal_cap_bp)
+    raw_tract = evidence.get("telomeric_tract_bp")
+    if raw_tract is not None:
+        clean_tract = str(raw_tract).lower().replace("bp", "").replace(",", "").strip()
+        try:
+            tract_bp = int(float(clean_tract)) if clean_tract else nominal_cap_bp
+        except (ValueError, TypeError):
+            tract_bp = nominal_cap_bp
+    else:
+        tract_bp = nominal_cap_bp
 
     # Respect curation policy
     if policy is None:
