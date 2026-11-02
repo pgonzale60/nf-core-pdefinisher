@@ -264,6 +264,8 @@ class TestCurationsynthesis(unittest.TestCase):
         self.assertEqual(card_3p["action"], "EXTEND_TELOMERE_TRACT")
         self.assertEqual(card_3p["authorized_unitig_id"], "utg000010l")
         self.assertIsNone(card_3p["authorized_read_qname"])
+        self.assertIsInstance(card_3p["evidence"]["deep_spanning_overhang_bp"], int)
+        self.assertEqual(card_3p["evidence"]["deep_spanning_overhang_bp"], 2500)
 
         # Case 2: TELOMERE_IN_OVERHANG
         cards_overhang = synthesize_telomere_cards(
@@ -282,6 +284,10 @@ class TestCurationsynthesis(unittest.TestCase):
         self.assertEqual(card_oh["action"], "EXTEND_FROM_OVERHANG")
         self.assertEqual(card_oh["authorized_unitig_id"], "utg000010l")
         self.assertIsNone(card_oh["authorized_read_qname"])
+        self.assertIsInstance(card_oh["evidence"]["deep_spanning_overhang_bp"], int)
+        self.assertEqual(card_oh["evidence"]["deep_spanning_overhang_bp"], 2500)
+        self.assertIsInstance(card_oh["evidence"]["terminal_tract_bp"], int)
+        self.assertEqual(card_oh["evidence"]["terminal_tract_bp"], 0)
 
     def test_level_5c_cap_with_read_multi_read_support(self):
         chrom_lens = {"chr1": 1000000}
@@ -330,6 +336,8 @@ class TestCurationsynthesis(unittest.TestCase):
         self.assertEqual(card_acc["authorized_read_qname"], "read_capper_3x")
         self.assertEqual(card_acc["evidence"]["read_count"], 3)
         self.assertEqual(card_acc["evidence"]["supporting_reads"], ["r1", "r2", "r3"])
+        self.assertIsInstance(card_acc["evidence"]["read_extension_bp"], int)
+        self.assertEqual(card_acc["evidence"]["read_extension_bp"], 500)
 
     def test_load_terminal_softclips_collinear_and_multi_read(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -517,6 +525,37 @@ class TestCurationsynthesis(unittest.TestCase):
             "ITERATIVE_READ_WALKER",
         ])
         self.assertEqual(plan_3p[0]["scaffold"], "unplaced_scaff_B")
+
+    def test_level_5a_unitig_capping_emits_raw_integers_in_evidence(self):
+        """Verifies that Level 5a Phase 1 Unitig Capping emits raw integers in evidence_dict."""
+        chrom_lens = {"chr1": 1000000}
+        nuclear_chroms = ["chr1"]
+        # unitig_extensions format: list of (overhang_bp, unitig_id, telomeric_tract_bp, subtelo_gap_bp, q_start, q_end, strand, unitig_len)
+        unitig_extensions = {
+            ("chr1", "5p"): [(12000, "utg000005l", 850, 400, 0, 12000, "+", 15000)]
+        }
+        cards = synthesize_telomere_cards(
+            nuclear_chroms=nuclear_chroms,
+            chrom_lens=chrom_lens,
+            grs_segments={},
+            core_segments={},
+            delfies_points={},
+            rdna_intervals={},
+            baseline_status={("chr1", "5p"): "UNCAPPED"},
+            unitig_extensions=unitig_extensions,
+            single_read_ext={},
+            tip_tract_bp={("chr1", "5p"): 0},
+        )
+        card = next(c for c in cards if c["chrom"] == "chr1" and c["terminus"] == "5p")
+        self.assertEqual(card["classification"], "RESOLVABLE_BY_UNITIG")
+        evidence = card["evidence"]
+        self.assertEqual(evidence["unitig_id"], "utg000005l")
+        self.assertIsInstance(evidence["unitig_extension_bp"], int)
+        self.assertEqual(evidence["unitig_extension_bp"], 12000)
+        self.assertIsInstance(evidence["subtelomeric_grs_bp"], int)
+        self.assertEqual(evidence["subtelomeric_grs_bp"], 400)
+        self.assertIsInstance(evidence["telomeric_tract_bp"], int)
+        self.assertEqual(evidence["telomeric_tract_bp"], 850)
 
 
 if __name__ == "__main__":
