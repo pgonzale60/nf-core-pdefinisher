@@ -399,5 +399,55 @@ class TestTelomereWalker(unittest.TestCase):
         self.assertEqual(executed_steps, ["STEP_A", "STEP_B"])
         self.assertNotIn("STEP_C", executed_steps)
 
+    def test_materialise_satellite_scaffold_sanitizes_unit_suffixed_tract_bp(self):
+        """Verifies that repeat_scaffolder.materialise_satellite_scaffold parses unit-suffixed telomeric_tract_bp."""
+        from teloscaffold import materialise_satellite_scaffold
+
+        card_with_bp_str = {
+            "evidence": {
+                "telomeric_tract_bp": "0 bp",
+                "supporting_reads": [],
+            }
+        }
+        res = materialise_satellite_scaffold(
+            card_with_bp_str, "chr1", "5p", "TTAGGC", "GCCTAA", nominal_cap_bp=800
+        )
+        self.assertEqual(res["status"], "RESOLVED_BY_SATELLITE_SCAFFOLD")
+        self.assertGreater(res["telo_len"], 0)
+
+        card_with_comma_kbp = {
+            "evidence": {
+                "telomeric_tract_bp": "1,250 bp",
+                "supporting_reads": [],
+            }
+        }
+        res2 = materialise_satellite_scaffold(
+            card_with_comma_kbp, "chr1", "3p", "TTAGGC", "GCCTAA", nominal_cap_bp=800
+        )
+        self.assertEqual(res2["status"], "RESOLVED_BY_SATELLITE_SCAFFOLD")
+        self.assertGreaterEqual(res2["telo_len"], 1200)
+
+        card_with_int = {
+            "evidence": {
+                "telomeric_tract_bp": 500,
+                "supporting_reads": [],
+            }
+        }
+        res3 = materialise_satellite_scaffold(
+            card_with_int, "chr1", "5p", "TTAGGC", "GCCTAA", nominal_cap_bp=800
+        )
+        self.assertEqual(res3["status"], "RESOLVED_BY_SATELLITE_SCAFFOLD")
+
+        card_with_none = {
+            "evidence": {
+                "telomeric_tract_bp": None,
+                "supporting_reads": [],
+            }
+        }
+        res4 = materialise_satellite_scaffold(
+            card_with_none, "chr1", "5p", "TTAGGC", "GCCTAA", nominal_cap_bp=800
+        )
+        self.assertEqual(res4["status"], "RESOLVED_BY_SATELLITE_SCAFFOLD")
+
 if __name__ == "__main__":
     unittest.main()
