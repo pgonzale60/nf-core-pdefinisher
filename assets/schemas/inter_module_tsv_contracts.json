@@ -44,7 +44,7 @@
       "consumer_modules": ["CURATIONSYNTHESIS", "CURATIONEVALUATOR"],
       "consumer_scripts": [
         "modules/local/curationsynthesis/resources/usr/lib/curationsynthesis/evidence_io.py",
-        "modules/local/curationevaluator/resources/usr/bin/pde_curation_evaluator.py"
+        "modules/local/curationevaluator/resources/usr/bin/pde_evaluate_curation.py"
       ],
       "consumer_functions": ["load_terminal_summary"],
       "columns": [
@@ -127,7 +127,7 @@
       "consumer_modules": ["CURATIONAGPGENERATOR", "CURATIONEVALUATOR"],
       "consumer_scripts": [
         "modules/local/curationagpgenerator/resources/usr/bin/pde_generate_agp.py",
-        "modules/local/curationevaluator/resources/usr/bin/pde_curation_evaluator.py"
+        "modules/local/curationevaluator/resources/usr/bin/pde_evaluate_curation.py"
       ],
       "columns": [
         "chrom",
@@ -175,7 +175,7 @@
       "consumer_modules": ["CURATIONAGPGENERATOR", "CURATIONEVALUATOR"],
       "consumer_scripts": [
         "modules/local/curationagpgenerator/resources/usr/bin/pde_generate_agp.py",
-        "modules/local/curationevaluator/resources/usr/bin/pde_curation_evaluator.py"
+        "modules/local/curationevaluator/resources/usr/bin/pde_evaluate_curation.py"
       ],
       "columns": [
         "gap_id",
@@ -212,7 +212,7 @@
       "consumer_modules": ["CURATIONAGPGENERATOR", "CURATIONEVALUATOR"],
       "consumer_scripts": [
         "modules/local/curationagpgenerator/resources/usr/bin/pde_generate_agp.py",
-        "modules/local/curationevaluator/resources/usr/bin/pde_curation_evaluator.py"
+        "modules/local/curationevaluator/resources/usr/bin/pde_evaluate_curation.py"
       ],
       "columns": [
         "sample",
@@ -254,7 +254,7 @@
       "consumer_modules": ["CURATIONAGPGENERATOR", "CURATIONEVALUATOR"],
       "consumer_scripts": [
         "modules/local/curationagpgenerator/resources/usr/bin/pde_generate_agp.py",
-        "modules/local/curationevaluator/resources/usr/bin/pde_curation_evaluator.py"
+        "modules/local/curationevaluator/resources/usr/bin/pde_evaluate_curation.py"
       ],
       "columns": [
         "sample",
@@ -302,8 +302,8 @@
       "producer_script": "modules/local/curationagpgenerator/resources/usr/bin/pde_generate_agp.py",
       "consumer_modules": ["CURATIONEVALUATOR", "CURATIONVALIDATION"],
       "consumer_scripts": [
-        "modules/local/curationevaluator/resources/usr/bin/pde_curation_evaluator.py",
-        "modules/local/curationvalidation/resources/usr/bin/pde_curation_validation.py"
+        "modules/local/curationevaluator/resources/usr/bin/pde_evaluate_curation.py",
+        "modules/local/curationvalidation/resources/usr/bin/pde_validate_curation.py"
       ],
       "columns": [
         "sample",

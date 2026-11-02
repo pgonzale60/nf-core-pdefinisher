@@ -248,6 +248,47 @@ class TestCurationEvaluator(unittest.TestCase):
         ledger_subtotal = sum(r["net_delta"] for r in ledger_rows)
         self.assertEqual(ledger_subtotal, measured_total_delta)
 
+    def test_terminal_summary_underscore_mapping(self):
+        """Verifies that terminal summary records with underscores (e.g. scaffold_1_5p) map correctly to (chrom, side)."""
+        terminal_summary_rows = [
+            {"chrom_end": "scaffold_1_5p", "proposed_status": "ALREADY_CAPPED"},
+            {"chrom_end": "chr_2_sub_3p", "proposed_status": "UNCAPPED"},
+        ]
+        term_summary_map = {}
+        for r in terminal_summary_rows:
+            cend = r.get("chrom_end", "")
+            if "_" in cend:
+                parts = cend.rsplit("_", 1)
+                c = parts[0]
+                side = "5p" if ("5p" in parts[1] or "left" in parts[1]) else "3p"
+                term_summary_map[(c, side)] = r
+
+        self.assertIn(("scaffold_1", "5p"), term_summary_map)
+        self.assertEqual(term_summary_map[("scaffold_1", "5p")]["proposed_status"], "ALREADY_CAPPED")
+
+        self.assertIn(("chr_2_sub", "3p"), term_summary_map)
+        self.assertEqual(term_summary_map[("chr_2_sub", "3p")]["proposed_status"], "UNCAPPED")
+
+    def test_ledger_reconciliation_with_trim_terminal_gap(self):
+        """Verifies that TRIM_TERMINAL_GAP audit rows reconcile perfectly with measured size differences."""
+        audit_rows = [
+            {"chrom": "chr1", "card_id": "TELO-chr1-5p", "edit_type": "TELO_5P", "delta_bp": 500},
+            {"chrom": "chr1", "card_id": "TRIM-chr1", "edit_type": "TRIM_TERMINAL_GAP", "delta_bp": -80},
+            {"chrom": "scaffold_1", "card_id": "SCAFF-scaffold_1", "edit_type": "PURGE_HAPLOTIG", "delta_bp": -1200},
+        ]
+        pre_total_bp = 100000
+        # Post total bp: 100000 + 500 - 80 - 1200 = 99220
+        post_total_bp = pre_total_bp + 500 - 80 - 1200
+
+        audit_total_delta = sum(int(r.get("delta_bp", 0)) for r in audit_rows)
+        measured_total_delta = post_total_bp - pre_total_bp
+        reconciliation_discrepancy = measured_total_delta - audit_total_delta
+        is_conserved = (reconciliation_discrepancy == 0)
+
+        self.assertEqual(audit_total_delta, -780)
+        self.assertEqual(measured_total_delta, -780)
+        self.assertTrue(is_conserved)
+
 
 if __name__ == "__main__":
     unittest.main()

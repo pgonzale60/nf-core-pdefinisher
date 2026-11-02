@@ -619,7 +619,7 @@ def main():
     for r in terminal_summary_rows:
         cend = r.get("chrom_end", "")
         if "_" in cend:
-            parts = cend.split("_", 1)
+            parts = cend.rsplit("_", 1)
             c = parts[0]
             side = "5p" if ("5p" in parts[1] or "left" in parts[1]) else "3p"
             term_summary_map[(c, side)] = r

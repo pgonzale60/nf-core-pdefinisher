@@ -15,6 +15,7 @@ from curationsynthesis import (
     detect_chimeric_terminus,
     load_grs_summary,
     load_terminal_softclips,
+    load_terminal_summary,
     reconcile_unplaced_contigs_into_terminus_cards,
     survey_telomere_unitigs,
     synthesize_telomere_cards,
@@ -556,6 +557,26 @@ class TestCurationsynthesis(unittest.TestCase):
         self.assertEqual(evidence["subtelomeric_grs_bp"], 400)
         self.assertIsInstance(evidence["telomeric_tract_bp"], int)
         self.assertEqual(evidence["telomeric_tract_bp"], 850)
+
+    def test_load_terminal_summary_scaffold_with_underscores(self):
+        """Verifies that scaffold names with underscores (e.g. scaffold_1_5p) are split correctly using rsplit."""
+        with tempfile.NamedTemporaryFile("w", delete=False) as tf:
+            tf.write("chrom_end\tchrom_length\tn_softclipped_reads\tn_telomeric_reads\tmax_telo_count\tproposed_status\tterminal_tract_bp\n")
+            tf.write("scaffold_1_5p\t1000000\t15\t12\t45\tALREADY_CAPPED\t250\n")
+            tf.write("chr_2_sub_3p\t2000000\t8\t6\t30\tUNCAPPED\t180\n")
+            tf_path = tf.name
+
+        try:
+            baseline_status, tip_tract_bp = load_terminal_summary(tf_path)
+            self.assertIn(("scaffold_1", "5p"), baseline_status)
+            self.assertEqual(baseline_status[("scaffold_1", "5p")], "ALREADY_CAPPED")
+            self.assertEqual(tip_tract_bp[("scaffold_1", "5p")], 250)
+
+            self.assertIn(("chr_2_sub", "3p"), baseline_status)
+            self.assertEqual(baseline_status[("chr_2_sub", "3p")], "UNCAPPED")
+            self.assertEqual(tip_tract_bp[("chr_2_sub", "3p")], 180)
+        finally:
+            os.unlink(tf_path)
 
 
 if __name__ == "__main__":
