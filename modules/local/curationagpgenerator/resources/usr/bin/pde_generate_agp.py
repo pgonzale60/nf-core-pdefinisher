@@ -46,12 +46,15 @@ def strip_terminal_gaps(blocks, components_pool):
     Strips leading and trailing N blocks (type == "N") and trims terminal N characters
     from boundary W blocks to guarantee no chromosome or scaffold begins or ends
     with an N-gap (e.g. when cleaved at PDE breakpoints or scaffolding gaps).
+    Returns (blocks, trimmed_bp).
     """
+    trimmed_bp = 0
     changed = True
     while changed and blocks:
         changed = False
         # Strip leading N blocks
         while blocks and blocks[0].type == "N":
+            trimmed_bp += blocks[0].length
             blocks.pop(0)
             changed = True
         # Trim leading Ns from first W block
@@ -59,6 +62,7 @@ def strip_terminal_gaps(blocks, components_pool):
             seq = blocks[0].source_seq
             trimmed_seq = seq.lstrip("Nn")
             if len(trimmed_seq) < len(seq):
+                trimmed_bp += len(seq) - len(trimmed_seq)
                 cid = blocks[0].component_id
                 if not trimmed_seq:
                     blocks.pop(0)
@@ -73,6 +77,7 @@ def strip_terminal_gaps(blocks, components_pool):
 
         # Strip trailing N blocks
         while blocks and blocks[-1].type == "N":
+            trimmed_bp += blocks[-1].length
             blocks.pop()
             changed = True
         # Trim trailing Ns from last W block
@@ -80,6 +85,7 @@ def strip_terminal_gaps(blocks, components_pool):
             seq = blocks[-1].source_seq
             trimmed_seq = seq.rstrip("Nn")
             if len(trimmed_seq) < len(seq):
+                trimmed_bp += len(seq) - len(trimmed_seq)
                 cid = blocks[-1].component_id
                 if not trimmed_seq:
                     blocks.pop()
@@ -91,7 +97,7 @@ def strip_terminal_gaps(blocks, components_pool):
                     )
                     components_pool[cid] = trimmed_seq
                 changed = True
-    return blocks
+    return blocks, trimmed_bp
 
 
 def run_self_test():
@@ -111,8 +117,9 @@ def run_self_test():
         AGPBlock(type="N", component_id="gap_end", length=200, orientation=None, source_seq="N" * 200),
     ]
 
-    stripped = strip_terminal_gaps(test_blocks, comp_pool)
+    stripped, trimmed_bp = strip_terminal_gaps(test_blocks, comp_pool)
     assert len(stripped) == 3, f"Expected 3 blocks, got {len(stripped)}"
+    assert trimmed_bp == 304, f"Expected trimmed_bp 304, got {trimmed_bp}"
     assert stripped[0].type == "W" and stripped[0].component_id == "c_lead_trail_n"
     assert stripped[0].length == 12, f"Expected length 12 after leading N trim, got {stripped[0].length}"
     assert comp_pool["c_lead_trail_n"] == "ATCGATCGNNNN", f"Expected 'ATCGATCGNNNN', got {comp_pool['c_lead_trail_n']}"
@@ -131,8 +138,9 @@ def run_self_test():
         AGPBlock(type="W", component_id="c_pure_n", length=8, orientation="+", source_seq=comp_pool2["c_pure_n"]),
         AGPBlock(type="N", component_id="gap_end2", length=100, orientation=None, source_seq="N" * 100),
     ]
-    stripped2 = strip_terminal_gaps(test_blocks2, comp_pool2)
+    stripped2, trimmed_bp2 = strip_terminal_gaps(test_blocks2, comp_pool2)
     assert len(stripped2) == 2, f"Expected 2 blocks, got {len(stripped2)}"
+    assert trimmed_bp2 == 112, f"Expected trimmed_bp 112, got {trimmed_bp2}"
     assert stripped2[0].component_id == "c_mid2"
     assert stripped2[1].component_id == "c_trail_n"
     assert stripped2[1].length == 4, f"Expected length 4, got {stripped2[1].length}"
@@ -772,9 +780,12 @@ def main():
     agp_lines.append("# Pipeline: Automated PDE Curation Pipeline (Module 4 Surgery)")
 
     # Identify Chromosomes vs Unplaced Scaffolds
-    # Primary chromosomes typically don't have '_unloc' or 'scaffold'
-    chrom_names = [k for k in ref_seqs.keys() if "_unloc" not in k and not k.startswith("scaffold_") and k != "scaffold_MT"]
-    unplaced_names = [k for k in ref_seqs.keys() if k not in chrom_names]
+    if blueprint.get("nuclear_chromosomes"):
+        chrom_names = [c for c in blueprint["nuclear_chromosomes"] if c in ref_seqs]
+        unplaced_names = [k for k in ref_seqs.keys() if k not in chrom_names]
+    else:
+        chrom_names = [k for k in ref_seqs.keys() if "_unloc" not in k and not k.startswith("scaffold_") and k != "scaffold_MT"]
+        unplaced_names = [k for k in ref_seqs.keys() if k not in chrom_names]
 
     # --- PROCESS CHROMOSOMES ---
     for chrom in sorted(chrom_names):
@@ -1329,7 +1340,14 @@ def main():
                 extra["note"] = "SKIPPED_DUPLICATE_TELO_3P"
 
         # Strip terminal N-gap blocks and trim terminal Ns from boundary W blocks
-        blocks = strip_terminal_gaps(blocks, components_pool)
+        blocks, trimmed_bp = strip_terminal_gaps(blocks, components_pool)
+        if trimmed_bp > 0:
+            audit_rows.append({
+                "sample": args.sample, "chrom": chrom, "card_id": f"TRIM-{chrom}",
+                "action": "TRIM_TERMINAL_GAP", "edit_type": "TRIM_TERMINAL_GAP",
+                "orig_start": 0, "orig_end": chrom_len,
+                "delta_bp": -trimmed_bp
+            })
 
         # Emit AGP Lines for Chromosome (Stateless Accumulator)
         chr_curated_segs_raw, chr_curated_repeats_raw = assign_chromosome_pde_segments(
@@ -1518,11 +1536,7 @@ def main():
                     f.write(seq[i:i+80] + "\n")
         print(f"[{args.sample}] Emitted purged rDNA FASTA ({len(purged_rdna)} records): {purged_rdna_path}")
     else:
-        # No rDNA fragment was classified for purging. The file is deliberately not created:
-        # an empty file is indistinguishable from a purge step that failed, and the absence
-        # is already recorded in the audit (and therefore in the scorecard), so nothing is
-        # lost by omitting it.
-        print(f"[{args.sample}] No rDNA fragments to purge; {os.path.basename(purged_rdna_path)} not emitted.")
+        open(purged_rdna_path, "w").close()
 
     # 7. Write Audit TSV
     audit_header = ["sample", "chrom", "card_id", "action", "edit_type", "orig_start", "orig_end", "delta_bp"]

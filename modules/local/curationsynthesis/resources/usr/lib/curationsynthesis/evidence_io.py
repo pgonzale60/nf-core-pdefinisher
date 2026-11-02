@@ -430,7 +430,7 @@ def load_terminal_summary(terminal_summary):
                 if len(p) >= 6:
                     cend, _clen, _n_clips, _n_telo, _max_tc, p_stat = p[:6]
                     if "_" in cend:
-                        c, e = cend.split("_", 1)
+                        c, e = cend.rsplit("_", 1)
                         baseline_status[(c, e)] = p_stat
                         if len(p) >= 7:
                             try:

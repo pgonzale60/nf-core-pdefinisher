@@ -276,17 +276,17 @@
 | Symbol | Kind | Lines | Signature | Summary |
 | :--- | :--- | :--- | :--- | :--- |
 | `safe_int` | `function` | `L35-L41` | `def safe_int(val, default=0)` | — |
-| `strip_terminal_gaps` | `function` | `L44-L94` | `def strip_terminal_gaps(blocks, components_pool)` | Strips leading and trailing N blocks (type == "N") and trims terminal N characters |
-| `run_self_test` | `function` | `L97-L143` | `def run_self_test()` | Validates terminal N-gap stripping and AGP block integrity under breakpoint cleavage. |
-| `parse_args` | `function` | `L146-L164` | `def parse_args()` | — |
-| `load_bed_intervals` | `function` | `L167-L190` | `def load_bed_intervals(bed_path, default_label='')` | Loads intervals from a BED file into {chrom: [(start, end, label), ...]}. |
-| `merge_curated_repeats` | `function` | `L193-L208` | `def merge_curated_repeats(raw_intervals)` | Sorts and merges overlapping/adjacent repeat intervals. |
-| `assign_chromosome_pde_segments` | `function` | `L211-L492` | `def assign_chromosome_pde_segments(chrom, blocks, input_segs_by_chr, red_repeats_by_chr)` | Assigns PDE segment classifications (putative_core / putative_GRS) and repeat |
-| `merge_curated_pde_segments` | `function` | `L495-L516` | `def merge_curated_pde_segments(raw_intervals, total_len)` | Sorts, resolves, and merges contiguous GRS/Core segments, filling novel/uncovered regions with putative_core. |
-| `load_fasta` | `function` | `L519-L542` | `def load_fasta(fasta_path)` | Loads a FASTA file (plain or gzipped) into a dictionary of {name: seq}. |
-| `revcomp` | `function` | `L545-L547` | `def revcomp(seq)` | — |
-| `parse_tsv_manifest` | `function` | `L550-L567` | `def parse_tsv_manifest(tsv_path)` | Parses a TSV manifest with headers into a list of dicts. |
-| `main` | `function` | `L570-L1578` | `def main()` | — |
+| `strip_terminal_gaps` | `function` | `L44-L100` | `def strip_terminal_gaps(blocks, components_pool)` | Strips leading and trailing N blocks (type == "N") and trims terminal N characters |
+| `run_self_test` | `function` | `L103-L151` | `def run_self_test()` | Validates terminal N-gap stripping and AGP block integrity under breakpoint cleavage. |
+| `parse_args` | `function` | `L154-L172` | `def parse_args()` | — |
+| `load_bed_intervals` | `function` | `L175-L198` | `def load_bed_intervals(bed_path, default_label='')` | Loads intervals from a BED file into {chrom: [(start, end, label), ...]}. |
+| `merge_curated_repeats` | `function` | `L201-L216` | `def merge_curated_repeats(raw_intervals)` | Sorts and merges overlapping/adjacent repeat intervals. |
+| `assign_chromosome_pde_segments` | `function` | `L219-L500` | `def assign_chromosome_pde_segments(chrom, blocks, input_segs_by_chr, red_repeats_by_chr)` | Assigns PDE segment classifications (putative_core / putative_GRS) and repeat |
+| `merge_curated_pde_segments` | `function` | `L503-L524` | `def merge_curated_pde_segments(raw_intervals, total_len)` | Sorts, resolves, and merges contiguous GRS/Core segments, filling novel/uncovered regions with putative_core. |
+| `load_fasta` | `function` | `L527-L550` | `def load_fasta(fasta_path)` | Loads a FASTA file (plain or gzipped) into a dictionary of {name: seq}. |
+| `revcomp` | `function` | `L553-L555` | `def revcomp(seq)` | — |
+| `parse_tsv_manifest` | `function` | `L558-L575` | `def parse_tsv_manifest(tsv_path)` | Parses a TSV manifest with headers into a list of dicts. |
+| `main` | `function` | `L578-L1592` | `def main()` | — |
 
 ### `modules/local/curationevaluator/resources/usr/bin/pde_evaluate_curation.py`
 

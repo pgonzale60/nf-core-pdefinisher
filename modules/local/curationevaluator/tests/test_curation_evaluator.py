@@ -248,6 +248,110 @@ class TestCurationEvaluator(unittest.TestCase):
         ledger_subtotal = sum(r["net_delta"] for r in ledger_rows)
         self.assertEqual(ledger_subtotal, measured_total_delta)
 
+    def test_terminal_summary_underscore_mapping(self):
+        """Verifies that terminal summary records with underscores (e.g. scaffold_1_5p) map correctly to (chrom, side)."""
+        terminal_summary_rows = [
+            {"chrom_end": "scaffold_1_5p", "proposed_status": "ALREADY_CAPPED"},
+            {"chrom_end": "chr_2_sub_3p", "proposed_status": "UNCAPPED"},
+        ]
+        term_summary_map = {}
+        for r in terminal_summary_rows:
+            cend = r.get("chrom_end", "")
+            if "_" in cend:
+                parts = cend.rsplit("_", 1)
+                c = parts[0]
+                side = "5p" if ("5p" in parts[1] or "left" in parts[1]) else "3p"
+                term_summary_map[(c, side)] = r
+
+        self.assertIn(("scaffold_1", "5p"), term_summary_map)
+        self.assertEqual(term_summary_map[("scaffold_1", "5p")]["proposed_status"], "ALREADY_CAPPED")
+
+        self.assertIn(("chr_2_sub", "3p"), term_summary_map)
+        self.assertEqual(term_summary_map[("chr_2_sub", "3p")]["proposed_status"], "UNCAPPED")
+
+    def test_ledger_reconciliation_with_trim_terminal_gap(self):
+        """Verifies that TRIM_TERMINAL_GAP audit rows reconcile perfectly with measured size differences."""
+        audit_rows = [
+            {"chrom": "chr1", "card_id": "TELO-chr1-5p", "edit_type": "TELO_5P", "delta_bp": 500},
+            {"chrom": "chr1", "card_id": "TRIM-chr1", "edit_type": "TRIM_TERMINAL_GAP", "delta_bp": -80},
+            {"chrom": "scaffold_1", "card_id": "SCAFF-scaffold_1", "edit_type": "PURGE_HAPLOTIG", "delta_bp": -1200},
+        ]
+        pre_total_bp = 100000
+        # Post total bp: 100000 + 500 - 80 - 1200 = 99220
+        post_total_bp = pre_total_bp + 500 - 80 - 1200
+
+        audit_total_delta = sum(int(r.get("delta_bp", 0)) for r in audit_rows)
+        measured_total_delta = post_total_bp - pre_total_bp
+        reconciliation_discrepancy = measured_total_delta - audit_total_delta
+        is_conserved = (reconciliation_discrepancy == 0)
+
+        self.assertEqual(audit_total_delta, -780)
+        self.assertEqual(measured_total_delta, -780)
+        self.assertTrue(is_conserved)
+
+    def test_e2e_scaffold_underscore_mapping_in_evaluator(self):
+        """End-to-end execution of pde_evaluate_curation.py confirming terminal summary records with underscores (scaffold_1_5p) are correctly loaded and reported."""
+        import json
+        import os
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pre_fa = os.path.join(tmpdir, "pre.fa")
+            with open(pre_fa, "w") as f:
+                f.write(">scaffold_1\n" + ("A" * 1000) + "\n")
+            post_fa = os.path.join(tmpdir, "post.fa")
+            with open(post_fa, "w") as f:
+                f.write(">scaffold_1\n" + ("A" * 1000) + "\n")
+            bp = os.path.join(tmpdir, "bp.json")
+            with open(bp, "w") as f:
+                json.dump({"action_cards": [], "nuclear_chromosomes": ["scaffold_1"]}, f)
+            agp = os.path.join(tmpdir, "test.agp")
+            with open(agp, "w") as f:
+                f.write("scaffold_1\t1\t1000\t1\tW\tscaffold_1\t1\t1000\t+\n")
+            audit = os.path.join(tmpdir, "audit.tsv")
+            with open(audit, "w") as f:
+                f.write("sample\tchrom\tcard_id\taction\tedit_type\torig_start\torig_end\tdelta_bp\n")
+            gap = os.path.join(tmpdir, "gap.tsv")
+            with open(gap, "w") as f:
+                f.write("gap_id\tchrom\tgap_start\tgap_end\tgap_len\tstatus\tpatch_fasta\n")
+            walk = os.path.join(tmpdir, "walk.tsv")
+            with open(walk, "w") as f:
+                f.write("sample\tchrom\tterminus\tstatus\tadded_bp\textension_fasta\taction\n")
+            rdna = os.path.join(tmpdir, "rdna.tsv")
+            with open(rdna, "w") as f:
+                f.write("sample\tchrom\tcard_id\tstatus\tcassette_fasta\n")
+            tsum = os.path.join(tmpdir, "tsum.tsv")
+            with open(tsum, "w") as f:
+                f.write("chrom_end\tchrom_length\tn_softclipped_reads\tn_telomeric_reads\tmax_telo_count\tproposed_status\tterminal_tract_bp\n")
+                f.write("scaffold_1_5p\t1000\t15\t12\t45\tUNCAPPED\t250\n")
+            outdir = os.path.join(tmpdir, "out")
+
+            cmd = [
+                sys.executable,
+                str(bin_dir / "pde_evaluate_curation.py"),
+                "--pre-ref", pre_fa,
+                "--post-ref", post_fa,
+                "--blueprint", bp,
+                "--agp", agp,
+                "--audit", audit,
+                "--gap-manifest", gap,
+                "--walker-manifest", walk,
+                "--rdna-manifest", rdna,
+                "--terminal-summary", tsum,
+                "--sample", "TEST_UNDERSCORE",
+                "--outdir", outdir,
+            ]
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            self.assertEqual(res.returncode, 0, f"STDOUT: {res.stdout}\nSTDERR: {res.stderr}")
+
+            md_path = os.path.join(outdir, "TEST_UNDERSCORE.curation_report.md")
+            self.assertTrue(os.path.exists(md_path))
+            with open(md_path) as mf:
+                content = mf.read()
+            self.assertIn("scaffold_1 5'", content)
+            self.assertIn("12 of 15 terminal reads carry", content)
+
 
 if __name__ == "__main__":
     unittest.main()
+

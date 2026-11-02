@@ -33,8 +33,9 @@ class TestCurationAGPGenerator(unittest.TestCase):
             AGPBlock(type="N", component_id="gap_end", length=200, orientation=None, source_seq="N" * 200),
         ]
 
-        stripped = strip_terminal_gaps(blocks, comp_pool)
+        stripped, trimmed_bp = strip_terminal_gaps(blocks, comp_pool)
         self.assertEqual(len(stripped), 4)
+        self.assertEqual(trimmed_bp, 308)
         self.assertEqual(stripped[0].type, "W")
         self.assertEqual(stripped[0].component_id, "c_lead")
         self.assertEqual(stripped[0].length, 8)
@@ -62,8 +63,9 @@ class TestCurationAGPGenerator(unittest.TestCase):
             AGPBlock(type="N", component_id="gap_start", length=50, orientation=None, source_seq="N" * 50),
             AGPBlock(type="W", component_id="c_mid", length=8, orientation="+", source_seq=comp_pool["c_mid"]),
         ]
-        stripped = strip_terminal_gaps(blocks, comp_pool)
+        stripped, trimmed_bp = strip_terminal_gaps(blocks, comp_pool)
         self.assertEqual(len(stripped), 1)
+        self.assertEqual(trimmed_bp, 58)
         self.assertEqual(stripped[0].component_id, "c_mid")
         self.assertNotIn("c_all_n", comp_pool)
 
@@ -410,7 +412,152 @@ class TestCurationAGPGenerator(unittest.TestCase):
                 audit_content = f.read()
             self.assertIn("REJECT_SUBTELOMERE_ONLY", audit_content)
 
+    def test_blueprint_nuclear_chromosomes_taxonomy_partitioning(self):
+        """Verifies that blueprint['nuclear_chromosomes'] overrides prefix heuristics so unplaced ptg/contig IDs are partitioned properly."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ref_path = os.path.join(tmpdir, "ref.fa")
+            with open(ref_path, "w") as f:
+                f.write(">chr1\n" + ("A" * 1000) + "\n")
+                f.write(">ptg000001l\n" + ("C" * 500) + "\n")
+                f.write(">scaffold_99\n" + ("G" * 300) + "\n")
+
+            blueprint_path = os.path.join(tmpdir, "blueprint.json")
+            blueprint = {
+                "nuclear_chromosomes": ["chr1"],
+                "action_cards": [
+                    {
+                        "card_id": "CARD-PURGE-PTG",
+                        "chrom": "ptg000001l",
+                        "domain": "DOMAIN_SCAFFOLD",
+                        "action": "PURGE_HAPLOTIG",
+                        "classification": "PURGE_HAPLOTIG"
+                    }
+                ]
+            }
+            with open(blueprint_path, "w") as f:
+                json.dump(blueprint, f)
+
+            outdir = os.path.join(tmpdir, "out")
+            cmd = [
+                sys.executable,
+                str(BIN_DIR / "pde_generate_agp.py"),
+                "--blueprint", blueprint_path,
+                "--ref", ref_path,
+                "--sample", "TAXONOMY_TEST",
+                "--outdir", outdir,
+            ]
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            self.assertEqual(res.returncode, 0, f"STDOUT: {res.stdout}\nSTDERR: {res.stderr}")
+
+            # Verify that ptg000001l was treated as unplaced and purged to haplotigs.fasta
+            haplo_fa = os.path.join(outdir, "TAXONOMY_TEST.haplotigs.fasta")
+            self.assertTrue(os.path.exists(haplo_fa))
+            with open(haplo_fa) as f:
+                haplo_content = f.read()
+            self.assertIn(">ptg000001l", haplo_content)
+
+            # In the AGP, only chr1 and retained unplaced scaffolds appear as release objects
+            agp_file = os.path.join(outdir, "TAXONOMY_TEST.curated.agp")
+            with open(agp_file) as f:
+                agp_objects = {line.split("\t")[0] for line in f if line.strip() and not line.startswith("#")}
+            self.assertIn("chr1", agp_objects)
+            self.assertNotIn("ptg000001l", agp_objects)
+
+    def test_empty_purged_rdna_and_terminal_gap_audit(self):
+        """Verifies that an empty purged rDNA fasta is created and TRIM_TERMINAL_GAP audit rows are recorded."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ref_path = os.path.join(tmpdir, "ref.fa")
+            with open(ref_path, "w") as f:
+                # chr1 has 20 leading Ns and 30 trailing Ns
+                f.write(">chr1\n" + ("N" * 20) + ("A" * 1000) + ("N" * 30) + "\n")
+
+            blueprint_path = os.path.join(tmpdir, "blueprint.json")
+            blueprint = {
+                "nuclear_chromosomes": ["chr1"],
+                "action_cards": []
+            }
+            with open(blueprint_path, "w") as f:
+                json.dump(blueprint, f)
+
+            outdir = os.path.join(tmpdir, "out")
+            cmd = [
+                sys.executable,
+                str(BIN_DIR / "pde_generate_agp.py"),
+                "--blueprint", blueprint_path,
+                "--ref", ref_path,
+                "--sample", "GAP_TEST",
+                "--outdir", outdir,
+            ]
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            self.assertEqual(res.returncode, 0, f"STDOUT: {res.stdout}\nSTDERR: {res.stderr}")
+
+            # 1. Empty purged rDNA and haplotigs fasta must exist and have 0 bytes
+            purged_rdna_fa = os.path.join(outdir, "GAP_TEST.purged_rdna.fasta")
+            self.assertTrue(os.path.exists(purged_rdna_fa), "purged_rdna.fasta must exist even when empty")
+            self.assertEqual(os.path.getsize(purged_rdna_fa), 0)
+
+            haplo_fa = os.path.join(outdir, "GAP_TEST.haplotigs.fasta")
+            self.assertTrue(os.path.exists(haplo_fa), "haplotigs.fasta must exist even when empty")
+            self.assertEqual(os.path.getsize(haplo_fa), 0)
+
+            # 2. Audit file must contain TRIM_TERMINAL_GAP with delta_bp == -50
+            audit_path = os.path.join(outdir, "GAP_TEST.curation_audit.tsv")
+            self.assertTrue(os.path.exists(audit_path))
+            with open(audit_path) as f:
+                rows = [line.strip().split("\t") for line in f if line.strip()]
+            header = rows[0]
+            action_idx = header.index("action")
+            delta_idx = header.index("delta_bp")
+
+            trim_rows = [r for r in rows[1:] if r[action_idx] == "TRIM_TERMINAL_GAP"]
+            self.assertEqual(len(trim_rows), 1)
+            self.assertEqual(int(trim_rows[0][delta_idx]), -50)
+
+    def test_purged_rdna_fasta_population(self):
+        """Verifies that purged rDNA contigs are segregated into *.purged_rdna.fasta with sequence contents."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ref_path = os.path.join(tmpdir, "ref.fa")
+            with open(ref_path, "w") as f:
+                f.write(">chr1\n" + ("A" * 1000) + "\n")
+                f.write(">scaffold_rdna_unplaced\n" + ("C" * 600) + "\n")
+
+            blueprint_path = os.path.join(tmpdir, "blueprint.json")
+            blueprint = {
+                "nuclear_chromosomes": ["chr1"],
+                "action_cards": [
+                    {
+                        "card_id": "CARD-PURGE-RDNA",
+                        "chrom": "scaffold_rdna_unplaced",
+                        "domain": "DOMAIN_SCAFFOLD",
+                        "action": "PURGE_RDNA_FRAGMENT",
+                        "classification": "PURGE_RDNA_FRAGMENT"
+                    }
+                ]
+            }
+            with open(blueprint_path, "w") as f:
+                json.dump(blueprint, f)
+
+            outdir = os.path.join(tmpdir, "out")
+            cmd = [
+                sys.executable,
+                str(BIN_DIR / "pde_generate_agp.py"),
+                "--blueprint", blueprint_path,
+                "--ref", ref_path,
+                "--sample", "RDNA_PURGE_TEST",
+                "--outdir", outdir,
+            ]
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            self.assertEqual(res.returncode, 0, f"STDOUT: {res.stdout}\nSTDERR: {res.stderr}")
+
+            purged_rdna_fa = os.path.join(outdir, "RDNA_PURGE_TEST.purged_rdna.fasta")
+            self.assertTrue(os.path.exists(purged_rdna_fa))
+            with open(purged_rdna_fa) as f:
+                content = f.read()
+            self.assertIn(">scaffold_rdna_unplaced", content)
+            self.assertIn("C" * 80, content)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
