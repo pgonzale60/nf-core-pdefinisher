@@ -24,6 +24,7 @@ workflow AUTOMATED_PDE_CURATION {
     take:
     ch_assembly         // channel: [ val(meta), path(assembly_fasta) ]
     ch_bam              // channel: [ val(meta), path(bam), path(bai) ]
+    policy_file         // path: curation_policy.json
     val_telomere_repeat // val: e.g. 'TTAGGC'
     val_chromosomes     // val: e.g. 'I,II,III,IV,V,X'
 
@@ -78,7 +79,9 @@ workflow AUTOMATED_PDE_CURATION {
 
     CURATIONSYNTHESIS (
         ch_synthesis_input,
-        val_telomere_repeat
+        policy_file,
+        val_telomere_repeat,
+        val_chromosomes
     )
     ch_versions = ch_versions.mix(CURATIONSYNTHESIS.out.versions_synthesis)
 
@@ -131,7 +134,7 @@ workflow AUTOMATED_PDE_CURATION {
         }
 
     ch_gaps_bed      = PDE_RECONNAISSANCE.out.gaps_bed
-    ch_policy_json   = ch_assembly.map { meta, fasta -> [ meta, [] ] }
+    ch_policy_json   = ch_assembly.map { meta, _fasta -> [ meta, policy_file ] }
 
     CURATION_RESOLUTION (
         CURATIONSYNTHESIS.out.blueprint_json,
@@ -179,7 +182,9 @@ workflow AUTOMATED_PDE_CURATION {
         CURATION_RESOLUTION.out.rdna_manifest,
         PDE_RECONNAISSANCE.out.terminal_ends_summary,
         CURATION_RESOLUTION.out.trans_manifest,
-        PDE_RECONNAISSANCE.out.red_bed
+        PDE_RECONNAISSANCE.out.red_bed,
+        PDE_RECONNAISSANCE.out.gap_evidence_json,
+        val_chromosomes
     )
     ch_versions = ch_versions.mix(CURATION_EVALUATION.out.versions)
 

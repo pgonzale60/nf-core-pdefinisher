@@ -19,6 +19,8 @@ workflow CURATION_EVALUATION {
     ch_terminal_summary// channel: [ val(meta), path(terminal_ends_summary_tsv) ]
     ch_trans_manifest  // channel: [ val(meta), path(trans_manifest_tsv) ]
     ch_red_bed         // channel: [ val(meta), path(red_bed) ]
+    ch_gap_evidence    // channel: [ val(meta), path(gap_evidence_json) ]
+    val_chromosomes    // val: e.g. 'I,II,III,IV,V,X'
 
     main:
     ch_versions = Channel.empty()
@@ -34,9 +36,11 @@ workflow CURATION_EVALUATION {
         .join(ch_terminal_summary, by: 0)
         .join(ch_trans_manifest, by: 0)
         .join(ch_red_bed, by: 0)
+        .join(ch_gap_evidence, by: 0)
 
     CURATIONEVALUATOR (
-        ch_eval_input
+        ch_eval_input,
+        val_chromosomes
     )
     ch_versions = ch_versions.mix(CURATIONEVALUATOR.out.versions_evaluator)
 

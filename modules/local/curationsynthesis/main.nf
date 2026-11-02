@@ -25,7 +25,9 @@ process CURATIONSYNTHESIS {
         path(gap_evidence_json),
         path(telo_junction_json)
     )
+    path policy_file, stageAs: "curation_policy.json"
     val telo_motif
+    val chromosomes
 
     output:
     tuple val(meta), path("*.curation_manifest.json"), emit: blueprint_json
@@ -36,10 +38,14 @@ process CURATIONSYNTHESIS {
     task.ext.when == null || task.ext.when
 
     script:
-    def args   = task.ext.args ?: ''
-    def prefix = task.ext.prefix ?: "${meta.id}"
-    def gap_arg = gap_evidence_json ? "--gap-evidence-json \"${gap_evidence_json}\"" : ""
-    def junc_arg = telo_junction_json ? "--telo-junctions \"${telo_junction_json}\"" : ""
+    def args       = task.ext.args ?: ''
+    def prefix     = task.ext.prefix ?: "${meta.id}"
+    def gap_arg    = gap_evidence_json ? "--gap-evidence-json \"${gap_evidence_json}\"" : ""
+    def junc_arg   = telo_junction_json ? "--telo-junctions \"${telo_junction_json}\"" : ""
+    def eff_chroms = meta.chromosomes ?: chromosomes
+    def chr_arg    = eff_chroms ? "--chromosomes \"${eff_chroms}\"" : ""
+    def pol_arg    = policy_file ? "--policy \"${policy_file}\"" : ""
+    def eff_telo   = meta.telomere_repeat ?: telo_motif
     """
     # Tool: pde_curation_synthesis.py | Script-SHA: 80bab41db9e40a3b
     pde_curation_synthesis.py --version
@@ -59,7 +65,9 @@ process CURATIONSYNTHESIS {
         --telo-paf "telo.paf" \\
         ${gap_arg} \\
         ${junc_arg} \\
-        --telo-motif "${telo_motif}" \\
+        ${chr_arg} \\
+        ${pol_arg} \\
+        --telo-motif "${eff_telo}" \\
         --output-json "${prefix}.curation_manifest.json" \\
         --output-md "${prefix}.curation_blueprint.md" \\
         ${args}

@@ -631,8 +631,7 @@ def main():
     if not gap_ev_path:
         cand1 = os.path.join(os.path.dirname(args.blueprint), f"{args.sample}.gap_evidence.json")
         cand2 = os.path.join(os.path.dirname(args.blueprint), "gap_evidence.json")
-        cand3 = os.path.join(os.path.dirname(args.blueprint), "..", "extract_gap_evidence", f"{args.sample}.gap_evidence.json")
-        for cand in [cand1, cand2, cand3]:
+        for cand in [cand1, cand2]:
             if os.path.exists(cand):
                 gap_ev_path = cand
                 break
