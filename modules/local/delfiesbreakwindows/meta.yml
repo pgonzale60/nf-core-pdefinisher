@@ -1,0 +1,64 @@
+name: "delfiesbreakwindows"
+description: "Build 150 bp MEME break windows from DELFIES S2G foci: balanced-strand fissions and break sites at core/GRS borders"
+keywords:
+  - delfies
+  - breakpoint
+  - break-windows
+  - fission
+tools:
+  - "delfies":
+      description: "Detection of DNA breakpoints with neo-telomere addition"
+      homepage: "https://github.com/bricoletc/delfies"
+input:
+  - - meta:
+        type: map
+        description: Groovy Map containing sample information
+    - s2g_tsv:
+        type: file
+        description: DELFIES breakpoint_foci__S2G.tsv
+        pattern: "*.breakpoint_foci__S2G.tsv"
+    - pde_segments_bed:
+        type: file
+        description: pde_segments.bed classification; core/GRS borders define break-site eligibility
+        pattern: "*.pde_segments.bed"
+    - assembly:
+        type: file
+        description: Assembly FASTA (plain or gzipped)
+        pattern: "*.{fa,fasta,fa.gz,fasta.gz}"
+output:
+  - bed:
+      - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.breakwindows.bed":
+          type: file
+          description: BED6 of break windows with kind (break|fission) and n_sites
+          pattern: "*.breakwindows.bed"
+  - fasta:
+      - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.breakwindows.fa":
+          type: file
+          description: FASTA of break windows, one record per BED line
+          pattern: "*.breakwindows.fa"
+  - census_json:
+      - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.census.json":
+          type: file
+          description: JSON with n_breaks, n_break_windows, n_fission_windows, n_sites_kept
+          pattern: "*.census.json"
+  - versions_python:
+      - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+        - python:
+          type: string
+          description: The tool name
+        - python3 --version:
+          type: string
+          description: The command used to generate the version of the tool
+authors:
+  - "@pgonzale60"
