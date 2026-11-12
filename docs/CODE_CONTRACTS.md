@@ -36,6 +36,14 @@
   - `take:` *(none)*
   - `emit:` *(none)*
 
+#### `workflows/recon_motif.nf`
+- **Includes:**
+  - `PDE_RECONNAISSANCE` from `../subworkflows/local/pde_reconnaissance/main`
+  - `PDE_MOTIF_DISCOVERY` from `../subworkflows/local/pde_motif_discovery/main`
+- **Workflow `RECON_MOTIF_PIPELINE`:**
+  - `take:` *(none)*
+  - `emit:` *(none)*
+
 ### 1.2 Local Subworkflows (`subworkflows/local/*/main.nf`)
 
 #### `subworkflows/local/assembly_surgery/main.nf`

@@ -162,119 +162,106 @@ workflow {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-def pde_publish_path(meta, default_dir) {
-    if (!params.per_species_outdir) {
-        return default_dir
-    }
-    def specimen = meta.tolid ?: (meta.specimen_id ?: meta.id)
-    if (meta.species && specimen && meta.species != specimen) {
-        return "${meta.species}/${specimen}/analysis/pdefinisher/${default_dir}"
-    } else if (meta.species) {
-        return "${meta.species}/analysis/pdefinisher/${default_dir}"
-    } else {
-        return "${meta.id}/analysis/pdefinisher/${default_dir}"
-    }
-}
 
 output {
     curated_fasta {
-        path { meta, _file -> pde_publish_path(meta, "curated_assembly") }
+        path { meta, _file -> PdePublish.pathFor(params, meta, "curated_assembly") }
         mode params.publish_dir_mode
     }
     curated_agp {
-        path { meta, _file -> pde_publish_path(meta, "curated_assembly") }
+        path { meta, _file -> PdePublish.pathFor(params, meta, "curated_assembly") }
         mode params.publish_dir_mode
     }
     components_fasta {
-        path { meta, _file -> pde_publish_path(meta, "curated_assembly") }
+        path { meta, _file -> PdePublish.pathFor(params, meta, "curated_assembly") }
         mode params.publish_dir_mode
     }
     segregated_fastas {
-        path { Object[] args -> pde_publish_path(args[0], "curated_assembly") }
+        path { Object[] args -> PdePublish.pathFor(params, args[0], "curated_assembly") }
         mode params.publish_dir_mode
     }
     curation_audit {
-        path { meta, _file -> pde_publish_path(meta, "curated_assembly") }
+        path { meta, _file -> PdePublish.pathFor(params, meta, "curated_assembly") }
         mode params.publish_dir_mode
     }
     curated_pde_segments {
-        path { meta, _file -> pde_publish_path(meta, "curated_assembly") }
+        path { meta, _file -> PdePublish.pathFor(params, meta, "curated_assembly") }
         mode params.publish_dir_mode
     }
     curated_repeats {
-        path { meta, _file -> pde_publish_path(meta, "curated_assembly") }
+        path { meta, _file -> PdePublish.pathFor(params, meta, "curated_assembly") }
         mode params.publish_dir_mode
     }
     blueprint_json {
-        path { meta, _file -> pde_publish_path(meta, "curation_synthesis") }
+        path { meta, _file -> PdePublish.pathFor(params, meta, "curation_synthesis") }
         mode params.publish_dir_mode
     }
     blueprint_md {
-        path { meta, _file -> pde_publish_path(meta, "curation_synthesis") }
+        path { meta, _file -> PdePublish.pathFor(params, meta, "curation_synthesis") }
         mode params.publish_dir_mode
     }
     scorecard_json {
-        path { meta, _file -> pde_publish_path(meta, "curation_evaluation") }
+        path { meta, _file -> PdePublish.pathFor(params, meta, "curation_evaluation") }
         mode params.publish_dir_mode
     }
     report_md {
-        path { meta, _file -> pde_publish_path(meta, "curation_evaluation") }
+        path { meta, _file -> PdePublish.pathFor(params, meta, "curation_evaluation") }
         mode params.publish_dir_mode
     }
     validation_json {
-        path { meta, _file -> pde_publish_path(meta, "curation_validation") }
+        path { meta, _file -> PdePublish.pathFor(params, meta, "curation_validation") }
         mode params.publish_dir_mode
     }
     validation_md {
-        path { meta, _file -> pde_publish_path(meta, "curation_validation") }
+        path { meta, _file -> PdePublish.pathFor(params, meta, "curation_validation") }
         mode params.publish_dir_mode
     }
     curated_bam {
-        path { meta, _file -> pde_publish_path(meta, "curation_validation") }
+        path { meta, _file -> PdePublish.pathFor(params, meta, "curation_validation") }
         mode params.publish_dir_mode
     }
     curated_bai {
-        path { meta, _file -> pde_publish_path(meta, "curation_validation") }
+        path { meta, _file -> PdePublish.pathFor(params, meta, "curation_validation") }
         mode params.publish_dir_mode
     }
     best_core_motif {
-        path { meta, _file -> pde_publish_path(meta, "motif_discovery") }
+        path { meta, _file -> PdePublish.pathFor(params, meta, "motif_discovery") }
         mode params.publish_dir_mode
     }
     core_motif_metrics_json {
-        path { meta, _file -> pde_publish_path(meta, "motif_discovery") }
+        path { meta, _file -> PdePublish.pathFor(params, meta, "motif_discovery") }
         mode params.publish_dir_mode
     }
     grid_summary_tsv {
-        path { meta, _file -> pde_publish_path(meta, "motif_discovery") }
+        path { meta, _file -> PdePublish.pathFor(params, meta, "motif_discovery") }
         mode params.publish_dir_mode
     }
     best_auxiliary_motif {
-        path { meta, _file -> pde_publish_path(meta, "motif_discovery") }
+        path { meta, _file -> PdePublish.pathFor(params, meta, "motif_discovery") }
         mode params.publish_dir_mode
     }
     bipartite_spacing_tsv {
-        path { meta, _file -> pde_publish_path(meta, "motif_discovery") }
+        path { meta, _file -> PdePublish.pathFor(params, meta, "motif_discovery") }
         mode params.publish_dir_mode
     }
     motif_discovery_report_md {
-        path { meta, _file -> pde_publish_path(meta, "motif_discovery") }
+        path { meta, _file -> PdePublish.pathFor(params, meta, "motif_discovery") }
         mode params.publish_dir_mode
     }
     fimo_genome_hits {
-        path { meta, _file -> pde_publish_path(meta, "motif_discovery") }
+        path { meta, _file -> PdePublish.pathFor(params, meta, "motif_discovery") }
         mode params.publish_dir_mode
     }
     fimo_annotated_hits {
-        path { meta, _file -> pde_publish_path(meta, "motif_discovery") }
+        path { meta, _file -> PdePublish.pathFor(params, meta, "motif_discovery") }
         mode params.publish_dir_mode
     }
     motif_distribution_summary {
-        path { meta, _file -> pde_publish_path(meta, "motif_discovery") }
+        path { meta, _file -> PdePublish.pathFor(params, meta, "motif_discovery") }
         mode params.publish_dir_mode
     }
     motif_distribution_report {
-        path { meta, _file -> pde_publish_path(meta, "motif_discovery") }
+        path { meta, _file -> PdePublish.pathFor(params, meta, "motif_discovery") }
         mode params.publish_dir_mode
     }
     // Cohort-level outputs:
