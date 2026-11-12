@@ -204,6 +204,8 @@ def samplesheetToList(String samplesheet_file, String schema_path = null) {
     def bai_idx         = header.indexOf('bai')
     def chromosomes_idx = header.indexOf('chromosomes')
     def telo_idx        = header.indexOf('telomere_repeat')
+    def species_idx       = header.indexOf('species')
+    def assembly_name_idx = header.indexOf('assembly_name')
 
     def records = []
     lines.drop(1).each { line ->
@@ -214,10 +216,14 @@ def samplesheetToList(String samplesheet_file, String schema_path = null) {
         def bai = bai_idx >= 0 && bai_idx < cols.size() && cols[bai_idx] ? cols[bai_idx] : null
         def chroms = chromosomes_idx >= 0 && chromosomes_idx < cols.size() && cols[chromosomes_idx] ? cols[chromosomes_idx] : null
         def telo = telo_idx >= 0 && telo_idx < cols.size() && cols[telo_idx] ? cols[telo_idx] : null
+        def species = species_idx >= 0 && species_idx < cols.size() && cols[species_idx] ? cols[species_idx] : null
+        def assembly_name = assembly_name_idx >= 0 && assembly_name_idx < cols.size() && cols[assembly_name_idx] ? cols[assembly_name_idx] : null
 
         def meta = [ id: sample ]
         if (chroms) meta.chromosomes = chroms
         if (telo)   meta.telomere_repeat = telo
+        if (species)       meta.species = species
+        if (assembly_name) meta.assembly_name = assembly_name
 
         records << [ meta, assembly, bam, bai ]
     }
