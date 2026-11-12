@@ -37,7 +37,7 @@ input:
         pattern: "*.{bed}"
   - - flank_tolerance:
         type: integer
-        description: Window in bp around breakpoints considered authentic break sites (default: 500)
+        description: "Window in bp around breakpoints considered authentic break sites (default: 500)"
 output:
   - annotated_hits:
       - meta:

@@ -92,13 +92,13 @@
                 },
                 "delfies_args": {
                     "type": "string",
-                    "default": "--AnalyzeReads --seq String --finding_site_mode 'eliminated' --window_size 15 --minimum_ReadAligns 3 --telomere_string 'TTAGGC'",
+                    "default": "--telo_forward_seq TTAGGC",
                     "description": "Extra arguments passed to DELFIES neo-telomere breakpoint detection.",
                     "hidden": true
                 },
                 "mosdepth_args": {
                     "type": "string",
-                    "default": "--no-per-base --by 10000 --mapq 20",
+                    "default": "--no-per-base --by 500 --mapq 20",
                     "description": "Extra arguments passed to mosdepth coverage profiling.",
                     "hidden": true
                 },

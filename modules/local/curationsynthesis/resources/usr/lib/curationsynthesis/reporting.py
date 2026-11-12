@@ -8,6 +8,9 @@ import os
 from .policy import __version__
 
 
+TGRS_TEX = r"$T_{\text{GRS}}$"
+
+
 def render_markdown_blueprint(
     sample_id,
     sorted_chroms,
@@ -73,7 +76,7 @@ def render_markdown_blueprint(
     grs_pct = (tot_grs_len / tot_len * 100.0) if tot_len > 0 else 0.0
 
     report_lines.append(
-        f"* **Classification Threshold ($T_{{\\text{{GRS}}}}$)**: `{grs_threshold:.2f}×` (depth threshold distinguishing putative GRS from somatic core)"
+        f"* **Classification Threshold ({TGRS_TEX})**: `{grs_threshold:.2f}×` (depth threshold distinguishing putative GRS from somatic core)"
     )
     report_lines.append(
         f"* **Putative Somatic Core**: **{tot_core_len:,d} bp** ({tot_core_len / 1e6:.2f} Mb, {core_pct:.1f}%) | **Median Coverage**: `{cohort_core_d:.1f}×`"

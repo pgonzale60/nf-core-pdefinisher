@@ -312,21 +312,21 @@
 
 | Symbol | Kind | Lines | Signature | Summary |
 | :--- | :--- | :--- | :--- | :--- |
-| `get_script_fingerprint` | `function` | `L24-L29` | `def get_script_fingerprint()` | — |
-| `chrom_sort_key` | `function` | `L32-L45` | `def chrom_sort_key(name)` | Sort chromosomes naturally with nuclear karyotype precedence (I, II, III, IV, V, X, etc.). |
-| `parse_args` | `function` | `L48-L70` | `def parse_args()` | — |
-| `load_fasta_stats` | `function` | `L73-L118` | `def load_fasta_stats(fasta_path)` | Parses a FASTA file (plain or gzipped) and extracts lengths, N counts, |
-| `read_fasta` | `function` | `L121-L142` | `def read_fasta(fasta_path)` | Reads FASTA file and returns dict mapping record id to full uppercase sequence. |
-| `compute_n50` | `function` | `L145-L158` | `def compute_n50(lengths)` | Calculates N50 and L50 given a list of sequence lengths. |
-| `parse_tsv` | `function` | `L161-L175` | `def parse_tsv(tsv_path)` | Parses a TSV into a list of dictionaries using header keys. Fails fast if file missing. |
-| `analyze_terminal_repeats` | `function` | `L178-L284` | `def analyze_terminal_repeats(red_bed_path, chrom, term, c_len, window_bp=5000)` | Analyzes repeat masking at a chromosome terminus. |
-| `compute_red_repeat_pct` | `function` | `L287-L321` | `def compute_red_repeat_pct(red_bed_path, chrom, start, end)` | Calculates exact percentage of bases masked by Red in interval [start, end]. |
-| `load_gap_evidence_map` | `function` | `L324-L346` | `def load_gap_evidence_map(gap_evidence_path)` | Loads gap_evidence.json into a lookup dictionary: (chrom, start, end) -> gap_dict. |
-| `classify_unresolved_gap` | `function` | `L349-L431` | `def classify_unresolved_gap(g_man=None, span_reads=0, n_unitigs=0, d_5p=25.0, d_3p=25.0)` | Classifies the concrete algorithmic stopping condition for an unresolved gap. |
-| `parse_agp_gaps` | `function` | `L434-L454` | `def parse_agp_gaps(agp_path)` | Extracts gap records (type N or U) from AGP. Fails fast if file missing. |
-| `parse_agp_rdna_intervals` | `function` | `L457-L480` | `def parse_agp_rdna_intervals(agp_path)` | Extracts genomic intervals for rDNA cassettes from AGP. |
-| `render_telomere_unitig_table` | `function` | `L483-L516` | `def render_telomere_unitig_table(f, telomere_unitig_inventory)` | Render markdown table and diagnostic summary for all independently assembled telomeric unitigs. |
-| `main` | `function` | `L519-L1634` | `def main()` | — |
+| `get_script_fingerprint` | `function` | `L28-L33` | `def get_script_fingerprint()` | — |
+| `chrom_sort_key` | `function` | `L36-L49` | `def chrom_sort_key(name)` | Sort chromosomes naturally with nuclear karyotype precedence (I, II, III, IV, V, X, etc.). |
+| `parse_args` | `function` | `L52-L74` | `def parse_args()` | — |
+| `load_fasta_stats` | `function` | `L77-L122` | `def load_fasta_stats(fasta_path)` | Parses a FASTA file (plain or gzipped) and extracts lengths, N counts, |
+| `read_fasta` | `function` | `L125-L146` | `def read_fasta(fasta_path)` | Reads FASTA file and returns dict mapping record id to full uppercase sequence. |
+| `compute_n50` | `function` | `L149-L162` | `def compute_n50(lengths)` | Calculates N50 and L50 given a list of sequence lengths. |
+| `parse_tsv` | `function` | `L165-L179` | `def parse_tsv(tsv_path)` | Parses a TSV into a list of dictionaries using header keys. Fails fast if file missing. |
+| `analyze_terminal_repeats` | `function` | `L182-L288` | `def analyze_terminal_repeats(red_bed_path, chrom, term, c_len, window_bp=5000)` | Analyzes repeat masking at a chromosome terminus. |
+| `compute_red_repeat_pct` | `function` | `L291-L325` | `def compute_red_repeat_pct(red_bed_path, chrom, start, end)` | Calculates exact percentage of bases masked by Red in interval [start, end]. |
+| `load_gap_evidence_map` | `function` | `L328-L350` | `def load_gap_evidence_map(gap_evidence_path)` | Loads gap_evidence.json into a lookup dictionary: (chrom, start, end) -> gap_dict. |
+| `classify_unresolved_gap` | `function` | `L353-L435` | `def classify_unresolved_gap(g_man=None, span_reads=0, n_unitigs=0, d_5p=25.0, d_3p=25.0)` | Classifies the concrete algorithmic stopping condition for an unresolved gap. |
+| `parse_agp_gaps` | `function` | `L438-L458` | `def parse_agp_gaps(agp_path)` | Extracts gap records (type N or U) from AGP. Fails fast if file missing. |
+| `parse_agp_rdna_intervals` | `function` | `L461-L484` | `def parse_agp_rdna_intervals(agp_path)` | Extracts genomic intervals for rDNA cassettes from AGP. |
+| `render_telomere_unitig_table` | `function` | `L487-L520` | `def render_telomere_unitig_table(f, telomere_unitig_inventory)` | Render markdown table and diagnostic summary for all independently assembled telomeric unitigs. |
+| `main` | `function` | `L523-L1638` | `def main()` | — |
 
 ### `modules/local/curationsummary/resources/usr/bin/pde_curation_summary.py`
 
@@ -427,8 +427,8 @@
 
 | Symbol | Kind | Lines | Signature | Summary |
 | :--- | :--- | :--- | :--- | :--- |
-| `render_markdown_blueprint` | `function` | `L11-L412` | `def render_markdown_blueprint(sample_id, sorted_chroms, nuclear_chroms, unplaced_chroms, chrom_lens, core_segments, grs_segments, grs_threshold, grs_arm_depths, tip_depths_1kb, baseline_status, unitig_assignment, single_read_ext, rdna_intervals, rdna_dist_bp, terminal_matches, internal_cards, gap_provenance, gap_json_path, gap_parse_warning, telo_cards, flye_info_exists, flye_data, rdna_locus_audits, rdna_cards, triage_result, scaffold_cards, scaffold_dispositions, extension_by_seq, telomere_unitig_inventory=None, elimination_range=None)` | Render the full Markdown Curation Reconnaissance Blueprint. |
-| `build_manifest_json` | `function` | `L415-L472` | `def build_manifest_json(sample_id, script_fingerprint, nuclear_chroms, unplaced_chroms, grs_threshold, karyotype_stats, policy, internal_cards, telo_cards, rdna_cards, scaffold_cards, scaffold_dispositions, telomere_unitig_inventory=None, elimination_range=None)` | Assemble the machine-executable curation_manifest.json payload. |
+| `render_markdown_blueprint` | `function` | `L14-L415` | `def render_markdown_blueprint(sample_id, sorted_chroms, nuclear_chroms, unplaced_chroms, chrom_lens, core_segments, grs_segments, grs_threshold, grs_arm_depths, tip_depths_1kb, baseline_status, unitig_assignment, single_read_ext, rdna_intervals, rdna_dist_bp, terminal_matches, internal_cards, gap_provenance, gap_json_path, gap_parse_warning, telo_cards, flye_info_exists, flye_data, rdna_locus_audits, rdna_cards, triage_result, scaffold_cards, scaffold_dispositions, extension_by_seq, telomere_unitig_inventory=None, elimination_range=None)` | Render the full Markdown Curation Reconnaissance Blueprint. |
+| `build_manifest_json` | `function` | `L418-L475` | `def build_manifest_json(sample_id, script_fingerprint, nuclear_chroms, unplaced_chroms, grs_threshold, karyotype_stats, policy, internal_cards, telo_cards, rdna_cards, scaffold_cards, scaffold_dispositions, telomere_unitig_inventory=None, elimination_range=None)` | Assemble the machine-executable curation_manifest.json payload. |
 
 ### `modules/local/curationsynthesis/resources/usr/lib/curationsynthesis/terminus_resolver.py`
 
