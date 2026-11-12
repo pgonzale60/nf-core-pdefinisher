@@ -526,18 +526,18 @@
 | `load_curation_policy` | `function` | `L52-L61` | `def load_curation_policy(policy_path=None)` | Load curation policy parameters strictly from assets/curation_policy.json. |
 | `parse_args` | `function` | `L64-L117` | `def parse_args()` | — |
 | `get_chromosome_lengths` | `function` | `L120-L148` | `def get_chromosome_lengths(assembly_file)` | — |
-| `parse_breakpoint_foci` | `function` | `L151-L191` | `def parse_breakpoint_foci(foci_tsv)` | Parse DELFIES breakpoint_foci__S2G.tsv into per-strand breakpoint records. |
-| `parse_coverage_windows` | `function` | `L194-L211` | `def parse_coverage_windows(mosdepth_file)` | — |
-| `get_median_depth` | `function` | `L216-L224` | `def get_median_depth(cov_windows, chrom, start, end)` | — |
-| `cluster_breakpoints_by_strand` | `function` | `L227-L263` | `def cluster_breakpoints_by_strand(bp_list, max_dist=3, min_support=5.0)` | Groups DELFIES signals by strand where consecutive signals are <= max_dist bp apart. |
-| `fit_em_2comp` | `function` | `L266-L334` | `def fit_em_2comp(vals, max_iter=100, tol=0.0001)` | Fit a 2-component Gaussian mixture model: |
-| `parse_red_bed` | `function` | `L337-L359` | `def parse_red_bed(red_file)` | Load repeat intervals (BED) merged per scaffold; empty when no mask is available. |
-| `quantize_drops` | `function` | `L362-L381` | `def quantize_drops(cov_windows, chrom, t_grs, merge_gap_bp)` | Quantize coverage windows into low-coverage drops (depth <= t_grs). |
-| `drop_overlap_bp` | `function` | `L384-L392` | `def drop_overlap_bp(drops, start, end)` | — |
-| `delfies_bounded_grs` | `function` | `L395-L482` | `def delfies_bounded_grs(length, clustered_bps, raw_drops, merged_drops, rules)` | GRS intervals on a chromosomal scaffold. Every interval is anchored by >= 1 DELFIES breakpoint. |
-| `build_chromosomal_segments` | `function` | `L485-L500` | `def build_chromosomal_segments(chrom, length, grs_intervals, cov_windows)` | Tile a chromosomal scaffold: DELFIES-anchored GRS intervals, everything else putative_core. |
-| `classify_unplaced` | `function` | `L503-L512` | `def classify_unplaced(chrom, length, raw_drops, repeats, rules)` | Non-chromosomal scaffold: repeat-aware call with an explicit uncertain class. |
-| `main` | `function` | `L515-L709` | `def main()` | — |
+| `parse_breakpoint_foci` | `function` | `L151-L192` | `def parse_breakpoint_foci(foci_tsv)` | Parse DELFIES breakpoint_foci__S2G.tsv into per-strand breakpoint records. |
+| `parse_coverage_windows` | `function` | `L195-L212` | `def parse_coverage_windows(mosdepth_file)` | — |
+| `get_median_depth` | `function` | `L217-L225` | `def get_median_depth(cov_windows, chrom, start, end)` | — |
+| `cluster_breakpoints_by_strand` | `function` | `L228-L264` | `def cluster_breakpoints_by_strand(bp_list, max_dist=3, min_support=5.0)` | Groups DELFIES signals by strand where consecutive signals are <= max_dist bp apart. |
+| `fit_em_2comp` | `function` | `L267-L335` | `def fit_em_2comp(vals, max_iter=100, tol=0.0001)` | Fit a 2-component Gaussian mixture model: |
+| `parse_red_bed` | `function` | `L338-L360` | `def parse_red_bed(red_file)` | Load repeat intervals (BED) merged per scaffold; empty when no mask is available. |
+| `quantize_drops` | `function` | `L363-L382` | `def quantize_drops(cov_windows, chrom, t_grs, merge_gap_bp)` | Quantize coverage windows into low-coverage drops (depth <= t_grs). |
+| `drop_overlap_bp` | `function` | `L385-L393` | `def drop_overlap_bp(drops, start, end)` | — |
+| `delfies_bounded_grs` | `function` | `L396-L483` | `def delfies_bounded_grs(length, clustered_bps, raw_drops, merged_drops, rules)` | GRS intervals on a chromosomal scaffold. Every interval is anchored by >= 1 DELFIES breakpoint. |
+| `build_chromosomal_segments` | `function` | `L486-L501` | `def build_chromosomal_segments(chrom, length, grs_intervals, cov_windows)` | Tile a chromosomal scaffold: DELFIES-anchored GRS intervals, everything else putative_core. |
+| `classify_unplaced` | `function` | `L504-L513` | `def classify_unplaced(chrom, length, raw_drops, repeats, rules)` | Non-chromosomal scaffold: repeat-aware call with an explicit uncertain class. |
+| `main` | `function` | `L516-L710` | `def main()` | — |
 
 ### `modules/local/memecoregrid/resources/usr/bin/cbm_meme_core_grid.py`
 

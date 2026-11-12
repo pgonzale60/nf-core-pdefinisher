@@ -167,8 +167,9 @@ def parse_breakpoint_foci(foci_tsv):
                 continue
             parts = line.rstrip("\n").split("\t")
             chrom = parts[col["contig"]]
-            pos = int(parts[col["start"]])
-            end = int(parts[col["end"]])
+            # DELFIES reports -1 for breakpoints at the first contig position
+            pos = max(0, int(parts[col["start"]]))
+            end = max(0, int(parts[col["end"]]))
             sample = parts[col["sample_name"]]
             bp_type = parts[col["breakpoint_type"]]
             for strand, support_col in (

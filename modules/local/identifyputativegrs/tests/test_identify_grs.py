@@ -198,6 +198,7 @@ class TestIdentifyPutativeGRS(unittest.TestCase):
             with open(bp, "w") as f:
                 f.write("contig\tstart\tend\tread_depth\tbreakpoint_type\tsample_name\tnum_supporting_reads__forward\tnum_supporting_reads__reverse\n")
                 f.write("chrB\t100000\t100001\t30\tS2G\ttest.1\t0\t12\n")
+                f.write("chrB\t-1\t0\t30\tS2G\ttest.1\t3\t0\n")
             red = os.path.join(tmpdir, "red.bed")
             with open(red, "w") as f:
                 f.write("u1\t0\t1999500\n")
