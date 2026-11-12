@@ -35,9 +35,7 @@ workflow RECON_MOTIF_PIPELINE {
     PDE_MOTIF_DISCOVERY (
         ch_assembly,
         PDE_RECONNAISSANCE.out.pde_segments_bed,
-        PDE_RECONNAISSANCE.out.delfies_bed,
-        PDE_RECONNAISSANCE.out.grs_summary_tsv,
-        PDE_RECONNAISSANCE.out.terminal_ends_summary,
+        PDE_RECONNAISSANCE.out.delfies_foci_s2g,
         params.fimo_pvalue_threshold ?: 1e-4
     )
 

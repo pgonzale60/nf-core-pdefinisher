@@ -4,7 +4,7 @@
 // and profiles genome-wide motif occurrences across assembly compartments.
 //
 
-include { EXTRACTPDEBORDERS } from '../../../modules/local/extractpdeborders/main'
+include { DELFIESBREAKWINDOWS } from '../../../modules/local/delfiesbreakwindows/main'
 include { MEMECOREGRID      } from '../../../modules/local/memecoregrid/main'
 include { BIPARTITEPROFILER } from '../../../modules/local/bipartiteprofiler/main'
 include { FIMO              } from '../../../modules/local/fimo/main'
@@ -15,47 +15,33 @@ workflow PDE_MOTIF_DISCOVERY {
     take:
     ch_assembly         // channel: [ val(meta), path(assembly) ]
     ch_pde_segments     // channel: [ val(meta), path(pde_segments_bed) ]
-    ch_breakpoints_bed  // channel: [ val(meta), path(breakpoints_bed) ]
-    ch_grs_summary      // channel: [ val(meta), path(grs_summary) ]
-    ch_ends_summary     // channel: [ val(meta), path(terminal_ends_summary) ]
+    ch_delfies_s2g      // channel: [ val(meta), path(breakpoint_foci__S2G.tsv) ]
     pvalue_thresh       // val: e.g. 1e-4
 
     main:
     ch_versions = Channel.empty()
 
-    // 1. Extract authentic GRS/Core border transitions directly from pde_segments.bed
-    ch_b1 = ch_pde_segments.map    { meta, f -> [ meta.id, meta, f ] }
-    ch_b2 = ch_breakpoints_bed.map { meta, f -> [ meta.id, f ] }
-    ch_b3 = ch_assembly.map        { meta, f -> [ meta.id, f ] }
-    ch_b4 = ch_grs_summary.map     { meta, f -> [ meta.id, f ] }
-    ch_b5 = ch_ends_summary.map    { meta, f -> [ meta.id, f ] }
+    // 1. Break windows from DELFIES S2G foci, restricted to core/GRS borders plus fissions
+    ch_breaks_input = ch_delfies_s2g.map { meta, f -> [ meta.id, meta, f ] }
+        .join(ch_pde_segments.map { meta, f -> [ meta.id, f ] }, by: 0)
+        .join(ch_assembly.map     { meta, f -> [ meta.id, f ] }, by: 0)
+        .map { id, meta, s2g, segs, asm -> tuple(meta, s2g, segs, asm) }
 
-    ch_borders_input = ch_b1
-        .join(ch_b2, by: 0, remainder: true)
-        .join(ch_b3, by: 0)
-        .join(ch_b4, by: 0, remainder: true)
-        .join(ch_b5, by: 0, remainder: true)
-        .map { id, meta, segs, bps, asm, grs, ends ->
-            tuple(meta, segs, bps ?: [], asm, grs ?: [], ends ?: [])
-        }
-
-    EXTRACTPDEBORDERS (
-        ch_borders_input,
-        150,
-        350
+    DELFIESBREAKWINDOWS (
+        ch_breaks_input
     )
-    ch_versions = ch_versions.mix(EXTRACTPDEBORDERS.out.versions_python)
+    ch_versions = ch_versions.mix(DELFIESBREAKWINDOWS.out.versions_python)
 
     // 2. Tier-1 Core Motif Discovery via Markov-backed parameter grid
     MEMECOREGRID (
-        EXTRACTPDEBORDERS.out.break_windows_fasta
+        DELFIESBREAKWINDOWS.out.fasta
     )
     ch_versions = ch_versions.mix(MEMECOREGRID.out.versions_meme)
 
     // 3. Tier-2 Auxiliary Motif Discovery & Bipartite Spacing Profiler
-    ch_bp1 = EXTRACTPDEBORDERS.out.break_windows_fasta.map { meta, f -> [ meta.id, meta, f ] }
+    ch_bp1 = DELFIESBREAKWINDOWS.out.fasta.map { meta, f -> [ meta.id, meta, f ] }
     ch_bp2 = MEMECOREGRID.out.best_core_motif.map         { meta, f -> [ meta.id, f ] }
-    ch_bp3 = EXTRACTPDEBORDERS.out.census_json.map        { meta, f -> [ meta.id, f ] }
+    ch_bp3 = DELFIESBREAKWINDOWS.out.census_json.map        { meta, f -> [ meta.id, f ] }
     ch_bp4 = MEMECOREGRID.out.motif_metrics_json.map      { meta, f -> [ meta.id, f ] }
     ch_bp5 = MEMECOREGRID.out.best_background.map         { meta, f -> [ meta.id, f ] }
 
@@ -86,7 +72,7 @@ workflow PDE_MOTIF_DISCOVERY {
 
     // 5. Profiling of motif occurrences across authentic break sites, GRS, and core
     ch_profiler_input = FIMO.out.tsv.map { meta, f -> [ meta.id, meta, f ] }
-        .join(EXTRACTPDEBORDERS.out.border_breakpoints.map { meta, f -> [ meta.id, f ] }, by: 0)
+        .join(DELFIESBREAKWINDOWS.out.bed.map { meta, f -> [ meta.id, f ] }, by: 0)
         .join(ch_pde_segments.map { meta, f -> [ meta.id, f ] }, by: 0)
         .map { id, meta, hits, bps, segs -> tuple(meta, hits, bps, segs) }
 
@@ -97,9 +83,9 @@ workflow PDE_MOTIF_DISCOVERY {
     ch_versions = ch_versions.mix(PDEMOTIFPROFILER.out.versions_python)
 
     emit:
-    border_breakpoints         = EXTRACTPDEBORDERS.out.border_breakpoints
-    break_windows_fasta        = EXTRACTPDEBORDERS.out.break_windows_fasta
-    census_json                = EXTRACTPDEBORDERS.out.census_json
+    border_breakpoints         = DELFIESBREAKWINDOWS.out.bed
+    break_windows_fasta        = DELFIESBREAKWINDOWS.out.fasta
+    census_json                = DELFIESBREAKWINDOWS.out.census_json
     best_core_motif            = MEMECOREGRID.out.best_core_motif
     grid_summary_tsv           = MEMECOREGRID.out.grid_summary_tsv
     core_motif_metrics_json    = MEMECOREGRID.out.motif_metrics_json
