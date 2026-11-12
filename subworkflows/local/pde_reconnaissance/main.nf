@@ -10,11 +10,7 @@ include { EXTRACTTELOMERICREADS  } from '../../../modules/local/extracttelomeric
 include { EXTRACTRDNAREADS       } from '../../../modules/local/extractrdnareads/main'
 include { SOFTCLIPENDS           } from '../../../modules/local/softclipends/main'
 include { TELOMERICJUNCTIONPROFILER } from '../../../modules/local/telomericjunctionprofiler/main'
-include { HIFIASM                         } from '../../../modules/local/hifiasm/main'
-include { HIFIASM as HIFIASM_RDNA         } from '../../../modules/local/hifiasm/main'
-include { MINIMAP2_ALIGN                  } from '../../../modules/local/minimap2/align/main'
 include { MINIMAP2_ALIGN as ALIGN_UNPLACED } from '../../../modules/local/minimap2/align/main'
-include { MINIMAP2_ALIGN as ALIGN_RDNA_TO_ASSEMBLY } from '../../../modules/local/minimap2/align/main'
 
 include { SNIFFLES                        } from '../../../modules/local/sniffles/main'
 include { FILTERCHROMOSOMES               } from '../../../modules/local/filterchromosomes/main'
@@ -171,46 +167,6 @@ workflow PDE_RECONNAISSANCE {
     )
 
     //
-    // MODULE: HIFIASM — De novo assembly of telomeric unitigs from extracted reads
-    //
-    ch_hifiasm_input = EXTRACTTELOMERICREADS.out.reads
-        .map { meta, reads ->
-            def read_list = (reads instanceof List) ? reads : [reads]
-            tuple(meta, read_list, [])
-        }
-
-    HIFIASM (
-        ch_hifiasm_input,
-        [[:], []],
-        [[:], [], []],
-        [[:], []],
-        [[:], []]
-    )
-
-    //
-    // MODULE: MINIMAP2_ALIGN — Map assembled telomeric unitigs against baseline assembly
-    //
-    ch_minimap2_reads = HIFIASM.out.assembly_fasta
-        .filter { _meta, fasta -> fasta != null && fasta.size() > 0 }
-
-    ch_minimap2_input = ch_minimap2_reads
-        .combine(ch_assembly, by: 0)
-        .multiMap { meta, unitigs, assembly ->
-            reads: tuple(meta, unitigs)
-            reference: tuple(meta, assembly)
-        }
-
-    MINIMAP2_ALIGN (
-        ch_minimap2_input.reads,
-        ch_minimap2_input.reference,
-        false,  // bam_format
-        '',     // bam_index_extension
-        true,   // cigar_paf_format
-        false,  // cigar_bam
-        false   // bed_bool
-    )
-
-    //
     // MODULE: SNIFFLES — Structural variant calling and somatic mosaicism detection
     //
     ch_sniffles_input = ch_bam
@@ -320,60 +276,6 @@ workflow PDE_RECONNAISSANCE {
             meta + [coverage: txt.toFloat()]
         }
 
-    //
-    // MODULE: HIFIASM (HIFIASM_RDNA) — High-speed string-graph assembly of the rDNA repeat array and anchors
-    //
-    ch_hifiasm_rdna_input = EXTRACTRDNAREADS.out.reads
-        .map { meta, reads ->
-            def read_list = (reads instanceof List) ? reads : [reads]
-            tuple(meta, read_list, [])
-        }
-
-    HIFIASM_RDNA (
-        ch_hifiasm_rdna_input,
-        [[:], []],
-        [[:], [], []],
-        [[:], []],
-        [[:], []]
-    )
-
-    ch_rdna_assembly_reads = HIFIASM_RDNA.out.assembly_fasta
-        .map { meta, fasta ->
-            def target_fa = fasta
-            if (fasta instanceof List) {
-                target_fa = fasta.find { it.name.endsWith('.p_utg.fa') } ?:
-                            fasta.find { it.name.endsWith('.p_ctg.fa') } ?:
-                            fasta[0]
-            }
-            tuple(meta, target_fa)
-        }
-        .filter { _meta, fasta -> fasta != null }
-
-    //
-    // MODULE: MINIMAP2_ALIGN (ALIGN_RDNA_TO_ASSEMBLY) — Map the rDNA assembly back onto
-    // the baseline assembly. A terminal rDNA locus is resolved as
-    // anchor -> rDNA model -> distal cap, and the single-copy core anchor is identified from
-    // this mapping: a contig aligning to the locus chromosome at high MAPQ is the core flank.
-    // Without it the cassette resolver can only fall back to guessing an anchor.
-    //
-    ch_rdna_align_input = ch_rdna_assembly_reads
-        .map { meta, f -> [ meta.subMap(['id', 'chromosomes', 'telomere_repeat']), f ] }
-        .join(ch_assembly, by: 0)
-        .multiMap { meta, rdna_fa, asm ->
-            reads:     tuple(meta, rdna_fa)
-            reference: tuple(meta, asm)
-        }
-
-    ALIGN_RDNA_TO_ASSEMBLY (
-        ch_rdna_align_input.reads,
-        ch_rdna_align_input.reference,
-        false,  // bam_format
-        '',     // bam_index_extension
-        true,   // cigar_paf_format
-        false,  // cigar_bam
-        false   // bed_bool
-    )
-
     emit:
     chromosomes_fasta          = FILTERCHROMOSOMES.out.chromosomes
     non_chromosomal_fasta      = FILTERCHROMOSOMES.out.non_chromosomal
@@ -389,10 +291,6 @@ workflow PDE_RECONNAISSANCE {
     barrnap_gff                = BARRNAP.out.gff
     rdna_reads                 = EXTRACTRDNAREADS.out.reads
     rdna_regions_bed           = EXTRACTRDNAREADS.out.bed
-    rdna_assembly_fasta        = ch_rdna_assembly_reads.map { meta, f -> [ meta.subMap(['id', 'chromosomes', 'telomere_repeat']), f ] }
-    rdna_assembly_gfa          = HIFIASM_RDNA.out.assembly_graphs.map { meta, f -> [ meta.subMap(['id', 'chromosomes', 'telomere_repeat']), f ] }
-    rdna_assembly_info         = HIFIASM_RDNA.out.log.map { meta, f -> [ meta.subMap(['id', 'chromosomes', 'telomere_repeat']), f ] }
-    rdna_assembly_paf          = ALIGN_RDNA_TO_ASSEMBLY.out.paf.map { meta, f -> [ meta.subMap(['id', 'chromosomes', 'telomere_repeat']), f ] }
 
     core_coverage              = ch_meta_with_coverage
     core_coverage_tsv          = IDENTIFYPUTATIVEGRS.out.core_coverage_tsv
@@ -402,8 +300,6 @@ workflow PDE_RECONNAISSANCE {
     terminal_softclips         = SOFTCLIPENDS.out.softclips
     terminal_ends_summary      = SOFTCLIPENDS.out.summary
     teloclip_overhangs         = TELOCLIP_EXTRACT.out.overhangs
-    telo_unitigs               = HIFIASM.out.assembly_fasta
-    telo_paf                   = MINIMAP2_ALIGN.out.paf
     telo_junction_json         = TELOMERICJUNCTIONPROFILER.out.json
     telo_junction_tsv          = TELOMERICJUNCTIONPROFILER.out.tsv
     sniffles_vcf               = SNIFFLES.out.vcf
