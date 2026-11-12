@@ -21,6 +21,7 @@ include { FILTERCHROMOSOMES               } from '../../../modules/local/filterc
 include { RED                             } from '../../../modules/local/red/main'
 include { IDENTIFYPUTATIVEGRS             } from '../../../modules/local/identifyputativegrs/main'
 include { MOSDEPTHQUANTIZE               } from '../../../modules/local/mosdepthquantize/main'
+include { MOSDEPTHCLASS                  } from '../../../modules/local/mosdepthclass/main'
 include { EXTRACTGAPEVIDENCE            } from '../../../modules/local/extractgapevidence/main'
 include { TELOCLIP_EXTRACT              } from '../../../modules/local/teloclip/extract/main'
 
@@ -297,6 +298,19 @@ workflow PDE_RECONNAISSANCE {
         ch_quantize_input.cov
     )
 
+    // MODULE: MOSDEPTHCLASS — per-region depth over the final classification segments (core / GRS / uncertain)
+    ch_class_input = ch_bam
+        .join(IDENTIFYPUTATIVEGRS.out.bed, by: 0)
+        .multiMap { meta, bam, bai, segments_bed ->
+            bam:      tuple(meta, bam, bai)
+            segments: tuple(meta, segments_bed)
+        }
+
+    MOSDEPTHCLASS (
+        ch_class_input.bam,
+        ch_class_input.segments
+    )
+
     ch_meta_with_coverage = IDENTIFYPUTATIVEGRS.out.core_coverage
         .map { meta, cov_file ->
             def txt = cov_file.text.trim()
@@ -369,6 +383,7 @@ workflow PDE_RECONNAISSANCE {
     delfies_fasta              = DELFIES.out.fasta
     delfies_foci_s2g           = DELFIES.out.foci_s2g
     grs_quantized_bed          = MOSDEPTHQUANTIZE.out.quantized_bed
+    class_regions_bed          = MOSDEPTHCLASS.out.class_regions_bed
     mosdepth_summary           = MOSDEPTH.out.summary_txt
     mosdepth_regions           = MOSDEPTH.out.regions_bed
     barrnap_gff                = BARRNAP.out.gff
