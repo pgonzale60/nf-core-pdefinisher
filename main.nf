@@ -291,15 +291,15 @@ output {
     }
     // Cohort-level outputs:
     summary_md {
-        path { Object[] args -> "curation_summary" }
+        path { Object[] _args -> "curation_summary" }
         mode params.publish_dir_mode
     }
     summary_tsv {
-        path { Object[] args -> "curation_summary" }
+        path { Object[] _args -> "curation_summary" }
         mode params.publish_dir_mode
     }
     summary_json {
-        path { Object[] args -> "curation_summary" }
+        path { Object[] _args -> "curation_summary" }
         mode params.publish_dir_mode
     }
     // Pipeline info outputs:

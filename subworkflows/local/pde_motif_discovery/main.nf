@@ -25,7 +25,7 @@ workflow PDE_MOTIF_DISCOVERY {
     ch_breaks_input = ch_delfies_s2g.map { meta, f -> [ meta.id, meta, f ] }
         .join(ch_pde_segments.map { meta, f -> [ meta.id, f ] }, by: 0)
         .join(ch_assembly.map     { meta, f -> [ meta.id, f ] }, by: 0)
-        .map { id, meta, s2g, segs, asm -> tuple(meta, s2g, segs, asm) }
+        .map { _id, meta, s2g, segs, asm -> tuple(meta, s2g, segs, asm) }
 
     DELFIESBREAKWINDOWS (
         ch_breaks_input
@@ -50,7 +50,7 @@ workflow PDE_MOTIF_DISCOVERY {
         .join(ch_bp3, by: 0)
         .join(ch_bp4, by: 0)
         .join(ch_bp5, by: 0)
-        .map { id, meta, fa, core, census, metrics, bg ->
+        .map { _id, meta, fa, core, census, metrics, bg ->
             tuple(meta, fa, core, census, metrics, bg)
         }
 
@@ -62,7 +62,7 @@ workflow PDE_MOTIF_DISCOVERY {
     // 4. Whole-Genome FIMO Scanning across raw assembly
     ch_fimo_input = MEMECOREGRID.out.best_core_motif.map { meta, f -> [ meta.id, meta, f ] }
         .join(ch_assembly.map { meta, f -> [ meta.id, f ] }, by: 0)
-        .map { id, meta, core, asm -> tuple(meta, core, asm) }
+        .map { _id, meta, core, asm -> tuple(meta, core, asm) }
 
     FIMO (
         ch_fimo_input,
@@ -74,7 +74,7 @@ workflow PDE_MOTIF_DISCOVERY {
     ch_profiler_input = FIMO.out.tsv.map { meta, f -> [ meta.id, meta, f ] }
         .join(DELFIESBREAKWINDOWS.out.bed.map { meta, f -> [ meta.id, f ] }, by: 0)
         .join(ch_pde_segments.map { meta, f -> [ meta.id, f ] }, by: 0)
-        .map { id, meta, hits, bps, segs -> tuple(meta, hits, bps, segs) }
+        .map { _id, meta, hits, bps, segs -> tuple(meta, hits, bps, segs) }
 
     PDEMOTIFPROFILER (
         ch_profiler_input,
