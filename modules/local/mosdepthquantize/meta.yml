@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sanger-tol/nf-core-modules/main/modules/meta-schema.json
+name: "mosdepthquantize"
+description: Quantize BAM depth at the classifier's T_GRS (mapq 0, repeats kept) and flag intervals overlapping RED repeats.
+keywords:
+  - pde
+  - grs
+  - coverage
+  - quantize
+  - mosdepth
+input:
+  - - meta:
+        type: map
+        description: Sample metadata
+    - bam:
+        type: file
+        pattern: "*.bam"
+    - bai:
+        type: file
+        pattern: "*.bai"
+  - - meta2:
+        type: map
+    - red_bed:
+        type: file
+        pattern: "*.bed"
+  - - meta3:
+        type: map
+    - core_coverage_tsv:
+        type: file
+        pattern: "*.core_coverage.tsv"
+output:
+  quantized_bed:
+    - - meta:
+          type: map
+      - "*.quantized.red_masked.bed":
+          type: file
+          description: chrom, start, end, quantize label, repeat_overlap flag (1/0)
