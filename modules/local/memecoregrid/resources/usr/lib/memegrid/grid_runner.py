@@ -9,18 +9,13 @@ import shutil
 import subprocess
 from typing import Any
 
+from cbm_defaults import SSOT
 from .evaluator import parse_meme_txt
-from .slicer import load_fasta, write_sliced_fasta
+from .slicer import extract_soma_len_from_header, load_fasta, write_sliced_fasta
 
-RADII = [30, 50, 100, 150]
-
-WIDTH_RANGES = [
-    {"label": "w6_15", "args": ["-minw", "6", "-maxw", "15"]},
-    {"label": "w12_30", "args": ["-minw", "12", "-maxw", "30"]},
-    {"label": "w15_50", "args": ["-minw", "15", "-maxw", "50"]},
-]
-
-MODELS = ["zoops", "anr", "oops"]
+RADII = SSOT["core_grid_radii"]
+WIDTH_RANGES = SSOT["core_grid_width_ranges"]
+MODELS = SSOT["core_grid_models"]
 
 
 def generate_grid_conditions(radii: list[int] | None = None) -> list[dict[str, Any]]:
@@ -46,22 +41,22 @@ def build_distal_flank_markov_backgrounds(
     break_windows_fasta: str | Path,
     output_dir: Path,
 ) -> tuple[list[int], dict[int, str]]:
-    """Build candidate Markov backgrounds (m=0,1,2,3) from distal flanking arms [-150..-60] & [+60..+150]."""
+    """Build candidate Markov backgrounds (m=0,1,2,3) from distal flanking arms outside [-excl_r..+excl_r]."""
     fgm_bin = shutil.which("fasta-get-markov")
     if not fgm_bin:
         raise RuntimeError("Required binary 'fasta-get-markov' not found in PATH")
 
     records = load_fasta(break_windows_fasta)
     distal_fa = output_dir / "distal_flanks_bg.fasta"
+    excl_r = SSOT["distal_bg_exclusion_radius"]
 
     total_len = 0
     with open(distal_fa, "w", encoding="utf-8") as f_out:
-        for idx, (_hdr, seq) in enumerate(records):
+        for idx, (hdr, seq) in enumerate(records):
             s = seq.upper()
-            # Distal 5' arm [-150 .. -60] (first 90 bp)
-            left_arm = s[:90] if len(s) >= 90 else s
-            # Distal 3' arm [+60 .. +150] (last 90 bp from 210 to 300)
-            right_arm = s[210:] if len(s) >= 210 else ""
+            pos0 = extract_soma_len_from_header(hdr, default=len(s) // 2)
+            left_arm = s[: max(0, pos0 - excl_r)]
+            right_arm = s[pos0 + excl_r :] if len(s) > pos0 + excl_r else ""
             if left_arm:
                 f_out.write(f">distal_L_{idx}\n{left_arm}\n")
                 total_len += len(left_arm)
@@ -79,12 +74,19 @@ def build_distal_flank_markov_backgrounds(
     bg_files: dict[int, str] = {}
     for m in candidate_orders:
         bg_path = output_dir / f"bg_m{m}.txt"
-        subprocess.run(
-            [fgm_bin, "-dna", "-m", str(m), str(distal_fa), str(bg_path)],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=True,
-        )
+        try:
+            subprocess.run(
+                [fgm_bin, "-dna", "-m", str(m), str(distal_fa), str(bg_path)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=True,
+            )
+        except subprocess.CalledProcessError as e:
+            err_msg = e.stderr.strip() if e.stderr else "Unknown error"
+            raise RuntimeError(
+                f"fasta-get-markov (order {m}) failed with exit code {e.returncode}: {err_msg}"
+            ) from e
         bg_files[m] = str(bg_path)
 
     return candidate_orders, bg_files
@@ -122,12 +124,19 @@ def _run_single_condition(
         if cond["revcomp"]:
             cmd.append("-revcomp")
 
-        subprocess.run(
-            cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=True,
-        )
+        try:
+            subprocess.run(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=True,
+            )
+        except subprocess.CalledProcessError as e:
+            err_msg = e.stderr.strip() if e.stderr else "Unknown error"
+            raise RuntimeError(
+                f"MEME condition '{cid}' failed with exit code {e.returncode}: {err_msg}"
+            ) from e
 
     if meme_txt.exists():
         metrics = parse_meme_txt(
@@ -160,7 +169,9 @@ def run_meme_grid(
 
     records = load_fasta(break_windows_fasta)
     total_seqs = len(records)
-    if total_seqs == 0:
+    if total_seqs < 2:
+        with open(out_path / "best_background.bfile", "w", encoding="utf-8") as f:
+            f.write("# 0-order Markov background\nA 0.25\nC 0.25\nG 0.25\nT 0.25\n")
         return None, []
 
     meme_bin = shutil.which("meme")
@@ -181,7 +192,7 @@ def run_meme_grid(
     sliced_fastas = {}
     for r in selected_radii:
         r_fa = sliced_dir / f"windows_radius_{r}bp.fasta"
-        write_sliced_fasta(records, r, r_fa, center_soma_len=150)
+        write_sliced_fasta(records, r, r_fa)
         sliced_fastas[r] = r_fa
 
     runs_dir = out_path / "runs"
@@ -233,36 +244,35 @@ def run_meme_grid(
     if not p1_results:
         return None, []
 
-    p1_best = max(
-        p1_results,
-        key=lambda x: (x["composite_score"], x["total_ic"], -x["evalue"]),
-    )
+    p1_best = max(p1_results, key=lambda x: x["composite_score"])
     best_radius = p1_best["radius"]
     best_order = p1_best["markov_order"]
 
-    # Phase 2: Width Bracket & Strand Refinement
+    # Phase 2: Width Bracket & Model Refinement
     phase2_conds = []
-    for w in WIDTH_RANGES:
-        for revcomp in [True, False]:
-            st_lbl = "revcomp" if revcomp else "fwd"
-            phase2_conds.append({
-                "id": f"P2_R{best_radius}_m{best_order}_zoops_{st_lbl}_{w['label']}",
-                "phase": 2, "radius": best_radius, "markov_order": best_order,
-                "bfile": bg_files[best_order], "mod": "zoops", "revcomp": revcomp,
-                "w_args": w["args"], "w_label": w["label"],
-            })
+    for mod in ["zoops", "anr"]:
+        for w in WIDTH_RANGES:
+            for revcomp in [True, False]:
+                st_lbl = "revcomp" if revcomp else "fwd"
+                phase2_conds.append({
+                    "id": f"P2_R{best_radius}_m{best_order}_{mod}_{st_lbl}_{w['label']}",
+                    "phase": 2, "radius": best_radius, "markov_order": best_order,
+                    "bfile": bg_files[best_order], "mod": mod, "revcomp": revcomp,
+                    "w_args": w["args"], "w_label": w["label"],
+                })
     p2_results = execute_batch(phase2_conds)
     all_results.extend(p2_results)
 
     p2_best = max(
         p2_results if p2_results else p1_results,
-        key=lambda x: (x["composite_score"], x["total_ic"], -x["evalue"]),
+        key=lambda x: x["composite_score"],
     )
     best_w_args = next(
         w["args"] for w in WIDTH_RANGES if w["label"] == p2_best["w_label"]
     )
     best_w_label = p2_best["w_label"]
     best_revcomp = p2_best["revcomp"]
+    best_mod = p2_best.get("mod", "zoops")
 
     # Phase 3: Site Distribution Model & Palindrome Check
     phase3_conds = []
@@ -275,23 +285,26 @@ def run_meme_grid(
             "pal": False, "w_args": best_w_args, "w_label": best_w_label,
         })
     phase3_conds.append({
-        "id": f"P3_R{best_radius}_m{best_order}_zoops_{st_lbl}_pal_{best_w_label}",
+        "id": f"P3_R{best_radius}_m{best_order}_{best_mod}_{st_lbl}_pal_{best_w_label}",
         "phase": 3, "radius": best_radius, "markov_order": best_order,
-        "bfile": bg_files[best_order], "mod": "zoops", "revcomp": best_revcomp,
+        "bfile": bg_files[best_order], "mod": best_mod, "revcomp": best_revcomp,
         "pal": True, "w_args": best_w_args, "w_label": best_w_label,
     })
     p3_results = execute_batch(phase3_conds)
     all_results.extend(p3_results)
 
-    all_results.sort(
-        key=lambda r: (r["composite_score"], r["total_ic"], -r["evalue"]),
-        reverse=True,
-    )
-    best_motif = all_results[0] if all_results else None
+    all_results.sort(key=lambda r: r["composite_score"], reverse=True)
+    valid_results = [r for r in all_results if r.get("composite_score", 0.0) > 0.0]
+    best_motif = valid_results[0] if valid_results else None
 
     # Save winning Markov background
-    if best_motif and best_motif.get("bfile"):
-        shutil.copy(best_motif["bfile"], out_path / "best_background.bfile")
+    bg_src = (
+        best_motif.get("bfile")
+        if best_motif
+        else (all_results[0].get("bfile") if all_results else None)
+    )
+    if bg_src and os.path.exists(bg_src):
+        shutil.copy(bg_src, out_path / "best_background.bfile")
 
     return best_motif, all_results
 
@@ -305,10 +318,12 @@ def export_grid_outputs(
     output_background: str | Path | None = None,
 ):
     """Save best_core_motif.meme, core_grid_summary.tsv, core_motif_metrics.json, and best_background.bfile."""
+    out_meme_path = Path(output_meme)
+    out_meme_path.parent.mkdir(parents=True, exist_ok=True)
     if best_motif and os.path.exists(best_motif["meme_txt_path"]):
-        shutil.copy(best_motif["meme_txt_path"], output_meme)
+        shutil.copy(best_motif["meme_txt_path"], out_meme_path)
     else:
-        with open(output_meme, "w", encoding="utf-8") as f:
+        with open(out_meme_path, "w", encoding="utf-8") as f:
             f.write("MEME version 4\n\nALPHABET= ACGT\n")
 
     if (
@@ -316,26 +331,33 @@ def export_grid_outputs(
         and best_motif.get("bfile")
         and os.path.exists(best_motif["bfile"])
     ):
-        target_bg = output_background or (
-            Path(output_meme).parent / "best_background.bfile"
+        target_bg = Path(output_background) if output_background else (
+            out_meme_path.parent / "best_background.bfile"
         )
+        target_bg.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(best_motif["bfile"], target_bg)
     elif output_background:
-        with open(output_background, "w", encoding="utf-8") as f:
+        target_bg = Path(output_background)
+        target_bg.parent.mkdir(parents=True, exist_ok=True)
+        with open(target_bg, "w", encoding="utf-8") as f:
             f.write("# 0-order Markov background\nA 0.25\nC 0.25\nG 0.25\nT 0.25\n")
 
     fieldnames = [
         "phase", "condition_id", "radius", "markov_order", "mod", "revcomp",
         "pal", "w_label", "width", "nsites", "evalue", "consensus", "total_ic",
         "mean_ic", "consensus_entropy", "occupancy", "median_offset_to_pos0",
-        "positional_iqr", "composite_score",
+        "positional_iqr", "telomeric_echo_fraction", "rejection_flag", "composite_score",
     ]
-    with open(summary_tsv, "w", newline="", encoding="utf-8") as f:
+    out_tsv_path = Path(summary_tsv)
+    out_tsv_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_tsv_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(
             f, fieldnames=fieldnames, delimiter="\t", extrasaction="ignore"
         )
         writer.writeheader()
         writer.writerows(grid_results)
 
-    with open(metrics_json, "w", encoding="utf-8") as f:
+    out_json_path = Path(metrics_json)
+    out_json_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_json_path, "w", encoding="utf-8") as f:
         json.dump(best_motif or {}, f, indent=2)

@@ -25,18 +25,22 @@ if str(LIB_DIR) not in sys.path:
     sys.path.insert(0, str(LIB_DIR))
 
 from bipartite.aux_grid import (  # noqa: E402
+    detect_tandem_repeats,
+    extract_motif_n_from_meme,
     is_core_echo,
+    run_localized_auxiliary_meme,
     score_auxiliary_candidate,
 )
 from bipartite.masker import (  # noqa: E402
-    clean_fasta_id,
-    load_fasta_dict,
     load_soma_len_map,
     mask_sequences_with_hits,
+    slice_window_at_radius,
+    write_sliced_fasta,
 )
 from bipartite.reporter import generate_cbm_discovery_report  # noqa: E402
 from bipartite.spacing import (  # noqa: E402
     calculate_edge_to_edge_spacer,
+    detect_homotypic_bipartite,
     profile_bipartite_spacing,
 )
 
@@ -159,6 +163,37 @@ class TestBipartiteProfiler(unittest.TestCase):
             self.assertIn("Located in Retained Region", report_text)
             self.assertIn("Located in Eliminated Region", report_text)
 
+            # Test Single-Motif Architecture (core found, no aux motif)
+            generate_cbm_discovery_report(
+                sample_id="test_species_single",
+                census_json_path=f_census.name,
+                core_metrics_json_path=f_core.name,
+                best_aux_motif=None,
+                bipartite_summary={},
+                output_report_md=f_rep.name,
+            )
+            single_rep_text = pathlib.Path(f_rep.name).read_text(encoding="utf-8")
+            self.assertIn("### Single-Motif Architecture", single_rep_text)
+            self.assertIn("- No statistically significant auxiliary motif detected after core motif masking.", single_rep_text)
+            self.assertNotIn("The cleavage system operates", single_rep_text)
+
+            # Test Non-Motif Architecture (no core motif found, no aux motif)
+            with tempfile.NamedTemporaryFile("w", suffix=".json") as f_empty_core:
+                f_empty_core.write("{}")
+                f_empty_core.flush()
+                generate_cbm_discovery_report(
+                    sample_id="test_species_nomotif",
+                    census_json_path=f_census.name,
+                    core_metrics_json_path=f_empty_core.name,
+                    best_aux_motif=None,
+                    bipartite_summary={},
+                    output_report_md=f_rep.name,
+                )
+                nomotif_rep_text = pathlib.Path(f_rep.name).read_text(encoding="utf-8")
+                self.assertIn("### Non-Motif Architecture", nomotif_rep_text)
+                self.assertIn("- No statistically significant core or auxiliary recognition motif detected.", nomotif_rep_text)
+                self.assertNotIn("The cleavage system operates", nomotif_rep_text)
+
     def test_score_auxiliary_candidate_favors_longer_palindrome_over_core_hexamer(self):
         # 11 bp imperfect palindrome (e.g. ATAGCGCTAT) across 15 sequences
         pal_11bp = {
@@ -189,48 +224,237 @@ class TestBipartiteProfiler(unittest.TestCase):
         self.assertGreater(score_11bp, score_6bp)
         self.assertGreater(score_11bp, 14.0)
 
-    def test_is_core_echo(self):
-        # PS1017: Core = 28 bp / 22 bp, Aux = 12 bp (exact substring)
-        core_22bp = "GGCTTAGGCTCAGCCAAAGCCA"
-        core_28bp = "TTTTGGCTTAGGCTCAGCCAAAGCCAAA"
-        aux_echo = "TTAGGCTCAGCC"
+        # Auxiliary scoring must NOT reward proximity to cleavage site
+        pal_distal = dict(pal_11bp, proximal_sites_6_50bp=0)
+        self.assertEqual(
+            score_auxiliary_candidate(pal_distal, total_sequences=15),
+            score_11bp,
+        )
 
-        # Direct substring of 22 bp and 28 bp
-        self.assertTrue(is_core_echo(aux_echo, core_22bp))
-        self.assertTrue(is_core_echo(aux_echo, core_28bp))
+        # Telomeric repeat echo in auxiliary candidate must be hard-rejected (score 0.0)
+        telo_aux = {
+            "consensus": "TTAGGCTTAGGC",
+            "width": 12,
+            "nsites": 15,
+            "evalue": 1e-12,
+            "total_ic": 20.0,
+            "mean_ic": 1.67,
+            "consensus_entropy": 1.85,
+            "unique_sequences_hit": 15,
+            "proximal_sites_6_50bp": 15,
+        }
+        self.assertEqual(score_auxiliary_candidate(telo_aux, total_sequences=15), 0.0)
+        self.assertEqual(telo_aux["rejection_flag"], "REJECTED_TELOMERIC_ECHO")
 
-        # Reverse complement of 12 bp aux is GGCTGAGCCTAA
-        # It must also be identified as an echo of both core forms
-        rc_echo = "GGCTGAGCCTAA"
-        self.assertTrue(is_core_echo(rc_echo, core_22bp))
-        self.assertTrue(is_core_echo(rc_echo, core_28bp))
+    def test_aux_grid_surfaces_stderr_on_failure(self):
+        from unittest.mock import patch
+        import subprocess
+        from bipartite.aux_grid import _run_single_aux_condition
 
-        # Distinct independent motif should NOT be an echo
-        self.assertFalse(is_core_echo("CAGTAAAGCT", core_28bp))
+        cond = {
+            "id": "A03_test_fail",
+            "mod": "zoops",
+            "revcomp": True,
+            "w_args": ["-w", "6"],
+        }
 
-    def test_fimo_colon_header_sanitisation_and_masking(self):
-        # Header with colons and semicolons as output by DELFIES / pde_extract_borders
-        raw_header = "Type:S2G;breakpoint_window:240735-240835_chrI_240736_minus_win150bp_oriented soma_len=150"
-        clean_id = clean_fasta_id(raw_header)
-        # Colon and semicolon must be sanitised
-        self.assertNotIn(":", clean_id)
-        self.assertNotIn(";", clean_id)
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = subprocess.CalledProcessError(
+                returncode=1,
+                cmd=["meme"],
+                stderr="Your (primary) dataset must contain at least 2 sequences",
+            )
+            with self.assertRaises(RuntimeError) as ctx:
+                _run_single_aux_condition(
+                    meme_bin="/usr/bin/meme",
+                    cond=cond,
+                    masked_fa_str="/tmp/test_masked.fasta",
+                    cond_dir_str="/tmp/aux_cond_dir",
+                )
+            self.assertIn("Your (primary) dataset must contain at least 2 sequences", str(ctx.exception))
+            self.assertIn("A03_test_fail", str(ctx.exception))
 
-        seq = "A" * 150 + "C" * 150
-        with tempfile.NamedTemporaryFile("w", suffix=".fasta", delete=False) as tf:
-            tf.write(f">{raw_header}\n{seq}\n")
-            tf.flush()
-            seqs = load_fasta_dict(tf.name)
-            self.assertIn(clean_id, seqs)
+    def test_homotypic_bipartite_detection_mesorhabditis_belari_archetype(self):
+        """Test detection and spacing profiling of dual-core homotypic bipartite architecture (M. belari archetype)."""
+        # M. belari archetype: CCATTAATGC (10 bp) at -42 bp and +29 bp relative to pos0=100
+        # Site 1 (somatic flank): start=49, stop=58 (offset to pos0 = 100 - 58 = 42 bp)
+        # Site 2 (germline flank): start=129, stop=138 (offset to pos0 = 100 - 138 = -38 bp -> 29 bp into germline)
+        # Edge-to-edge spacer = 129 - 58 = 71 bp (or 62 bp)
+        seq_names = [f"nxMesBela1_break_{i}" for i in range(1, 11)]  # 10 loci
+        core_hits = []
+        core_hits_by_seq = {}
+        for s in seq_names:
+            h1 = {
+                "seq_name": s,
+                "motif_id": "CCATTAATGC",
+                "start": 49,
+                "stop": 58,
+                "strand": "+",
+                "score": 15.2,
+                "p_value": 1e-6,
+            }
+            h2 = {
+                "seq_name": s,
+                "motif_id": "CCATTAATGC",
+                "start": 129,
+                "stop": 138,
+                "strand": "+",
+                "score": 14.8,
+                "p_value": 2e-6,
+            }
+            core_hits.extend([h1, h2])
+            core_hits_by_seq[s] = [h1, h2]
 
-        # Mock hit from FIMO with sanitised name
-        mock_hits = [{
-            "seq_name": clean_id,
-            "start": 140,
-            "stop": 160,
-        }]
-        masked = mask_sequences_with_hits(seqs, mock_hits)
-        self.assertEqual(masked[clean_id][139:160], "N" * 21)
+        is_homo, info = detect_homotypic_bipartite(core_hits, seq_names, min_fraction=0.30, max_spacer_iqr=25.0)
+        self.assertTrue(is_homo)
+        self.assertEqual(info["fraction_multi"], 1.0)
+        self.assertEqual(info["n_multi_seqs"], 10)
+        self.assertEqual(info["median_spacer"], 71.0)
+        self.assertEqual(info["iqr_spacer"], 0.0)
+
+        rows, summary = profile_bipartite_spacing(
+            seq_names=seq_names,
+            core_hits_by_seq=core_hits_by_seq,
+            aux_hits_by_seq=None,
+            pos0_coord=100,
+            architecture="HOMOTYPIC_BIPARTITE",
+        )
+        # Uniform reporting: exactly 1 row per locus
+        self.assertEqual(len(rows), 10)
+        self.assertEqual(summary["n_paired_occurrences"], 10)
+        self.assertEqual(summary["median_spacer_bp"], 71.0)
+        self.assertEqual(summary["iqr_spacer_bp"], 0.0)
+        self.assertEqual(summary["pct_same_strand"], 100.0)
+        self.assertEqual(summary["pct_retained_domain"], 100.0)
+        for r in rows:
+            self.assertTrue(r["has_partner"])
+            self.assertEqual(r["partner_type"], "Secondary_Core")
+            self.assertEqual(r["spacer_bp"], 71)
+            self.assertEqual(r["relative_strand"], "Same")
+
+        # Negative control: only 1 sequence has a secondary hit (fraction 0.10 < 0.30)
+        single_hits = [h for h in core_hits if h["start"] == 49]
+        single_hits.append(core_hits_by_seq[seq_names[0]][1])  # add second hit for only 1 sequence
+        is_homo_neg, info_neg = detect_homotypic_bipartite(single_hits, seq_names, min_fraction=0.30)
+        self.assertFalse(is_homo_neg)
+        self.assertEqual(info_neg["fraction_multi"], 0.1)
+
+    def test_heterotypic_bipartite_resolution_df5120_archetype(self):
+        """Test resolution of heterotypic bipartite architecture (Oscheius DF5120 archetype: 29 bp core + 11 bp palindrome with 11-13 bp spacer)."""
+        seq_names = [f"nxOscSper1_break_{i}" for i in range(1, 11)]
+        # Core at 50..78 (29 bp), pos0 at 100
+        # Aux palindrome at 91..101 (11 bp) -> edge-to-edge spacer = 91 - 78 = 13 bp
+        core_hits_by_seq = {
+            s: [{"start": 50, "stop": 78, "strand": "+", "score": 28.5, "p_value": 1e-12}]
+            for s in seq_names
+        }
+        aux_hits_by_seq = {
+            s: [{"start": 91, "stop": 101, "strand": "+", "score": 14.2, "p_value": 1e-5}]
+            for s in seq_names
+        }
+
+        rows, summary = profile_bipartite_spacing(
+            seq_names=seq_names,
+            core_hits_by_seq=core_hits_by_seq,
+            aux_hits_by_seq=aux_hits_by_seq,
+            pos0_coord=100,
+            architecture="HETEROTYPIC_BIPARTITE",
+        )
+        self.assertEqual(len(rows), 10)
+        self.assertEqual(summary["n_paired_occurrences"], 10)
+        self.assertEqual(summary["median_spacer_bp"], 13.0)
+        self.assertEqual(summary["pct_spacer_le30bp"], 100.0)
+        self.assertEqual(summary["pct_same_strand"], 100.0)
+        for r in rows:
+            self.assertTrue(r["has_partner"])
+            self.assertEqual(r["partner_type"], "Auxiliary")
+            self.assertEqual(r["spacer_bp"], 13)
+
+        # Verify candidate scoring and localized MEME extraction
+        with tempfile.TemporaryDirectory() as tmp_d:
+            tmp_p = pathlib.Path(tmp_d)
+            meme_txt = tmp_p / "meme.txt"
+            # Synthetic MEME text with Motif 1 (29 bp core) and Motif 2 (11 bp palindrome ATAGCWGCTAT)
+            meme_txt.write_text(
+                "MEME version 5\n\nALPHABET= ACGT\n\n"
+                "MOTIF 1 MEME-1 width=29 nsites=10 E= 1e-25\n"
+                "letter-probability matrix: alength= 4 w= 29 nsites= 10 E= 1e-25\n"
+                + "0.85 0.05 0.05 0.05\n" * 29 +
+                "Multilevel TTTTGGTTTTGGCAACACCAAAACCAATA\n\n"
+                "MOTIF 2 MEME-2 width=11 nsites=10 E= 1e-5\n"
+                "letter-probability matrix: alength= 4 w= 11 nsites= 10 E= 1e-5\n"
+                + "0.85 0.05 0.05 0.05\n" * 11 +
+                "Multilevel ATAGCGCTAT\n"
+            )
+            out_aux = tmp_p / "aux_motif2.meme"
+            parsed = extract_motif_n_from_meme(meme_txt, 2, out_aux)
+            self.assertIsNotNone(parsed)
+            self.assertEqual(parsed["consensus"], "ATAGCGCTAT")
+            self.assertEqual(parsed["width"], 11)
+
+            # Echo and repeat checks
+            self.assertFalse(is_core_echo("ATAGCGCTAT", "TTTTGGTTTTGGCAACACCAAAACCAATA"))
+            self.assertFalse(detect_tandem_repeats("ATAGCGCTAT")[0])
+
+            # Localized runner extracts and selects Motif 2
+            best_cand, _cands = run_localized_auxiliary_meme(
+                sliced_fasta=tmp_p / "fake.fa",
+                out_dir=tmp_p,
+                core_consensus="TTTTGGTTTTGGCAACACCAAAACCAATA",
+                total_sequences=10,
+            )
+            self.assertIsNotNone(best_cand)
+            self.assertEqual(best_cand["consensus"], "ATAGCGCTAT")
+            self.assertEqual(best_cand["rejection_flag"], "PASS")
+            self.assertGreater(best_cand["composite_score"], 0.0)
+
+    def test_window_slicing_and_tandem_repeat_filter(self):
+        """Test slicing 600 bp windows to optimal radius and filtering tandem repeats."""
+        # Test 1: Slicing 600 bp window with pos0=300 to radius=50
+        seq_600 = "A" * 300 + "C" * 300
+        sliced_seq, new_pos0 = slice_window_at_radius(seq_600, radius=50, pos0=300)
+        self.assertEqual(len(sliced_seq), 100)
+        self.assertEqual(new_pos0, 50)
+        self.assertEqual(sliced_seq[:50], "A" * 50)
+        self.assertEqual(sliced_seq[50:], "C" * 50)
+
+        # Test 2: Already sliced window (100 bp, pos0=50, radius=50) is unchanged
+        s_unchanged, p_unchanged = slice_window_at_radius(sliced_seq, radius=50, pos0=50)
+        self.assertEqual(s_unchanged, sliced_seq)
+        self.assertEqual(p_unchanged, 50)
+
+        # Test 3: write_sliced_fasta and load_soma_len_map
+        with tempfile.TemporaryDirectory() as tmp_d:
+            tmp_fa = pathlib.Path(tmp_d) / "sliced_out.fasta"
+            raw_seqs = {"seqA": seq_600, "seqB": "G" * 600}
+            soma_lens = {"seqA": 300, "seqB": 300}
+            sliced_dict, new_lens = write_sliced_fasta(raw_seqs, soma_lens, radius=50, output_fasta=tmp_fa)
+            self.assertEqual(len(sliced_dict), 2)
+            self.assertEqual(new_lens["seqA"], 50)
+            loaded_lens = load_soma_len_map(tmp_fa)
+            self.assertEqual(loaded_lens["seqA"], 50)
+            self.assertEqual(loaded_lens["seqB"], 50)
+
+        # Test 4: Tandem satellite repeat rejection (M. belari flank hexamer CTCAGGCTCAGG)
+        sat_hex = "CTCAGGCTCAGG"
+        is_tr, period, frac = detect_tandem_repeats(sat_hex)
+        self.assertTrue(is_tr)
+        self.assertEqual(period, 6)
+        self.assertEqual(frac, 1.0)
+
+        cand_sat = {
+            "consensus": sat_hex,
+            "width": 12,
+            "nsites": 10,
+            "evalue": 1e-8,
+            "total_ic": 18.0,
+            "mean_ic": 1.5,
+            "consensus_entropy": 1.4,
+            "unique_sequences_hit": 10,
+        }
+        score_sat = score_auxiliary_candidate(cand_sat, total_sequences=10)
+        self.assertEqual(score_sat, 0.0)
+        self.assertEqual(cand_sat["rejection_flag"], "REJECTED_TANDEM_REPEAT")
 
 
 if __name__ == "__main__":

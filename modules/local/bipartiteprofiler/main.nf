@@ -24,9 +24,10 @@ process BIPARTITEPROFILER {
     script:
     def args   = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}"
+    def telomere_repeat = meta.telomere_repeat ?: (params.telomere_repeat ?: 'TTAGGC')
 
     """
-    # Tool: cbm_bipartite_profiler.py | Script-SHA: c19f8d6cf6486e01
+    # Tool: cbm_bipartite_profiler.py | Script-SHA: 68f0e6f38e3dbb5b
     cbm_bipartite_profiler.py \\
         --break-windows "${break_windows_fasta}" \\
         --core-meme "${best_core_motif}" \\
@@ -39,6 +40,7 @@ process BIPARTITEPROFILER {
         --output-report "${prefix}.cbm_discovery_report.md" \\
         --output-masked-fasta "${prefix}.core_masked.fasta" \\
         --threads ${task.cpus} \\
+        --telomere-repeat "${telomere_repeat}" \\
         ${args}
     """
 
