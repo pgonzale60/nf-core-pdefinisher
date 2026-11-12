@@ -38,7 +38,7 @@
 
 #### `workflows/recon_motif.nf`
 - **Includes:**
-  - `PDE_RECONNAISSANCE` from `../subworkflows/local/pde_reconnaissance/main`
+  - `PDE_RECONNAISSANCE_CORE` from `../subworkflows/local/pde_reconnaissance_core/main`
   - `PDE_MOTIF_DISCOVERY` from `../subworkflows/local/pde_motif_discovery/main`
 - **Workflow `RECON_MOTIF_PIPELINE`:**
   - `take:` *(none)*
@@ -141,6 +141,18 @@
   - `EXTRACTGAPEVIDENCE` from `../../../modules/local/extractgapevidence/main`
   - `TELOCLIP_EXTRACT` from `../../../modules/local/teloclip/extract/main`
 - **Workflow `PDE_RECONNAISSANCE`:**
+  - `take:` *(none)*
+  - `emit:` *(none)*
+
+#### `subworkflows/local/pde_reconnaissance_core/main.nf`
+- **Includes:**
+  - `RED` from `../../../modules/local/red/main`
+  - `DELFIES` from `../../../modules/local/delfies/main`
+  - `MOSDEPTH` from `../../../modules/nf-core/mosdepth/main`
+  - `SOFTCLIPENDS` from `../../../modules/local/softclipends/main`
+  - `IDENTIFYPUTATIVEGRS` from `../../../modules/local/identifyputativegrs/main`
+  - `MOSDEPTHQUANTIZE` from `../../../modules/local/mosdepthquantize/main`
+- **Workflow `PDE_RECONNAISSANCE_CORE`:**
   - `take:` *(none)*
   - `emit:` *(none)*
 

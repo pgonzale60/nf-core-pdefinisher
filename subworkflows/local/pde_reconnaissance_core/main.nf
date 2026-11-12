@@ -1,0 +1,103 @@
+//
+// SUBWORKFLOW: PDE_RECONNAISSANCE_CORE
+// Reconnaissance subset required by RECON_MOTIF: GRS classification, delfies breakpoints and softclip terminal ends
+//
+
+include { RED                  } from '../../../modules/local/red/main'
+include { DELFIES              } from '../../../modules/local/delfies/main'
+include { MOSDEPTH             } from '../../../modules/nf-core/mosdepth/main'
+include { SOFTCLIPENDS         } from '../../../modules/local/softclipends/main'
+include { IDENTIFYPUTATIVEGRS  } from '../../../modules/local/identifyputativegrs/main'
+include { MOSDEPTHQUANTIZE     } from '../../../modules/local/mosdepthquantize/main'
+
+workflow PDE_RECONNAISSANCE_CORE {
+
+    take:
+    ch_assembly         // channel: [ val(meta), path(assembly) ]
+    ch_bam              // channel: [ val(meta), path(bam), path(bai) ]
+    val_telomere_repeat // string: Telomeric repeat motif string (e.g. 'TTAGGC')
+    val_chromosomes     // string or list: e.g. 'I,II,III,IV,V,X'
+
+    main:
+
+    RED (
+        ch_assembly
+    )
+
+    ch_delfies_input = ch_assembly
+        .combine(ch_bam, by: 0)
+        .map { meta, assembly, bam, bai ->
+            tuple(meta, assembly, bam, bai)
+        }
+
+    DELFIES (
+        ch_delfies_input
+    )
+
+    ch_mosdepth_input = ch_bam
+        .join(ch_assembly, by: 0)
+        .multiMap { meta, bam, bai, fasta ->
+            bam:   tuple(meta, bam, bai, [])
+            fasta: tuple(meta, fasta)
+        }
+
+    MOSDEPTH (
+        ch_mosdepth_input.bam,
+        ch_mosdepth_input.fasta,
+        []
+    )
+
+    ch_softclipends_input = ch_assembly
+        .combine(ch_bam, by: 0)
+        .map { meta, assembly, bam, bai ->
+            tuple(meta, assembly, bam, bai)
+        }
+
+    SOFTCLIPENDS (
+        ch_softclipends_input,
+        val_telomere_repeat
+    )
+
+    ch_identify_grs_input = ch_assembly
+        .join(DELFIES.out.foci_s2g, by: 0)
+        .join(MOSDEPTH.out.regions_bed, by: 0)
+        .join(RED.out.bed, by: 0)
+        .multiMap { meta, assembly, foci, mosdepth, red_bed ->
+            assembly: tuple(meta, assembly)
+            foci:     tuple(meta, foci)
+            mosdepth: tuple(meta, mosdepth)
+            red:      tuple(meta, red_bed)
+        }
+
+    IDENTIFYPUTATIVEGRS (
+        ch_identify_grs_input.assembly,
+        ch_identify_grs_input.foci,
+        ch_identify_grs_input.mosdepth,
+        ch_identify_grs_input.red,
+        val_chromosomes
+    )
+
+    ch_quantize_input = ch_bam
+        .join(RED.out.bed, by: 0)
+        .join(IDENTIFYPUTATIVEGRS.out.core_coverage_tsv, by: 0)
+        .multiMap { meta, bam, bai, red_bed, cov_tsv ->
+            bam: tuple(meta, bam, bai)
+            red: tuple(meta, red_bed)
+            cov: tuple(meta, cov_tsv)
+        }
+
+    MOSDEPTHQUANTIZE (
+        ch_quantize_input.bam,
+        ch_quantize_input.red,
+        ch_quantize_input.cov
+    )
+
+    emit:
+    red_bed                    = RED.out.bed
+    delfies_bed                = DELFIES.out.bed
+    delfies_foci_s2g           = DELFIES.out.foci_s2g
+    grs_quantized_bed          = MOSDEPTHQUANTIZE.out.quantized_bed
+    grs_summary_tsv            = IDENTIFYPUTATIVEGRS.out.summary
+    pde_segments_bed           = IDENTIFYPUTATIVEGRS.out.bed
+    terminal_ends_summary      = SOFTCLIPENDS.out.summary
+}
