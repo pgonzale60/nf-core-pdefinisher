@@ -1,8 +1,14 @@
 repository_type: pipeline
 
-nf_core_version: 4.1.1.dev0
+nf_core_version: 4.2.2
 
-lint: {}
+lint:
+  files_exist:
+    - assets/nf-core-pdefinisher_logo_light.png
+    - docs/images/nf-core-pdefinisher_logo_light.png
+    - docs/images/nf-core-pdefinisher_logo_dark.png
+  files_unchanged:
+    - assets/email_template.html
 
 template:
   org: nf-core

@@ -551,4 +551,3 @@ def _walk_loop(unmapped, seed_seq, motif, rev_motif, max_iters, min_telo_bp,
         "failure_reason": diag_reason,
         "tip_is_germline": tip_is_germline
     }
-

@@ -1,351 +1,305 @@
 {
-  "schema_version": "1.0.0",
-  "description": "Authoritative inter-module TSV contracts across Module 1 (Reconnaissance), Module 2 (Synthesis), Module 3 (Resolution Engines), and Module 4 (AGP Integrator).",
-  "contracts": {
-    "terminal_softclips.tsv": {
-      "file_pattern": "*.terminal_softclips.tsv",
-      "producer_module": "SOFTCLIPENDS",
-      "producer_script": "modules/local/softclipends/resources/usr/bin/pde_terminal_softclips.py",
-      "consumer_modules": ["CURATIONSYNTHESIS"],
-      "consumer_scripts": [
-        "modules/local/curationsynthesis/resources/usr/lib/curationsynthesis/evidence_io.py"
-      ],
-      "consumer_functions": ["load_terminal_softclips"],
-      "columns": [
-        "read_id",
-        "chrom",
-        "side",
-        "align_start",
-        "align_end",
-        "clip_len",
-        "overhang_bp",
-        "telo_count",
-        "mapq",
-        "collinear_spanning_reads"
-      ],
-      "legacy_9col_columns": [
-        "read_id",
-        "chrom",
-        "side",
-        "align_start",
-        "align_end",
-        "clip_len",
-        "overhang_bp",
-        "telo_count",
-        "mapq"
-      ],
-      "notes": "10-column format adds collinear_spanning_reads (column 10, index 9) to veto false terminal chimera pruning when collinear reads span the candidate internal telomeric junction. Consumer load_terminal_softclips supports both 9-column legacy and 10-column formats."
-    },
-    "terminal_softclips_summary.tsv": {
-      "file_pattern": "*.terminal_ends_summary.tsv",
-      "aliases": ["terminal_ends_summary.tsv", "terminal_softclips_summary.tsv"],
-      "producer_module": "SOFTCLIPENDS",
-      "producer_script": "modules/local/softclipends/resources/usr/bin/pde_terminal_softclips.py",
-      "consumer_modules": ["CURATIONSYNTHESIS", "CURATIONEVALUATOR"],
-      "consumer_scripts": [
-        "modules/local/curationsynthesis/resources/usr/lib/curationsynthesis/evidence_io.py",
-        "modules/local/curationevaluator/resources/usr/bin/pde_evaluate_curation.py"
-      ],
-      "consumer_functions": ["load_terminal_summary"],
-      "columns": [
-        "chrom_end",
-        "chrom_length",
-        "n_softclipped_reads",
-        "n_telomeric_reads",
-        "max_telo_count",
-        "proposed_status",
-        "terminal_tract_bp"
-      ],
-      "status_column": "proposed_status",
-      "allowed_statuses": [
-        "EXTEND_AND_CAP",
-        "ALREADY_CAPPED",
-        "TELOMERE_IN_OVERHANG",
-        "UNCAPPED_EXTENDABLE",
-        "NO_CLIPS"
-      ],
-      "notes": "terminal_tract_bp is strictly appended as column 7 so positional 6-column parsers remain backwards-compatible."
-    },
-    "grs_summary.tsv": {
-      "file_pattern": "*.grs_summary.tsv",
-      "producer_module": "IDENTIFYPUTATIVEGRS",
-      "producer_script": "modules/local/identifyputativegrs/resources/usr/bin/pde_identify_grs.py",
-      "consumer_modules": ["CURATIONSYNTHESIS", "PDEMOTIFPROFILER"],
-      "consumer_scripts": [
-        "modules/local/curationsynthesis/resources/usr/lib/curationsynthesis/evidence_io.py"
-      ],
-      "consumer_functions": ["load_grs_summary"],
-      "columns": [
-        "chromosome",
-        "start",
-        "end",
-        "length",
-        "classification",
-        "median_depth"
-      ],
-      "status_column": "classification",
-      "allowed_statuses": [
-        "putative_core",
-        "putative_GRS",
-        "putative_GRS_uncertain"
-      ],
-      "notes": "Contains mandatory # GRS_THRESHOLD=<float> and # ELIMINATION_RANGE metadata header comments."
-    },
-    "telomeric_junctions.tsv": {
-      "file_pattern": "*.telomeric_junctions.tsv",
-      "producer_module": "TELOMERICJUNCTIONPROFILER",
-      "producer_script": "modules/local/telomericjunctionprofiler/resources/usr/bin/pde_telomeric_junction_profiler.py",
-      "consumer_modules": ["CURATIONSYNTHESIS"],
-      "consumer_scripts": [
-        "modules/local/curationsynthesis/resources/usr/lib/curationsynthesis/evidence_io.py"
-      ],
-      "columns": [
-        "cluster_id",
-        "classification",
-        "subtype",
-        "read_count",
-        "mean_telomere_bp",
-        "dominant_motif",
-        "target_chrom",
-        "target_arm",
-        "target_pos",
-        "is_somatic",
-        "consensus_flank_60bp"
-      ],
-      "status_column": "classification",
-      "allowed_statuses": [
-        "GERMLINE_JUNCTION",
-        "SOMATIC_DIMINUTION_JUNCTION",
-        "UNANCHORED_JUNCTION"
-      ]
-    },
-    "telomere_extension_manifest.tsv": {
-      "file_pattern": "*_walker_manifest.tsv",
-      "aliases": ["walker_manifest.tsv", "telomere_extension_manifest.tsv"],
-      "producer_module": "TELOMEREWALKER",
-      "producer_script": "modules/local/telomerewalker/resources/usr/bin/pde_telomere_walker.py",
-      "consumer_modules": ["CURATIONAGPGENERATOR", "CURATIONEVALUATOR"],
-      "consumer_scripts": [
-        "modules/local/curationagpgenerator/resources/usr/bin/pde_generate_agp.py",
-        "modules/local/curationevaluator/resources/usr/bin/pde_evaluate_curation.py"
-      ],
-      "columns": [
-        "chrom",
-        "terminus",
-        "status",
-        "initial_evidence",
-        "added_bp",
-        "canonical_telo_bp",
-        "non_telo_added_bp",
-        "extension_fasta",
-        "notes"
-      ],
-      "status_column": "status",
-      "spliceable_statuses": [
-        "RESOLVED_BY_UNITIG",
-        "EXTENDED_BY_UNPLACED_CONTIG",
-        "RESOLVED_BY_SATELLITE_SCAFFOLD",
-        "EXTEND_TELOMERE_TRACT",
-        "RESOLVED_BY_READ",
-        "EXTEND_TO_TELOMERE"
-      ],
-      "non_spliceable_statuses": [
-        "EXTENDED_SUBTELOMERE_ONLY",
-        "ALREADY_CAPPED",
-        "ALREADY_CAPPED_retained",
-        "RETAIN_AS_IS",
-        "TERMINUS_RDNA_ARRAY",
-        "DEFERRED_TO_RDNA_RESOLVER",
-        "POLYVALENT_REPEAT_BRANCH",
-        "STATIONARY_REPEAT_ARRAY",
-        "LOW_ANCHOR_MAPQ",
-        "HORIZON_LIMIT_REACHED",
-        "ZERO_EXTENDING_READS",
-        "UNRESOLVED_WALK",
-        "UNRESOLVED_SOMA_BOUNDARY",
-        "UNRESOLVED_UNCAPPED"
-      ],
-      "notes": "pde_generate_agp.py splices an extension if and only if status != 'EXTENDED_SUBTELOMERE_ONLY', added_bp > 0, and extension_fasta != 'NONE' exists and is non-empty."
-    },
-    "targeted_gap_manifest.tsv": {
-      "file_pattern": "*_patches_manifest.tsv",
-      "aliases": ["patches_manifest.tsv", "targeted_gap_manifest.tsv"],
-      "producer_module": "TARGETEDGAPASSEMBLY",
-      "producer_script": "modules/local/targetedgapassembly/resources/usr/bin/pde_targeted_gap_assembly.py",
-      "consumer_modules": ["CURATIONAGPGENERATOR", "CURATIONEVALUATOR"],
-      "consumer_scripts": [
-        "modules/local/curationagpgenerator/resources/usr/bin/pde_generate_agp.py",
-        "modules/local/curationevaluator/resources/usr/bin/pde_evaluate_curation.py"
-      ],
-      "columns": [
-        "gap_id",
-        "chrom",
-        "gap_start",
-        "gap_end",
-        "gap_len",
-        "outcome",
-        "left_anchor_len",
-        "right_anchor_len",
-        "patch_len",
-        "excised_gap_len",
-        "unitig_id",
-        "patch_fasta",
-        "notes"
-      ],
-      "status_column": "outcome",
-      "spliceable_statuses": [
-        "PATCH_GAP_INSERTION",
-        "EXCISE_OVERLAP_ARTIFACT",
-        "EXCISE_DUMMY_GAP"
-      ],
-      "non_spliceable_statuses": [
-        "UNRESOLVED_GAP",
-        "REPEAT_BOUNDARY_VETO"
-      ],
-      "notes": "PATCH_GAP_INSERTION splices patch_fasta into the gap; EXCISE_OVERLAP_ARTIFACT and EXCISE_DUMMY_GAP excise the gap/overlap coordinates directly."
-    },
-    "rdna_cassette_manifest.tsv": {
-      "file_pattern": "*_rdna_manifest.tsv",
-      "aliases": ["rdna_manifest.tsv", "rdna_cassette_manifest.tsv"],
-      "producer_module": "RDNACASSETTERESOLVER",
-      "producer_script": "modules/local/rdnacassetteresolver/resources/usr/bin/pde_rdna_cassette_resolver.py",
-      "consumer_modules": ["CURATIONAGPGENERATOR", "CURATIONEVALUATOR"],
-      "consumer_scripts": [
-        "modules/local/curationagpgenerator/resources/usr/bin/pde_generate_agp.py",
-        "modules/local/curationevaluator/resources/usr/bin/pde_evaluate_curation.py"
-      ],
-      "columns": [
-        "sample",
-        "card_id",
-        "chrom",
-        "locus_type",
-        "action",
-        "status",
-        "gatekeeper_result",
-        "core_anchor_id",
-        "core_anchor_len",
-        "monomer_id",
-        "monomer_len",
-        "monomer_copies",
-        "distal_cap_id",
-        "distal_cap_len",
-        "distal_telo_status",
-        "cassette_total_len",
-        "cassette_fasta",
-        "notes"
-      ],
-      "status_column": "status",
-      "spliceable_statuses": [
-        "CASSETTE_RESOLVED_CAPPED",
-        "CASSETTE_RESOLVED_UNCAPPED",
-        "CASSETTE_RESOLVED_INTERNAL"
-      ],
-      "non_spliceable_statuses": [
-        "DEFERRED_COMPLEX_GRAPH",
-        "MISSING_MONOMER_SEQUENCE"
-      ],
-      "notes": "pde_generate_agp.py requires gatekeeper_result == 'PASS' and a valid non-empty cassette_fasta."
-    },
-    "trans_links_manifest.tsv": {
-      "file_pattern": "*_trans_manifest.tsv",
-      "aliases": ["trans_manifest.tsv", "trans_links_manifest.tsv"],
-      "producer_module": "TRANSCHROMOSOMALLINKRESOLVER",
-      "producer_script": "modules/local/transchromosomallinkresolver/resources/usr/bin/pde_transchromosomal_link_resolver.py",
-      "consumer_modules": ["CURATIONAGPGENERATOR", "CURATIONEVALUATOR"],
-      "consumer_scripts": [
-        "modules/local/curationagpgenerator/resources/usr/bin/pde_generate_agp.py",
-        "modules/local/curationevaluator/resources/usr/bin/pde_evaluate_curation.py"
-      ],
-      "columns": [
-        "sample",
-        "card_id",
-        "outcome",
-        "source_chrom",
-        "source_gap_start",
-        "source_gap_end",
-        "source_gap_len",
-        "collinear_gap_reads",
-        "contig_id",
-        "contig_start",
-        "contig_end",
-        "contig_length",
-        "source_chrom_total_len",
-        "retained_chrom_name",
-        "retained_mass_fraction",
-        "target_chrom",
-        "target_coord",
-        "target_strand",
-        "target_feature",
-        "target_dist_bp",
-        "support_split_reads",
-        "split_reads_mapq_mean",
-        "local_depth",
-        "vaf",
-        "assigned_name",
-        "curator_rationale",
-        "action_summary"
-      ],
-      "status_column": "outcome",
-      "spliceable_statuses": [
-        "TRANSFER_AND_STITCH_CONTIG",
-        "SEVER_TO_UNPLACED"
-      ],
-      "non_spliceable_statuses": [
-        "RETAIN_BASELINE_GAP",
-        "AMBIGUOUS_NO_HIFI_SPAN"
-      ],
-      "notes": "Self-targeting transfers (source_chrom == target_chrom) are strictly vetoed by both producer and consumer."
-    },
-    "curation_audit.tsv": {
-      "file_pattern": "*.curation_audit.tsv",
-      "producer_module": "CURATIONAGPGENERATOR",
-      "producer_script": "modules/local/curationagpgenerator/resources/usr/bin/pde_generate_agp.py",
-      "consumer_modules": ["CURATIONEVALUATOR", "CURATIONVALIDATION"],
-      "consumer_scripts": [
-        "modules/local/curationevaluator/resources/usr/bin/pde_evaluate_curation.py",
-        "modules/local/curationvalidation/resources/usr/bin/pde_validate_curation.py"
-      ],
-      "columns": [
-        "sample",
-        "chrom",
-        "card_id",
-        "action",
-        "edit_type",
-        "orig_start",
-        "orig_end",
-        "delta_bp"
-      ],
-      "status_column": "edit_type",
-      "spliceable_statuses": [
-        "TELO_5P",
-        "TELO_3P",
-        "TRANS_INSERT_5P",
-        "TRANS_INSERT_3P",
-        "TRANS_INSERT_GAP",
-        "EXCISE_SEVERED_CONTIG",
-        "EXCISE_GAP",
-        "INVERT",
-        "PRUNE_CHIMERIC_TERMINUS",
-        "GAP_PATCH",
-        "RDNA_CASSETTE",
-        "TELO_RDNA_CAPPED_5P",
-        "TELO_RDNA_CAPPED_3P",
-        "RDNA_UNCAPPED_5P",
-        "RDNA_UNCAPPED_3P",
-        "PURGE_RDNA",
-        "PURGE_HAPLOTIG",
-        "PURGE_ORGANELLAR",
-        "RETIRE_ABSORBED",
-        "UNPLACED_SCAFFOLD_CREATION"
-      ],
-      "non_spliceable_statuses": [
-        "UNCAPPED_SUBTELOMERE",
-        "ALREADY_CAPPED",
-        "UNRESOLVED_GAP",
-        "SUBSUMED_BY_RDNA_ARRAY",
-        "RETENTION_GUARD_UNMATERIALIZED"
-      ],
-      "notes": "Records every physical surgery edit, retention guard decision, or rejected subtelomere-only walk across all chromosomes and unplaced scaffolds."
+    "schema_version": "1.0.0",
+    "description": "Authoritative inter-module TSV contracts across Module 1 (Reconnaissance), Module 2 (Synthesis), Module 3 (Resolution Engines), and Module 4 (AGP Integrator).",
+    "contracts": {
+        "terminal_softclips.tsv": {
+            "file_pattern": "*.terminal_softclips.tsv",
+            "producer_module": "SOFTCLIPENDS",
+            "producer_script": "modules/local/softclipends/resources/usr/bin/pde_terminal_softclips.py",
+            "consumer_modules": ["CURATIONSYNTHESIS"],
+            "consumer_scripts": ["modules/local/curationsynthesis/resources/usr/lib/curationsynthesis/evidence_io.py"],
+            "consumer_functions": ["load_terminal_softclips"],
+            "columns": [
+                "read_id",
+                "chrom",
+                "side",
+                "align_start",
+                "align_end",
+                "clip_len",
+                "overhang_bp",
+                "telo_count",
+                "mapq",
+                "collinear_spanning_reads"
+            ],
+            "legacy_9col_columns": [
+                "read_id",
+                "chrom",
+                "side",
+                "align_start",
+                "align_end",
+                "clip_len",
+                "overhang_bp",
+                "telo_count",
+                "mapq"
+            ],
+            "notes": "10-column format adds collinear_spanning_reads (column 10, index 9) to veto false terminal chimera pruning when collinear reads span the candidate internal telomeric junction. Consumer load_terminal_softclips supports both 9-column legacy and 10-column formats."
+        },
+        "terminal_softclips_summary.tsv": {
+            "file_pattern": "*.terminal_ends_summary.tsv",
+            "aliases": ["terminal_ends_summary.tsv", "terminal_softclips_summary.tsv"],
+            "producer_module": "SOFTCLIPENDS",
+            "producer_script": "modules/local/softclipends/resources/usr/bin/pde_terminal_softclips.py",
+            "consumer_modules": ["CURATIONSYNTHESIS", "CURATIONEVALUATOR"],
+            "consumer_scripts": [
+                "modules/local/curationsynthesis/resources/usr/lib/curationsynthesis/evidence_io.py",
+                "modules/local/curationevaluator/resources/usr/bin/pde_evaluate_curation.py"
+            ],
+            "consumer_functions": ["load_terminal_summary"],
+            "columns": [
+                "chrom_end",
+                "chrom_length",
+                "n_softclipped_reads",
+                "n_telomeric_reads",
+                "max_telo_count",
+                "proposed_status",
+                "terminal_tract_bp"
+            ],
+            "status_column": "proposed_status",
+            "allowed_statuses": [
+                "EXTEND_AND_CAP",
+                "ALREADY_CAPPED",
+                "TELOMERE_IN_OVERHANG",
+                "UNCAPPED_EXTENDABLE",
+                "NO_CLIPS"
+            ],
+            "notes": "terminal_tract_bp is strictly appended as column 7 so positional 6-column parsers remain backwards-compatible."
+        },
+        "grs_summary.tsv": {
+            "file_pattern": "*.grs_summary.tsv",
+            "producer_module": "IDENTIFYPUTATIVEGRS",
+            "producer_script": "modules/local/identifyputativegrs/resources/usr/bin/pde_identify_grs.py",
+            "consumer_modules": ["CURATIONSYNTHESIS", "PDEMOTIFPROFILER"],
+            "consumer_scripts": ["modules/local/curationsynthesis/resources/usr/lib/curationsynthesis/evidence_io.py"],
+            "consumer_functions": ["load_grs_summary"],
+            "columns": ["chromosome", "start", "end", "length", "classification", "median_depth"],
+            "status_column": "classification",
+            "allowed_statuses": ["putative_core", "putative_GRS", "putative_GRS_uncertain"],
+            "notes": "Contains mandatory # GRS_THRESHOLD=<float> and # ELIMINATION_RANGE metadata header comments."
+        },
+        "telomeric_junctions.tsv": {
+            "file_pattern": "*.telomeric_junctions.tsv",
+            "producer_module": "TELOMERICJUNCTIONPROFILER",
+            "producer_script": "modules/local/telomericjunctionprofiler/resources/usr/bin/pde_telomeric_junction_profiler.py",
+            "consumer_modules": ["CURATIONSYNTHESIS"],
+            "consumer_scripts": ["modules/local/curationsynthesis/resources/usr/lib/curationsynthesis/evidence_io.py"],
+            "columns": [
+                "cluster_id",
+                "classification",
+                "subtype",
+                "read_count",
+                "mean_telomere_bp",
+                "dominant_motif",
+                "target_chrom",
+                "target_arm",
+                "target_pos",
+                "is_somatic",
+                "consensus_flank_60bp"
+            ],
+            "status_column": "classification",
+            "allowed_statuses": ["GERMLINE_JUNCTION", "SOMATIC_DIMINUTION_JUNCTION", "UNANCHORED_JUNCTION"]
+        },
+        "telomere_extension_manifest.tsv": {
+            "file_pattern": "*_walker_manifest.tsv",
+            "aliases": ["walker_manifest.tsv", "telomere_extension_manifest.tsv"],
+            "producer_module": "TELOMEREWALKER",
+            "producer_script": "modules/local/telomerewalker/resources/usr/bin/pde_telomere_walker.py",
+            "consumer_modules": ["CURATIONAGPGENERATOR", "CURATIONEVALUATOR"],
+            "consumer_scripts": [
+                "modules/local/curationagpgenerator/resources/usr/bin/pde_generate_agp.py",
+                "modules/local/curationevaluator/resources/usr/bin/pde_evaluate_curation.py"
+            ],
+            "columns": [
+                "chrom",
+                "terminus",
+                "status",
+                "initial_evidence",
+                "added_bp",
+                "canonical_telo_bp",
+                "non_telo_added_bp",
+                "extension_fasta",
+                "notes"
+            ],
+            "status_column": "status",
+            "spliceable_statuses": [
+                "RESOLVED_BY_UNITIG",
+                "EXTENDED_BY_UNPLACED_CONTIG",
+                "RESOLVED_BY_SATELLITE_SCAFFOLD",
+                "EXTEND_TELOMERE_TRACT",
+                "RESOLVED_BY_READ",
+                "EXTEND_TO_TELOMERE"
+            ],
+            "non_spliceable_statuses": [
+                "EXTENDED_SUBTELOMERE_ONLY",
+                "ALREADY_CAPPED",
+                "ALREADY_CAPPED_retained",
+                "RETAIN_AS_IS",
+                "TERMINUS_RDNA_ARRAY",
+                "DEFERRED_TO_RDNA_RESOLVER",
+                "POLYVALENT_REPEAT_BRANCH",
+                "STATIONARY_REPEAT_ARRAY",
+                "LOW_ANCHOR_MAPQ",
+                "HORIZON_LIMIT_REACHED",
+                "ZERO_EXTENDING_READS",
+                "UNRESOLVED_WALK",
+                "UNRESOLVED_SOMA_BOUNDARY",
+                "UNRESOLVED_UNCAPPED"
+            ],
+            "notes": "pde_generate_agp.py splices an extension if and only if status != 'EXTENDED_SUBTELOMERE_ONLY', added_bp > 0, and extension_fasta != 'NONE' exists and is non-empty."
+        },
+        "targeted_gap_manifest.tsv": {
+            "file_pattern": "*_patches_manifest.tsv",
+            "aliases": ["patches_manifest.tsv", "targeted_gap_manifest.tsv"],
+            "producer_module": "TARGETEDGAPASSEMBLY",
+            "producer_script": "modules/local/targetedgapassembly/resources/usr/bin/pde_targeted_gap_assembly.py",
+            "consumer_modules": ["CURATIONAGPGENERATOR", "CURATIONEVALUATOR"],
+            "consumer_scripts": [
+                "modules/local/curationagpgenerator/resources/usr/bin/pde_generate_agp.py",
+                "modules/local/curationevaluator/resources/usr/bin/pde_evaluate_curation.py"
+            ],
+            "columns": [
+                "gap_id",
+                "chrom",
+                "gap_start",
+                "gap_end",
+                "gap_len",
+                "outcome",
+                "left_anchor_len",
+                "right_anchor_len",
+                "patch_len",
+                "excised_gap_len",
+                "unitig_id",
+                "patch_fasta",
+                "notes"
+            ],
+            "status_column": "outcome",
+            "spliceable_statuses": ["PATCH_GAP_INSERTION", "EXCISE_OVERLAP_ARTIFACT", "EXCISE_DUMMY_GAP"],
+            "non_spliceable_statuses": ["UNRESOLVED_GAP", "REPEAT_BOUNDARY_VETO"],
+            "notes": "PATCH_GAP_INSERTION splices patch_fasta into the gap; EXCISE_OVERLAP_ARTIFACT and EXCISE_DUMMY_GAP excise the gap/overlap coordinates directly."
+        },
+        "rdna_cassette_manifest.tsv": {
+            "file_pattern": "*_rdna_manifest.tsv",
+            "aliases": ["rdna_manifest.tsv", "rdna_cassette_manifest.tsv"],
+            "producer_module": "RDNACASSETTERESOLVER",
+            "producer_script": "modules/local/rdnacassetteresolver/resources/usr/bin/pde_rdna_cassette_resolver.py",
+            "consumer_modules": ["CURATIONAGPGENERATOR", "CURATIONEVALUATOR"],
+            "consumer_scripts": [
+                "modules/local/curationagpgenerator/resources/usr/bin/pde_generate_agp.py",
+                "modules/local/curationevaluator/resources/usr/bin/pde_evaluate_curation.py"
+            ],
+            "columns": [
+                "sample",
+                "card_id",
+                "chrom",
+                "locus_type",
+                "action",
+                "status",
+                "gatekeeper_result",
+                "core_anchor_id",
+                "core_anchor_len",
+                "monomer_id",
+                "monomer_len",
+                "monomer_copies",
+                "distal_cap_id",
+                "distal_cap_len",
+                "distal_telo_status",
+                "cassette_total_len",
+                "cassette_fasta",
+                "notes"
+            ],
+            "status_column": "status",
+            "spliceable_statuses": [
+                "CASSETTE_RESOLVED_CAPPED",
+                "CASSETTE_RESOLVED_UNCAPPED",
+                "CASSETTE_RESOLVED_INTERNAL"
+            ],
+            "non_spliceable_statuses": ["DEFERRED_COMPLEX_GRAPH", "MISSING_MONOMER_SEQUENCE"],
+            "notes": "pde_generate_agp.py requires gatekeeper_result == 'PASS' and a valid non-empty cassette_fasta."
+        },
+        "trans_links_manifest.tsv": {
+            "file_pattern": "*_trans_manifest.tsv",
+            "aliases": ["trans_manifest.tsv", "trans_links_manifest.tsv"],
+            "producer_module": "TRANSCHROMOSOMALLINKRESOLVER",
+            "producer_script": "modules/local/transchromosomallinkresolver/resources/usr/bin/pde_transchromosomal_link_resolver.py",
+            "consumer_modules": ["CURATIONAGPGENERATOR", "CURATIONEVALUATOR"],
+            "consumer_scripts": [
+                "modules/local/curationagpgenerator/resources/usr/bin/pde_generate_agp.py",
+                "modules/local/curationevaluator/resources/usr/bin/pde_evaluate_curation.py"
+            ],
+            "columns": [
+                "sample",
+                "card_id",
+                "outcome",
+                "source_chrom",
+                "source_gap_start",
+                "source_gap_end",
+                "source_gap_len",
+                "collinear_gap_reads",
+                "contig_id",
+                "contig_start",
+                "contig_end",
+                "contig_length",
+                "source_chrom_total_len",
+                "retained_chrom_name",
+                "retained_mass_fraction",
+                "target_chrom",
+                "target_coord",
+                "target_strand",
+                "target_feature",
+                "target_dist_bp",
+                "support_split_reads",
+                "split_reads_mapq_mean",
+                "local_depth",
+                "vaf",
+                "assigned_name",
+                "curator_rationale",
+                "action_summary"
+            ],
+            "status_column": "outcome",
+            "spliceable_statuses": ["TRANSFER_AND_STITCH_CONTIG", "SEVER_TO_UNPLACED"],
+            "non_spliceable_statuses": ["RETAIN_BASELINE_GAP", "AMBIGUOUS_NO_HIFI_SPAN"],
+            "notes": "Self-targeting transfers (source_chrom == target_chrom) are strictly vetoed by both producer and consumer."
+        },
+        "curation_audit.tsv": {
+            "file_pattern": "*.curation_audit.tsv",
+            "producer_module": "CURATIONAGPGENERATOR",
+            "producer_script": "modules/local/curationagpgenerator/resources/usr/bin/pde_generate_agp.py",
+            "consumer_modules": ["CURATIONEVALUATOR", "CURATIONVALIDATION"],
+            "consumer_scripts": [
+                "modules/local/curationevaluator/resources/usr/bin/pde_evaluate_curation.py",
+                "modules/local/curationvalidation/resources/usr/bin/pde_validate_curation.py"
+            ],
+            "columns": ["sample", "chrom", "card_id", "action", "edit_type", "orig_start", "orig_end", "delta_bp"],
+            "status_column": "edit_type",
+            "spliceable_statuses": [
+                "TELO_5P",
+                "TELO_3P",
+                "TRANS_INSERT_5P",
+                "TRANS_INSERT_3P",
+                "TRANS_INSERT_GAP",
+                "EXCISE_SEVERED_CONTIG",
+                "EXCISE_GAP",
+                "INVERT",
+                "PRUNE_CHIMERIC_TERMINUS",
+                "GAP_PATCH",
+                "RDNA_CASSETTE",
+                "TELO_RDNA_CAPPED_5P",
+                "TELO_RDNA_CAPPED_3P",
+                "RDNA_UNCAPPED_5P",
+                "RDNA_UNCAPPED_3P",
+                "PURGE_RDNA",
+                "PURGE_HAPLOTIG",
+                "PURGE_ORGANELLAR",
+                "RETIRE_ABSORBED",
+                "UNPLACED_SCAFFOLD_CREATION"
+            ],
+            "non_spliceable_statuses": [
+                "UNCAPPED_SUBTELOMERE",
+                "ALREADY_CAPPED",
+                "UNRESOLVED_GAP",
+                "SUBSUMED_BY_RDNA_ARRAY",
+                "RETENTION_GUARD_UNMATERIALIZED"
+            ],
+            "notes": "Records every physical surgery edit, retention guard decision, or rejected subtelomere-only walk across all chromosomes and unplaced scaffolds."
+        }
     }
-  }
 }

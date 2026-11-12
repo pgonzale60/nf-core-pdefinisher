@@ -812,4 +812,3 @@ def match_unplaced_ports_by_valency(
                 }
 
     return gap_integrations, valency_terminal_extensions
-
