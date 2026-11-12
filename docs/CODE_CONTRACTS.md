@@ -17,9 +17,13 @@
   - `PDEFINISHER` from `./workflows/pdefinisher`
   - `PIPELINE_INITIALISATION` from `./subworkflows/local/utils_nfcore_pdefinisher_pipeline`
   - `PIPELINE_COMPLETION` from `./subworkflows/local/utils_nfcore_pdefinisher_pipeline`
+  - `RECON_MOTIF_PIPELINE` from `./workflows/recon_motif`
 - **Workflow `NFCORE_PDEFINISHER`:**
   - `take:` `samplesheet`
   - `emit:` `curated_fasta`, `curated_agp`, `components_fasta`, `segregated_fastas`, `curation_audit`, `curated_pde_segments`, `curated_repeats`, `blueprint_json`, `blueprint_md`, `scorecard_json`, `report_md`, `validation_json`, `validation_md`, `curated_bam`, `curated_bai`, `best_core_motif`, `core_motif_metrics_json`, `grid_summary_tsv`, `best_auxiliary_motif`, `bipartite_spacing_tsv`, `motif_discovery_report_md`, `fimo_genome_hits`, `fimo_annotated_hits`, `motif_distribution_summary`, `motif_distribution_report`, `summary_md`, `summary_tsv`, `summary_json`, `multiqc_report`, `versions`
+- **Workflow `RECON_MOTIF`:**
+  - `take:` *(none)*
+  - `emit:` *(none)*
 - **Workflow `<entry>`:**
   - `take:` *(none)*
   - `emit:` *(none)*
