@@ -18,6 +18,7 @@
 include { PDEFINISHER             } from './workflows/pdefinisher'
 include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_pdefinisher_pipeline'
 include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_pdefinisher_pipeline'
+include { RECON_MOTIF_PIPELINE    } from './workflows/recon_motif'
 
 
 /*
@@ -79,6 +80,30 @@ workflow NFCORE_PDEFINISHER {
     multiqc_report             = PDEFINISHER.out.multiqc_report // channel: /path/to/multiqc_report.html
     versions                   = PDEFINISHER.out.versions
 }
+
+//
+// WORKFLOW: Reconnaissance and motif discovery only (run with -entry RECON_MOTIF)
+//
+workflow RECON_MOTIF {
+
+    main:
+    PIPELINE_INITIALISATION (
+        params.version,
+        params.validate_params,
+        params.monochrome_logs,
+        args,
+        params.outdir,
+        params.input,
+        params.help,
+        params.help_full,
+        params.show_hidden
+    )
+
+    RECON_MOTIF_PIPELINE (
+        PIPELINE_INITIALISATION.out.samplesheet
+    )
+}
+
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
