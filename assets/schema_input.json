@@ -57,6 +57,13 @@
                 "errorMessage": "ToLID identifier cannot contain spaces",
                 "meta": ["tolid"]
             },
+            "assembly_name": {
+                "type": "string",
+                "pattern": "^\\S+$",
+                "errorMessage": "Assembly name cannot contain spaces",
+                "meta": ["assembly_name"],
+                "description": "Assembly name used as the per-species publish folder (e.g. 'nxAuaRhod1.1'); required when per_species_outdir is set"
+            },
             "specimen_id": {
                 "type": "string",
                 "pattern": "^\\S+$",
