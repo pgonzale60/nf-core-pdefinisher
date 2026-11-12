@@ -3,7 +3,7 @@
     IMPORT MODULES / SUBWORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { PDE_RECONNAISSANCE  } from '../subworkflows/local/pde_reconnaissance/main'
+include { PDE_RECONNAISSANCE_CORE } from '../subworkflows/local/pde_reconnaissance_core/main'
 include { PDE_MOTIF_DISCOVERY } from '../subworkflows/local/pde_motif_discovery/main'
 
 /*
@@ -25,7 +25,7 @@ workflow RECON_MOTIF_PIPELINE {
     def val_telomere_repeat = ch_samplesheet.map { meta, _assembly, _bam, _bai -> meta.telomere_repeat ?: (params.telomere_repeat ?: 'TTAGGC') }.first()
     def val_chromosomes     = ch_samplesheet.map { meta, _assembly, _bam, _bai -> meta.chromosomes ?: (params.chromosomes ?: '') }.first()
 
-    PDE_RECONNAISSANCE (
+    PDE_RECONNAISSANCE_CORE (
         ch_assembly,
         ch_bam,
         val_telomere_repeat,
@@ -34,18 +34,18 @@ workflow RECON_MOTIF_PIPELINE {
 
     PDE_MOTIF_DISCOVERY (
         ch_assembly,
-        PDE_RECONNAISSANCE.out.pde_segments_bed,
-        PDE_RECONNAISSANCE.out.delfies_foci_s2g,
+        PDE_RECONNAISSANCE_CORE.out.pde_segments_bed,
+        PDE_RECONNAISSANCE_CORE.out.delfies_foci_s2g,
         params.fimo_pvalue_threshold ?: 1e-4
     )
 
     emit:
-    grs_summary_tsv            = PDE_RECONNAISSANCE.out.grs_summary_tsv
-    pde_segments_bed           = PDE_RECONNAISSANCE.out.pde_segments_bed
-    delfies_bed                = PDE_RECONNAISSANCE.out.delfies_bed
-    delfies_foci_s2g           = PDE_RECONNAISSANCE.out.delfies_foci_s2g
-    grs_quantized_bed          = PDE_RECONNAISSANCE.out.grs_quantized_bed
-    terminal_ends_summary      = PDE_RECONNAISSANCE.out.terminal_ends_summary
+    grs_summary_tsv            = PDE_RECONNAISSANCE_CORE.out.grs_summary_tsv
+    pde_segments_bed           = PDE_RECONNAISSANCE_CORE.out.pde_segments_bed
+    delfies_bed                = PDE_RECONNAISSANCE_CORE.out.delfies_bed
+    delfies_foci_s2g           = PDE_RECONNAISSANCE_CORE.out.delfies_foci_s2g
+    grs_quantized_bed          = PDE_RECONNAISSANCE_CORE.out.grs_quantized_bed
+    terminal_ends_summary      = PDE_RECONNAISSANCE_CORE.out.terminal_ends_summary
     best_core_motif            = PDE_MOTIF_DISCOVERY.out.best_core_motif
     core_motif_metrics_json    = PDE_MOTIF_DISCOVERY.out.core_motif_metrics_json
     grid_summary_tsv           = PDE_MOTIF_DISCOVERY.out.grid_summary_tsv
