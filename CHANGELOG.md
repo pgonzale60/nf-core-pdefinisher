@@ -9,6 +9,8 @@ Initial release of nf-core/pdefinisher, created with the [nf-core](https://nf-co
 
 ### `Added`
 
+- `recon_motif.nf`: entry running `PDE_RECONNAISSANCE` and `PDE_MOTIF_DISCOVERY` (GRS, DELFIES, MEME/FIMO) without assembly surgery, evaluation or validation (#27).
+
 ### `Fixed`
 
 ### `Dependencies`

@@ -49,6 +49,14 @@ Optional parameters:
 - `--chromosomes`: Optional comma-separated list of primary chromosomes to restrict curation to (default: auto-detected from the assembly).
 - `--curation_policy`: Path to custom JSON curation policy (default: `assets/curation_policy.json`).
 
+## Recon + motif only
+
+To run GRS definition, DELFIES and motif discovery without assembly surgery:
+
+```bash
+nextflow run recon_motif.nf --input samplesheet.csv --outdir results
+```
+
 ## Credits
 
 `nf-core/pdefinisher` was originally written by **Pablo M. Gonzalez de la Rosa** (Wellcome Sanger Institute).
