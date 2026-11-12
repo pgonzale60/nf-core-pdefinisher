@@ -58,10 +58,6 @@
 #### `subworkflows/local/automated_pde_curation/main.nf`
 - **Includes:**
   - `PDE_RECONNAISSANCE` from `../pde_reconnaissance/main`
-  - `HIFIASM` from `../../../modules/local/hifiasm/main`
-  - `HIFIASM as HIFIASM_RDNA` from `../../../modules/local/hifiasm/main`
-  - `MINIMAP2_ALIGN` from `../../../modules/local/minimap2/align/main`
-  - `MINIMAP2_ALIGN as ALIGN_RDNA_TO_ASSEMBLY` from `../../../modules/local/minimap2/align/main`
   - `BGZIPFASTA` from `../../../modules/local/bgzipfasta/main`
   - `CURATIONSYNTHESIS` from `../../../modules/local/curationsynthesis/main`
   - `CURATION_RESOLUTION` from `../curation_resolution/main`
@@ -131,7 +127,11 @@
   - `EXTRACTRDNAREADS` from `../../../modules/local/extractrdnareads/main`
   - `SOFTCLIPENDS` from `../../../modules/local/softclipends/main`
   - `TELOMERICJUNCTIONPROFILER` from `../../../modules/local/telomericjunctionprofiler/main`
+  - `HIFIASM` from `../../../modules/local/hifiasm/main`
+  - `HIFIASM as HIFIASM_RDNA` from `../../../modules/local/hifiasm/main`
+  - `MINIMAP2_ALIGN` from `../../../modules/local/minimap2/align/main`
   - `MINIMAP2_ALIGN as ALIGN_UNPLACED` from `../../../modules/local/minimap2/align/main`
+  - `MINIMAP2_ALIGN as ALIGN_RDNA_TO_ASSEMBLY` from `../../../modules/local/minimap2/align/main`
   - `SNIFFLES` from `../../../modules/local/sniffles/main`
   - `FILTERCHROMOSOMES` from `../../../modules/local/filterchromosomes/main`
   - `RED` from `../../../modules/local/red/main`

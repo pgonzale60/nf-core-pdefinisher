@@ -20,8 +20,6 @@ components:
   - curation_evaluation
   - curation_validation
   - bgzipfasta
-  - hifiasm
-  - minimap2/align
 input:
   - ch_assembly:
       type: file

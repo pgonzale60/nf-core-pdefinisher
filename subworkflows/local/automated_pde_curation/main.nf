@@ -11,10 +11,6 @@
 //
 
 include { PDE_RECONNAISSANCE   } from '../pde_reconnaissance/main'
-include { HIFIASM                         } from '../../../modules/local/hifiasm/main'
-include { HIFIASM as HIFIASM_RDNA         } from '../../../modules/local/hifiasm/main'
-include { MINIMAP2_ALIGN                  } from '../../../modules/local/minimap2/align/main'
-include { MINIMAP2_ALIGN as ALIGN_RDNA_TO_ASSEMBLY } from '../../../modules/local/minimap2/align/main'
 include { BGZIPFASTA          } from '../../../modules/local/bgzipfasta/main'
 include { CURATIONSYNTHESIS   } from '../../../modules/local/curationsynthesis/main'
 include { CURATION_RESOLUTION  } from '../curation_resolution/main'
@@ -46,112 +42,6 @@ workflow AUTOMATED_PDE_CURATION {
     )
 
     // =========================================================================
-    // HIFIASM ASSEMBLIES: telomeric unitigs and rDNA locus, from reconnaissance reads
-    // =========================================================================
-    //
-    // MODULE: HIFIASM — De novo assembly of telomeric unitigs from extracted reads
-    //
-    ch_hifiasm_input = PDE_RECONNAISSANCE.out.telomeric_reads
-        .map { meta, reads ->
-            def read_list = (reads instanceof List) ? reads : [reads]
-            tuple(meta, read_list, [])
-        }
-
-    HIFIASM (
-        ch_hifiasm_input,
-        [[:], []],
-        [[:], [], []],
-        [[:], []],
-        [[:], []]
-    )
-
-    //
-    // MODULE: MINIMAP2_ALIGN — Map assembled telomeric unitigs against baseline assembly
-    //
-    ch_minimap2_reads = HIFIASM.out.assembly_fasta
-        .filter { _meta, fasta -> fasta != null && fasta.size() > 0 }
-
-    ch_minimap2_input = ch_minimap2_reads
-        .combine(ch_assembly, by: 0)
-        .multiMap { meta, unitigs, assembly ->
-            reads: tuple(meta, unitigs)
-            reference: tuple(meta, assembly)
-        }
-
-    MINIMAP2_ALIGN (
-        ch_minimap2_input.reads,
-        ch_minimap2_input.reference,
-        false,  // bam_format
-        '',     // bam_index_extension
-        true,   // cigar_paf_format
-        false,  // cigar_bam
-        false   // bed_bool
-    )
-
-    //
-    // MODULE: HIFIASM (HIFIASM_RDNA) — High-speed string-graph assembly of the rDNA repeat array and anchors
-    //
-    ch_hifiasm_rdna_input = PDE_RECONNAISSANCE.out.rdna_reads
-        .map { meta, reads ->
-            def read_list = (reads instanceof List) ? reads : [reads]
-            tuple(meta, read_list, [])
-        }
-
-    HIFIASM_RDNA (
-        ch_hifiasm_rdna_input,
-        [[:], []],
-        [[:], [], []],
-        [[:], []],
-        [[:], []]
-    )
-
-    ch_rdna_assembly_reads = HIFIASM_RDNA.out.assembly_fasta
-        .map { meta, fasta ->
-            def target_fa = fasta
-            if (fasta instanceof List) {
-                target_fa = fasta.find { it.name.endsWith('.p_utg.fa') } ?:
-                            fasta.find { it.name.endsWith('.p_ctg.fa') } ?:
-                            fasta[0]
-            }
-            tuple(meta, target_fa)
-        }
-        .filter { _meta, fasta -> fasta != null }
-
-    //
-    // MODULE: MINIMAP2_ALIGN (ALIGN_RDNA_TO_ASSEMBLY) — Map the rDNA assembly back onto
-    // the baseline assembly. A terminal rDNA locus is resolved as
-    // anchor -> rDNA model -> distal cap, and the single-copy core anchor is identified from
-    // this mapping: a contig aligning to the locus chromosome at high MAPQ is the core flank.
-    // Without it the cassette resolver can only fall back to guessing an anchor.
-    //
-    ch_rdna_align_input = ch_rdna_assembly_reads
-        .map { meta, f -> [ meta.subMap(['id', 'chromosomes', 'telomere_repeat']), f ] }
-        .join(ch_assembly, by: 0)
-        .multiMap { meta, rdna_fa, asm ->
-            reads:     tuple(meta, rdna_fa)
-            reference: tuple(meta, asm)
-        }
-
-    ALIGN_RDNA_TO_ASSEMBLY (
-        ch_rdna_align_input.reads,
-        ch_rdna_align_input.reference,
-        false,  // bam_format
-        '',     // bam_index_extension
-        true,   // cigar_paf_format
-        false,  // cigar_bam
-        false   // bed_bool
-    )
-
-
-    ch_telo_unitigs = HIFIASM.out.assembly_fasta
-    ch_telo_paf     = MINIMAP2_ALIGN.out.paf
-
-    ch_rdna_assembly_fasta = ch_rdna_assembly_reads.map { meta, f -> [ meta.subMap(['id', 'chromosomes', 'telomere_repeat']), f ] }
-    ch_rdna_assembly_info  = HIFIASM_RDNA.out.log.map { meta, f -> [ meta.subMap(['id', 'chromosomes', 'telomere_repeat']), f ] }
-    ch_rdna_assembly_gfa   = HIFIASM_RDNA.out.assembly_graphs.map { meta, f -> [ meta.subMap(['id', 'chromosomes', 'telomere_repeat']), f ] }
-    ch_rdna_assembly_paf   = ALIGN_RDNA_TO_ASSEMBLY.out.paf.map { meta, f -> [ meta.subMap(['id', 'chromosomes', 'telomere_repeat']), f ] }
-
-    // =========================================================================
     // MODULE 2: CURATION SYNTHESIS (BLUEPRINT)
     // =========================================================================
     ch_s1  = ch_assembly.map { meta, fasta -> [ meta.id, meta, fasta ] }
@@ -162,10 +52,10 @@ workflow AUTOMATED_PDE_CURATION {
     ch_s6  = PDE_RECONNAISSANCE.out.delfies_bed.map { meta, f -> [ meta.id, f ] }
     ch_s7  = PDE_RECONNAISSANCE.out.rdna_regions_bed.map { meta, f -> [ meta.id, f ] }
     ch_s8  = PDE_RECONNAISSANCE.out.barrnap_gff.map { meta, f -> [ meta.id, f ] }
-    ch_s9  = ch_rdna_assembly_info.map { meta, f -> [ meta.id, f ] }
+    ch_s9  = PDE_RECONNAISSANCE.out.rdna_assembly_info.map { meta, f -> [ meta.id, f ] }
     ch_s10 = PDE_RECONNAISSANCE.out.unplaced_paf.map { meta, f -> [ meta.id, f ] }
     ch_s11 = PDE_RECONNAISSANCE.out.red_bed.map { meta, f -> [ meta.id, f ] }
-    ch_s12 = ch_telo_paf.map { meta, f -> [ meta.id, f ] }
+    ch_s12 = PDE_RECONNAISSANCE.out.telo_paf.map { meta, f -> [ meta.id, f ] }
     ch_s13 = PDE_RECONNAISSANCE.out.gap_evidence_json.map { meta, f -> [ meta.id, f ] }
     ch_s14 = PDE_RECONNAISSANCE.out.telo_junction_json.map { meta, f -> [ meta.id, f ] }
 
@@ -233,10 +123,12 @@ workflow AUTOMATED_PDE_CURATION {
     // the summary over as one is how a unitig cap came to report an entire unitig as its extension.
     // A unitig's interval now travels on the Module 2 card as evidence.unitig_extension_region.
 
-    ch_flye_evidence = ch_rdna_assembly_fasta
-        .join(ch_rdna_assembly_info, by: 0)
-        .join(ch_rdna_assembly_paf, by: 0)
-        .join(ch_rdna_assembly_gfa, by: 0)
+    ch_telo_unitigs  = PDE_RECONNAISSANCE.out.telo_unitigs
+
+    ch_flye_evidence = PDE_RECONNAISSANCE.out.rdna_assembly_fasta
+        .join(PDE_RECONNAISSANCE.out.rdna_assembly_info, by: 0)
+        .join(PDE_RECONNAISSANCE.out.rdna_assembly_paf, by: 0)
+        .join(PDE_RECONNAISSANCE.out.rdna_assembly_gfa, by: 0)
         .map { meta, fa, info, paf, gfa ->
             tuple(meta, fa, info, paf, gfa)
         }
