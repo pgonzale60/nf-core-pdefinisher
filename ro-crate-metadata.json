@@ -152,10 +152,10 @@
             },
             "url": [
                 "https://github.com/nf-core/pdefinisher",
-                "https://nf-co.re/pdefinisher/1.0.0/"
+                "https://nf-co.re/pdefinisher/1.1.0/"
             ],
             "version": [
-                "1.0.0"
+                "1.1.0"
             ]
         },
         {

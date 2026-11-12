@@ -153,7 +153,7 @@ def paramsHelp(monochrome_logs=false) {
   |\\ | |__  __ /  ` /  \\ |__) |__         }  {
   | \\| |       \\__, \\__/ |  \\ |___     \\`-._,-`-,
                                         `._,._,'
-  nf-core/pdefinisher ${workflow.manifest.version ?: '1.0.0'}
+  nf-core/pdefinisher ${workflow.manifest.version ?: '1.1.0'}
 ------------------------------------------------------
 """
     def help_text = """
