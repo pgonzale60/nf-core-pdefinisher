@@ -518,4 +518,3 @@ def evaluate_extension_candidacy(
         scaffold_dispositions.append(row)
 
     return scaffold_cards, scaffold_dispositions, extension_by_seq
-

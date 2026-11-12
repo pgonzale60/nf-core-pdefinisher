@@ -47,7 +47,7 @@ process CURATIONSYNTHESIS {
     def pol_arg    = policy_file ? "--policy \"${policy_file}\"" : ""
     def eff_telo   = meta.telomere_repeat ?: telo_motif
     """
-    # Tool: pde_curation_synthesis.py | Script-SHA: 9595e63cd7ea7979
+    # Tool: pde_curation_synthesis.py | Script-SHA: 49d0f0a64a54bb98
     pde_curation_synthesis.py --version
     pde_curation_synthesis.py \\
         --sample "${prefix}" \\

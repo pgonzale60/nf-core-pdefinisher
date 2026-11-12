@@ -23,7 +23,7 @@ process EXTRACTGAPEVIDENCE {
     def args   = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
-    # Tool: pde_extract_gap_evidence.py | Script-SHA: a12a6cb35911361e
+    # Tool: pde_extract_gap_evidence.py | Script-SHA: f6430281d7e6af6e
     python3 - << 'PYEOF'
 import re, gzip
 

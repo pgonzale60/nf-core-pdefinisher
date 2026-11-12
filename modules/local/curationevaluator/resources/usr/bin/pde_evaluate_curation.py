@@ -340,7 +340,7 @@ def load_gap_evidence_map(gap_evidence_path):
             en = int(g.get("end", 0))
             read_obs = g.get("read_observations", [])
             span_cnt_30 = len([
-                r for r in read_obs 
+                r for r in read_obs
                 if r.get("span_type") == "COLLINEAR_SPANNING" and r.get("mapq", 0) >= 30
             ])
             g["span_cnt_30"] = span_cnt_30

@@ -18,7 +18,6 @@ Initial release of nf-core/pdefinisher, created with the [nf-core](https://nf-co
 
 ### `Added`
 
-
 ### `Fixed`
 
 ### `Dependencies`

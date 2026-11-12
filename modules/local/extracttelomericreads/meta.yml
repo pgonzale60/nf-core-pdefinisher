@@ -58,11 +58,11 @@ output:
   versions_samtools:
     - - "${task.process}"
       - samtools
-      - "eval(\"samtools --version | head -n 1 | sed 's/samtools //'\")"
+      - 'eval("samtools --version | head -n 1 | sed ''s/samtools //''")'
   versions_seqkit:
     - - "${task.process}"
       - seqkit
-      - "eval(\"seqkit version | sed 's/seqkit //'\")"
+      - 'eval("seqkit version | sed ''s/seqkit //''")'
 authors:
   - "@pgonzale60"
 maintainers:

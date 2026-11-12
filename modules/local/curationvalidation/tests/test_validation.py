@@ -310,7 +310,7 @@ class TestCurationValidation(unittest.TestCase):
             with open(agp_path, "w") as f:
                 f.write("chr1\t1\t1000\t1\tW\tcontig_1\t1\t1000\t+\n")
                 f.write("chr1\t1001\t1100\t2\tN\t100\tscaffold\tyes\tpaired-ends\n")
-            
+
             agp_res = parse_agp_regions(agp_path)
             self.assertIn("chr1", agp_res)
             self.assertEqual(len(agp_res["chr1"]), 2)

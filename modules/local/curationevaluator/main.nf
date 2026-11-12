@@ -28,7 +28,7 @@ process CURATIONEVALUATOR {
     def eff_chroms = meta.chromosomes ?: chromosomes
     def chr_arg    = eff_chroms ? "--chromosomes \"${eff_chroms}\"" : ""
     """
-    # Tool: pde_evaluate_curation.py | Script-SHA: 22c743ac8ad4de61
+    # Tool: pde_evaluate_curation.py | Script-SHA: 76448646675aa27e
     pde_evaluate_curation.py --version
     pde_evaluate_curation.py \\
         --pre-ref "${pre_ref}" \\
