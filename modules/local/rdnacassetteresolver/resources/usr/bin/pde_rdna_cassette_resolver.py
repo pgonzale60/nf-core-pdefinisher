@@ -335,7 +335,7 @@ def align_and_orient_monomer(anchor_seq, monomer_seq, k=25, search_window=150):
     Returns (oriented_monomer, junction_overlap_bp).
     """
     anchor_tip = anchor_seq[-1500:] if len(anchor_seq) > 1500 else anchor_seq
-    
+
     mono_2x_fwd = monomer_seq + monomer_seq
     mono_2x_rev = revcomp(monomer_seq) + revcomp(monomer_seq)
 
@@ -493,7 +493,7 @@ def phase_monomer_to_distal_unitig(monomer_seq, distal_unitig_seq, k=25):
     """
     prefix = distal_unitig_seq[:1000]
     mono_2x = monomer_seq + monomer_seq
-    
+
     # Search for first k-mer of distal unitig within circular monomer
     for offset in range(0, min(100, len(prefix) - k + 1), 5):
         kmer = prefix[offset:offset+k]

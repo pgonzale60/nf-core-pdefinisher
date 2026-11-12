@@ -11,4 +11,3 @@ __all__ = [
     "evaluate_step_information_gain",
     "run_iterative_walker",
 ]
-

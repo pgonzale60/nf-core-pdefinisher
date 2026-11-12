@@ -45,6 +45,7 @@ nextflow run nf-core/pdefinisher \
 ```
 
 Optional parameters:
+
 - `--telomere_repeat`: Canonical telomeric monomer repeat (default: `'TTAGGC'`).
 - `--chromosomes`: Optional comma-separated list of primary chromosomes to restrict curation to (default: auto-detected from the assembly).
 - `--curation_policy`: Path to custom JSON curation policy (default: `assets/curation_policy.json`).

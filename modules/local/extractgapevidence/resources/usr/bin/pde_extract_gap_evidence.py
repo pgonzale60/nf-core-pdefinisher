@@ -71,7 +71,7 @@ def parse_sniffles_svs(vcf_path):
             filt = parts[6]
             info = dict(item.split('=', 1) if '=' in item else (item, True) for item in parts[7].split(';'))
             svtype = info.get('SVTYPE', '')
-            
+
             end_pos = int(info.get('END', pos))
             try:
                 svlen = abs(int(info.get('SVLEN', end_pos - pos)))
@@ -129,7 +129,7 @@ def extract_gap_read_observations(bam, chrom, start, end, search_win=2500):
     for r in bam.fetch(chrom, q_start, q_end):
         if r.is_unmapped:
             continue
-        
+
         # Unique alignment record identifier: qname + primary/supp tag
         rec_id = f"{r.query_name}_{'supp' if r.is_supplementary else 'prim'}_{r.reference_start}"
         if rec_id in seen_qnames:
@@ -145,7 +145,7 @@ def extract_gap_read_observations(bam, chrom, start, end, search_win=2500):
         if not r.is_secondary and r_start < start and r_end > end:
             left_anchor = start - r_start
             right_anchor = r_end - end
-            
+
             # Trace CIGAR operations across the gap interval [start, end]
             del_at_gap = 0
             ins_at_gap = 0
