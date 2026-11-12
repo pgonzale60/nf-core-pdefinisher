@@ -21,6 +21,10 @@ from collections import defaultdict
 __version__ = "1.5.0"
 
 
+TGRS_TEX = r"$T_{\text{GRS}}$"
+MAPQ_LT20_TEX = r"$\text{MAPQ} < 20$"
+
+
 def get_script_fingerprint():
     try:
         with open(__file__, "rb") as f:
@@ -1015,7 +1019,7 @@ def main():
             grs_cov = grs_info.get("median_coverage", 0.0)
             thresh_str = f"{thresh:.2f}×" if thresh is not None else "N/A"
             f.write(
-                f"* **PDE Compartment Allocation ($T_{{\\text{{GRS}}}}$ = `{thresh_str}`)**:\n"
+                f"* **PDE Compartment Allocation ({TGRS_TEX} = `{thresh_str}`)**:\n"
                 f"  - Putative Somatic Core: **{core_bp:,d} bp** ({core_bp / 1e6:.2f} Mb, {core_pct:.1f}%) | Median Coverage: `{core_cov:.1f}×`\n"
                 f"  - Putative GRS (Eliminated): **{grs_bp:,d} bp** ({grs_bp / 1e6:.2f} Mb, {grs_pct:.1f}%) | Median Coverage: `{grs_cov:.1f}×`\n"
             )
@@ -1158,7 +1162,7 @@ def main():
                             if w_notes:
                                 f.write(f"  * **Walker Observation**: {w_notes}\n")
                             f.write("  * **Classification**: **Multi-Mapping Paralogous Anchor**.\n")
-                            f.write(f"  * **Curator Takeaway**: Terminal sequence is repetitive ({rep_content}) with reads mapping across multiple genomic loci with $\\text{{MAPQ}} < 20$. Ambiguous mapping prevents unique, confident extension.\n\n")
+                            f.write(f"  * **Curator Takeaway**: Terminal sequence is repetitive ({rep_content}) with reads mapping across multiple genomic loci with " + MAPQ_LT20_TEX + ". Ambiguous mapping prevents unique, confident extension.\n\n")
 
                         # Mode 4: Walker Horizon Reached
                         elif w_status == "HORIZON_LIMIT_REACHED" or "horizon limit" in w_notes.lower() or ("within" in w_notes.lower() and "steps" in w_notes.lower()):
