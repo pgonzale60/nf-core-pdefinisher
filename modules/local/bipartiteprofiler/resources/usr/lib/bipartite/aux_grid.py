@@ -10,6 +10,8 @@ import shutil
 import subprocess
 from typing import Any
 
+from cbm_defaults import SSOT
+
 AUX_GRID_CONDITIONS = [
     # Fixed width 6 (hexamer)
     {"id": "A01_anr_w6_revcomp", "mod": "anr", "w_args": ["-w", "6"], "revcomp": True},
@@ -35,7 +37,7 @@ AUX_GRID_CONDITIONS = [
 
 
 def parse_aux_meme_results(
-    txt_path: str | Path, center_pos: int = 150
+    txt_path: str | Path, center_pos: int = SSOT["max_soma_flank_len"]
 ) -> dict[str, Any] | None:
     """Parse secondary MEME search results."""
     if not os.path.exists(txt_path):
@@ -91,16 +93,11 @@ def parse_aux_meme_results(
             if "block diagrams" in line or line.startswith("MOTIF"):
                 break
             parts = line.split()
-            if len(parts) >= 3:
+            if len(parts) >= 4 and ("+" in parts or "-" in parts):
                 seq_name = parts[0]
-                if parts[1] in ("+", "-"):
-                    strand = parts[1]
-                    start_str = parts[2]
-                else:
-                    strand = "+"
-                    start_str = parts[1]
+                strand = parts[1]
                 try:
-                    start = int(start_str)
+                    start = int(parts[2])
                     dist_to_center = abs(start - center_pos)
                     site_records.append({
                         "seq": seq_name,
@@ -108,10 +105,10 @@ def parse_aux_meme_results(
                         "start": start,
                         "dist": dist_to_center,
                     })
-                except (ValueError, IndexError):
+                except ValueError:
                     continue
 
-    unique_seqs = nsites
+    unique_seqs = len({s["seq"] for s in site_records})
     proximal_sites = sum(1 for s in site_records if 6 <= s["dist"] <= 50)
 
     # Entropy of consensus
@@ -166,12 +163,19 @@ def _run_single_aux_condition(
             cmd.extend(["-bfile", str(bfile)])
         if cond["revcomp"]:
             cmd.append("-revcomp")
-        subprocess.run(
-            cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=True,
-        )
+        try:
+            subprocess.run(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=True,
+            )
+        except subprocess.CalledProcessError as e:
+            err_msg = e.stderr.strip() if e.stderr else "Unknown error"
+            raise RuntimeError(
+                f"Auxiliary MEME condition '{cid}' failed with exit code {e.returncode}: {err_msg}"
+            ) from e
 
     metrics = parse_aux_meme_results(str(meme_txt))
     if metrics:
@@ -183,12 +187,164 @@ def _run_single_aux_condition(
     return None
 
 
+def _revcomp(seq: str) -> str:
+    tr = str.maketrans("ACGTNacgtn", "TGCANtgcan")
+    return seq.translate(tr)[::-1]
+
+
+def is_core_echo(aux_consensus: str, core_consensus: str) -> bool:
+    """Return True if aux_consensus is a substring/superstring of core_consensus or its revcomp."""
+    if not aux_consensus or not core_consensus:
+        return False
+    a = aux_consensus.upper().strip()
+    c = core_consensus.upper().strip()
+    rc_c = _revcomp(c)
+    return (a in c) or (c in a) or (a in rc_c) or (rc_c in a)
+
+
+def detect_tandem_repeats(
+    seq: str,
+    min_period: int = 2,
+    max_period: int = 10,
+    min_copies: float = 2.0,
+    min_identity: float = 0.85,
+) -> tuple[bool, int, float]:
+    """Detect if sequence is a tandem repeat using lagged self-comparison."""
+    if not seq:
+        return False, 0, 0.0
+    s = seq.upper().strip()
+    n = len(s)
+    upper_p = min(max_period, int(n // min_copies))
+    for p in range(min_period, upper_p + 1):
+        if n < p * min_copies:
+            continue
+        lag_len = n - p
+        matches = sum(1 for a, b in zip(s[:-p], s[p:], strict=False) if a == b)
+        frac = matches / lag_len
+        if frac >= min_identity:
+            return True, p, round(frac, 4)
+    return False, 0, 0.0
+
+
+def extract_motif_n_from_meme(
+    meme_txt_path: Path | str, motif_num: int, output_aux_meme: Path | str
+) -> dict[str, Any] | None:
+    """Extract secondary or tertiary motif from multi-motif MEME text output."""
+    p_in = Path(meme_txt_path)
+    if not p_in.exists():
+        return None
+    text = p_in.read_text(encoding="utf-8")
+    m_split = re.split(rf"\n(?=MOTIF\s+{motif_num}\b|\bMEME-{motif_num}\b)", text)
+    if len(m_split) < 2:
+        return None
+
+    header = text.split("MOTIF")[0].strip() + "\n\n"
+    next_num = motif_num + 1
+    motif_content = re.split(
+        rf"\n(?=MOTIF\s+{next_num}\b|\bMEME-{next_num}\b)", m_split[1]
+    )[0]
+    out_p = Path(output_aux_meme)
+    out_p.parent.mkdir(parents=True, exist_ok=True)
+    out_p.write_text(header + motif_content, encoding="utf-8")
+
+    parsed = parse_aux_meme_results(out_p)
+    if parsed:
+        parsed["id"] = f"MEME_motif_{motif_num}"
+        parsed["meme_txt_path"] = str(out_p)
+        return parsed
+
+    m_e = re.search(r"E=\s*(\S+)", motif_content)
+    m_w = re.search(r"w=\s*(\d+)", motif_content)
+    m_ns = re.search(r"nsites=\s*(\d+)", motif_content)
+    cons_m = re.search(r"Multilevel\s+([A-Za-z]+)", motif_content)
+    w = int(m_w.group(1)) if m_w else 8
+    return {
+        "id": f"MEME_motif_{motif_num}",
+        "consensus": cons_m.group(1).upper() if cons_m else "",
+        "width": w,
+        "nsites": int(m_ns.group(1)) if m_ns else 0,
+        "evalue": float(m_e.group(1)) if m_e else 1.0,
+        "total_ic": w * 1.5,
+        "mean_ic": 1.5,
+        "consensus_entropy": 1.0,
+        "meme_txt_path": str(out_p),
+    }
+
+
+def is_telomeric_repeat_echo(
+    consensus: str, repeat: str = SSOT["telomere_repeat"]
+) -> tuple[bool, float]:
+    """Check if motif consensus is a telomeric repeat echo (>=50% exact 6-mers or >=70% in-phase 1-mismatch coverage)."""
+    if not consensus or not repeat:
+        return False, 0.0
+    cons = consensus.upper().strip()
+    rep = repeat.upper().strip()
+    k = len(rep)
+    n = len(cons)
+    if n < k:
+        return False, 0.0
+
+    rc_rep = _revcomp(rep)
+    fwd_perms = {(rep * 2)[i : i + k] for i in range(k)}
+    rev_perms = {(rc_rep * 2)[i : i + k] for i in range(k)}
+
+    n_kmers = n - k + 1
+    fwd_exact = sum(1 for i in range(n_kmers) if cons[i : i + k] in fwd_perms)
+    rev_exact = sum(1 for i in range(n_kmers) if cons[i : i + k] in rev_perms)
+    exact_frac = max(fwd_exact, rev_exact) / n_kmers
+
+    best_cov_1mm = 0.0
+    reps_needed = (n // k) + 3
+    for base_rep in (rep, rc_rep):
+        full_periodic = base_rep * reps_needed
+        for phase in range(k):
+            tmpl = full_periodic[phase : phase + n]
+            covered = [False] * n
+            mm1_count = 0
+            for i in range(n_kmers):
+                mm = sum(
+                    1
+                    for a, b in zip(cons[i : i + k], tmpl[i : i + k], strict=False)
+                    if a != b
+                )
+                if mm <= 1:
+                    mm1_count += 1
+                    for j in range(i, i + k):
+                        covered[j] = True
+            if mm1_count >= 2:
+                best_cov_1mm = max(best_cov_1mm, sum(covered) / n)
+
+    is_echo = (exact_frac > SSOT["telomeric_echo_exact_kmer_cutoff"]) or (
+        n >= 18 and best_cov_1mm >= SSOT["telomeric_echo_1mm_cov_cutoff"]
+    )
+    return is_echo, round(max(exact_frac, best_cov_1mm), 4)
+
+
 def score_auxiliary_candidate(
-    cand: dict[str, Any] | None, total_sequences: int = 1
+    cand: dict[str, Any] | None,
+    total_sequences: int = 1,
+    telomere_repeat: str = SSOT["telomere_repeat"],
 ) -> float:
-    """Compute score for an auxiliary motif candidate based on Total Information Content."""
-    if not cand or cand.get("evalue", 1.0) > 0.05:
+    """Compute composite score for an auxiliary motif candidate without proximity bias."""
+    if not cand:
         return 0.0
+    is_telo, telo_frac = is_telomeric_repeat_echo(
+        cand.get("consensus", ""), repeat=telomere_repeat
+    )
+    cand["telomeric_echo_fraction"] = telo_frac
+    if is_telo:
+        cand["rejection_flag"] = "REJECTED_TELOMERIC_ECHO"
+        cand["composite_score"] = 0.0
+        return 0.0
+    is_tr, _tr_p, _tr_frac = detect_tandem_repeats(cand.get("consensus", ""))
+    if is_tr:
+        cand["rejection_flag"] = "REJECTED_TANDEM_REPEAT"
+        cand["composite_score"] = 0.0
+        return 0.0
+    if cand.get("evalue", 1.0) > SSOT["aux_evalue_cutoff"]:
+        cand["rejection_flag"] = "REJECTED_INSIGNIFICANT_EVALUE"
+        return 0.0
+    cand["rejection_flag"] = "PASS"
     total_ic = cand.get("total_ic", 0.0)
     if total_ic <= 0.0:
         w = cand.get("width", 0)
@@ -196,43 +352,138 @@ def score_auxiliary_candidate(
         total_ic = w * mean_ic
     if total_ic <= 0.0:
         return 0.0
-    return round(float(total_ic), 4)
+
+    unique_seqs = cand.get("unique_sequences_hit", 0)
+    nsites = max(1, cand.get("nsites", 1))
+    c_ent = cand.get("consensus_entropy", 1.0)
+
+    tot_seq = max(1, total_sequences)
+    occupancy = (
+        min(1.0, unique_seqs / tot_seq)
+        if unique_seqs > 0
+        else min(1.0, nsites / tot_seq)
+    )
+    homopolymer_factor = (
+        1.0 if c_ent >= 1.2 else (c_ent / 1.2 if c_ent >= 0.6 else 0.05)
+    )
+
+    score = total_ic * (0.3 + 0.7 * occupancy) * homopolymer_factor
+    return round(score, 4)
 
 
-def revcomp(seq: str) -> str:
-    """Return reverse complement of DNA sequence."""
-    tr = str.maketrans("ACGTNacgtn", "TGCANtgcan")
-    return seq.translate(tr)[::-1]
+def run_localized_auxiliary_meme(
+    sliced_fasta: str | Path,
+    out_dir: str | Path,
+    bfile: str | None = None,
+    nmotifs: int = 3,
+    minw: int = 6,
+    maxw: int = 30,
+    mod: str = "zoops",
+    revcomp: bool = True,
+    core_consensus: str = "",
+    total_sequences: int = 1,
+    telomere_repeat: str = SSOT["telomere_repeat"],
+) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    """Execute single targeted localized MEME command on sliced FASTA and evaluate auxiliary candidate motifs."""
+    out_path = Path(out_dir)
+    out_path.mkdir(parents=True, exist_ok=True)
+    meme_txt = out_path / "meme.txt"
 
+    if not meme_txt.exists():
+        meme_bin = shutil.which("meme")
+        if not meme_bin:
+            raise RuntimeError("Required binary 'meme' not found in PATH")
+        cmd = [
+            meme_bin,
+            str(sliced_fasta),
+            "-dna",
+            "-mod",
+            mod,
+            "-nmotifs",
+            str(nmotifs),
+            "-minw",
+            str(minw),
+            "-maxw",
+            str(maxw),
+            "-oc",
+            str(out_path),
+        ]
+        if revcomp:
+            cmd.append("-revcomp")
+        if bfile and os.path.exists(bfile):
+            cmd.extend(["-bfile", str(bfile)])
 
-def is_core_echo(aux_consensus: str, core_consensus: str) -> bool:
-    """Return True if aux_consensus is an echo of core_consensus or its revcomp."""
-    if not aux_consensus or not core_consensus:
-        return False
-    a = aux_consensus.upper().strip()
-    c = core_consensus.upper().strip()
-    rc_c = revcomp(c)
-    # 1. Exact substring or superstring
-    if (a in c) or (c in a) or (a in rc_c) or (rc_c in a):
-        return True
-    # 2. High-identity sliding window match
-    win_len = min(len(a), len(c))
-    if win_len >= 6:
-        for ref in (c, rc_c):
-            for i in range(len(ref) - win_len + 1):
-                sub = ref[i : i + win_len]
-                matches = sum(
-                    1 for x, y in zip(a[:win_len], sub) if x == y or x == "N" or y == "N"
-                )
-                if matches / win_len >= 0.85:
-                    return True
-    return False
+        try:
+            subprocess.run(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=True,
+            )
+        except subprocess.CalledProcessError as e:
+            err_msg = e.stderr.strip() if e.stderr else "Unknown error"
+            raise RuntimeError(
+                f"Localized auxiliary MEME discovery failed with exit code {e.returncode}: {err_msg}"
+            ) from e
+
+    candidates = []
+    for m_idx in range(2, nmotifs + 1):
+        sub_meme_path = out_path / f"motif_{m_idx}.meme"
+        cand = extract_motif_n_from_meme(meme_txt, m_idx, sub_meme_path)
+        if not cand:
+            continue
+
+        cons = cand.get("consensus", "")
+        if core_consensus and is_core_echo(cons, core_consensus):
+            cand["rejection_flag"] = "REJECTED_CORE_ECHO"
+            cand["composite_score"] = 0.0
+            candidates.append(cand)
+            continue
+
+        is_telo, telo_frac = is_telomeric_repeat_echo(cons, repeat=telomere_repeat)
+        cand["telomeric_echo_fraction"] = telo_frac
+        if is_telo:
+            cand["rejection_flag"] = "REJECTED_TELOMERIC_ECHO"
+            cand["composite_score"] = 0.0
+            candidates.append(cand)
+            continue
+
+        is_tr, _tr_p, _tr_frac = detect_tandem_repeats(cons)
+        if is_tr:
+            cand["rejection_flag"] = "REJECTED_TANDEM_REPEAT"
+            cand["composite_score"] = 0.0
+            candidates.append(cand)
+            continue
+
+        score = score_auxiliary_candidate(
+            cand, total_sequences=total_sequences, telomere_repeat=telomere_repeat
+        )
+        cand["composite_score"] = score
+        candidates.append(cand)
+
+    valid_candidates = [
+        c
+        for c in candidates
+        if c.get("rejection_flag") == "PASS" and c.get("composite_score", 0.0) > 0
+    ]
+    if valid_candidates:
+        valid_candidates.sort(
+            key=lambda x: (
+                x.get("composite_score", 0.0),
+                x.get("total_ic", 0.0),
+                -math.log10(max(x.get("evalue", 1.0), 1e-100)),
+            ),
+            reverse=True,
+        )
+        return valid_candidates[0], candidates
+
+    return None, candidates
 
 
 def run_auxiliary_grid(
     masked_fasta: str | Path,
     out_dir: str | Path,
-    core_consensus: str = "",
     bfile: str | None = None,
     threads: int = 1,
 ) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
@@ -271,18 +522,20 @@ def run_auxiliary_grid(
                 res["composite_score"] = score_auxiliary_candidate(res, total_sequences)
                 results.append(res)
 
-    # Check for significant auxiliary motif ranked by total information content, universally rejecting core echoes
+    # Check for significant auxiliary motif ranked by composite score
     sig_candidates = [
         r
         for r in results
         if r["evalue"] <= 0.05
+        and r["mean_ic"] >= 0.50
+        and r["consensus_entropy"] >= 0.80
         and r.get("composite_score", 0.0) > 0
-        and not is_core_echo(r.get("consensus", ""), core_consensus)
     ]
     if sig_candidates:
         sig_candidates.sort(
             key=lambda x: (
                 x["composite_score"],
+                x["total_ic"],
                 -math.log10(max(x["evalue"], 1e-100)),
             ),
             reverse=True,

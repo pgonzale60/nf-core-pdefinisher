@@ -79,7 +79,7 @@ def main():
             f"Occupancy={best_motif['occupancy']} Score={best_motif['composite_score']}"
         )
     else:
-        print("[MEMECOREGRID] Warning: No valid motif identified in grid search.")
+        print("[MEMECOREGRID] Warning: No valid motif identified in grid search (or sequence count < 2).")
 
 
 if __name__ == "__main__":

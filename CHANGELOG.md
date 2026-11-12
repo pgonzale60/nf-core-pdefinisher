@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### `Added`
 
 - `recon_motif.nf`: entry running `PDE_RECONNAISSANCE` and `PDE_MOTIF_DISCOVERY` (GRS, DELFIES, MEME/FIMO) without assembly surgery, evaluation or validation (#27).
+- `PDE_MOTIF_DISCOVERY`: core grid and auxiliary stage synced from `nf-core-cbmdiscovery` (SSOT-driven radii/widths, header-derived distal background, `REJECTED_TELOMERIC_ECHO` filter); aux telomere repeat taken from `meta.telomere_repeat` (#31).
 
 ## v1.0.0 - [unreleased<!-- TODO nf-core: replace with date on release -->]
 

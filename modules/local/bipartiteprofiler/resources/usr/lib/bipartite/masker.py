@@ -9,25 +9,102 @@ import shutil
 import subprocess
 from typing import Any
 
-
-def clean_fasta_id(raw_id: str) -> str:
-    """Sanitise sequence header into a clean token safe for FIMO and MEME."""
-    token = raw_id.strip().split()[0]
-    return re.sub(r"[^A-Za-z0-9_-]+", "_", token).strip("_")
+from cbm_defaults import SSOT
 
 
-def load_soma_len_map(fasta_path: str | Path, default: int = 150) -> dict[str, int]:
-    """Map clean sequence name to soma_len from FASTA header."""
+def load_soma_len_map(
+    fasta_path: str | Path, default: int | None = None
+) -> dict[str, int]:
+    """Map clean sequence name to soma_len from FASTA header (fallback to seq midpoint or SSOT)."""
     soma_map = {}
     if not os.path.exists(fasta_path):
         return soma_map
     with open(fasta_path, encoding="utf-8") as f:
+        cur_id = None
+        cur_hdr = ""
+        cur_len = 0
         for line in f:
+            line = line.strip()
+            if not line:
+                continue
             if line.startswith(">"):
-                seq_id = clean_fasta_id(line[1:])
-                m = re.search(r"\bsoma_len=(\d+)", line)
-                soma_map[seq_id] = int(m.group(1)) if m else default
+                if cur_id is not None:
+                    m = re.search(r"\bsoma_len=(\d+)", cur_hdr)
+                    if not m:
+                        m = re.search(r"_p0_(\d+)", cur_hdr)
+                    soma_map[cur_id] = (
+                        int(m.group(1))
+                        if m
+                        else (
+                            default
+                            if default is not None
+                            else (cur_len // 2 or SSOT["max_soma_flank_len"])
+                        )
+                    )
+                cur_id = line[1:].split()[0].replace(":", "_")
+                cur_hdr = line
+                cur_len = 0
+            else:
+                cur_len += len(line)
+        if cur_id is not None:
+            m = re.search(r"\bsoma_len=(\d+)", cur_hdr)
+            if not m:
+                m = re.search(r"_p0_(\d+)", cur_hdr)
+            soma_map[cur_id] = (
+                int(m.group(1))
+                if m
+                else (
+                    default
+                    if default is not None
+                    else (cur_len // 2 or SSOT["max_soma_flank_len"])
+                )
+            )
     return soma_map
+
+
+def slice_window_at_radius(
+    seq: str,
+    radius: int,
+    pos0: int,
+) -> tuple[str, int]:
+    """Slice sequence to [-radius .. +radius] around pos0.
+
+    Returns:
+        (sliced_seq, new_pos0)
+    """
+    s = seq.upper()
+    n = len(s)
+    if n <= 2 * radius + 10:
+        return s, pos0
+
+    soma_start = max(0, pos0 - radius)
+    germ_end = min(n, pos0 + radius)
+    sliced = s[soma_start:germ_end]
+    new_pos0 = pos0 - soma_start
+    return sliced, new_pos0
+
+
+def write_sliced_fasta(
+    raw_seqs: dict[str, str],
+    soma_lens: dict[str, int],
+    radius: int,
+    output_fasta: str | Path,
+) -> tuple[dict[str, str], dict[str, int]]:
+    """Slice sequences to radius and write FASTA with embedded soma_len."""
+    out_path = Path(output_fasta)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    sliced_seqs = {}
+    new_soma_lens = {}
+
+    with open(out_path, "w", encoding="utf-8") as f:
+        for name, seq in raw_seqs.items():
+            pos0 = soma_lens.get(name, len(seq) // 2)
+            sliced, new_pos0 = slice_window_at_radius(seq, radius, pos0)
+            sliced_seqs[name] = sliced
+            new_soma_lens[name] = new_pos0
+            f.write(f">{name} soma_len={new_pos0}\n{sliced}\n")
+
+    return sliced_seqs, new_soma_lens
 
 
 def load_fasta_dict(fasta_path: str | Path) -> dict[str, str]:
@@ -45,8 +122,8 @@ def load_fasta_dict(fasta_path: str | Path) -> dict[str, str]:
             if line.startswith(">"):
                 if cur_h:
                     seqs[cur_h] = "".join(cur_s)
-                # Keep ID clean and free of colon/delimiter truncations
-                cur_h = clean_fasta_id(line[1:])
+                # Keep ID clean (e.g. up to space)
+                cur_h = line[1:].split()[0].replace(":", "_")
                 cur_s = []
             else:
                 cur_s.append(line.upper())
@@ -55,13 +132,27 @@ def load_fasta_dict(fasta_path: str | Path) -> dict[str, str]:
     return seqs
 
 
+def has_motifs(meme_file: str | Path) -> bool:
+    """Check if MEME file contains at least one MOTIF definition."""
+    if not os.path.exists(meme_file):
+        return False
+    with open(meme_file, encoding="utf-8", errors="ignore") as f:
+        for line in f:
+            if line.startswith("MOTIF "):
+                return True
+    return False
+
+
 def run_fimo(
     meme_file: str | Path,
     fasta_file: str | Path,
     out_dir: str | Path,
-    threshold: float = 1e-4,
+    threshold: float = SSOT["fimo_core_threshold"],
 ) -> list[dict[str, Any]]:
     """Execute FIMO to find motif occurrences passing threshold."""
+    if not has_motifs(meme_file):
+        return []
+
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)
     fimo_tsv = out_path / "fimo.tsv"
@@ -96,7 +187,7 @@ def run_fimo(
                     continue
                 try:
                     hits.append({
-                        "seq_name": clean_fasta_id(s),
+                        "seq_name": s.replace(":", "_"),
                         "motif_id": r.get("motif_id", ""),
                         "start": int(r["start"]),  # 1-based inclusive
                         "stop": int(r["stop"]),  # 1-based inclusive
@@ -137,19 +228,12 @@ def mask_core_motifs(
     fasta_file: str | Path,
     output_masked_fasta: str | Path,
     fimo_out_dir: str | Path,
-    threshold: float = 1e-4,
+    threshold: float = SSOT["fimo_core_threshold"],
 ) -> tuple[dict[str, str], list[dict[str, Any]]]:
     """Run FIMO with core motif on FASTA, mask instances with N, and save masked FASTA."""
     seq_dict = load_fasta_dict(fasta_file)
-    fimo_dir = Path(fimo_out_dir)
-    fimo_dir.mkdir(parents=True, exist_ok=True)
-    clean_fa = fimo_dir / "clean_input_for_fimo.fasta"
-    with open(clean_fa, "w", encoding="utf-8") as f_out:
-        for name, seq in seq_dict.items():
-            f_out.write(f">{name}\n{seq}\n")
-
     hits = run_fimo(
-        core_meme, clean_fa, out_dir=fimo_out_dir, threshold=threshold
+        core_meme, fasta_file, out_dir=fimo_out_dir, threshold=threshold
     )
     masked_dict = mask_sequences_with_hits(seq_dict, hits)
 
