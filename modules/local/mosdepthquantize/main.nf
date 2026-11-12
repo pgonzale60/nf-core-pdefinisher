@@ -23,11 +23,21 @@ process MOSDEPTHQUANTIZE {
     script:
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
-    # T_GRS from the classifier (grs_threshold column, row 1 after header); quantize bins are integer depths
-    T_GRS=\$(awk -F'\\t' 'NR==2{printf "%d", \$3 + 0.5}' ${core_coverage_tsv})
-    if [ "\$T_GRS" -le 0 ]; then
+    # T_GRS from the classifier (grs_threshold column, row 1 after header)
+    T_GRS=\$(awk -F'\\t' 'NR==2{printf "%.6f", \$3}' ${core_coverage_tsv})
+    T_FLOOR=\$(awk -v t="\$T_GRS" 'BEGIN{printf "%d", int(t)}')
+    T_CEIL=\$(awk -v t="\$T_GRS" 'BEGIN{printf "%d", (t == int(t)) ? int(t) : int(t) + 1}')
+    if [ "\$T_CEIL" -le 0 ]; then
         echo "Non-positive T_GRS (\$T_GRS) for ${prefix}: cannot quantize" >&2
         exit 1
+    fi
+
+    # Three classes: 0:T_floor (low), T_floor:T_ceil (bracket), T_ceil:inf (high).
+    # Integer T_GRS: bracket is empty, emit 0:T and T:inf only.
+    if [ "\$T_FLOOR" -eq "\$T_CEIL" ]; then
+        QUANT="0:\${T_FLOOR}:"
+    else
+        QUANT="0:\${T_FLOOR}:\${T_CEIL}:"
     fi
 
     # MAPQ 0 kept on purpose: repeat reads must not create artificial drops
@@ -35,7 +45,7 @@ process MOSDEPTHQUANTIZE {
         --threads $task.cpus \\
         --no-per-base \\
         --mapq 0 \\
-        --quantize "0:\${T_GRS}:" \\
+        --quantize "\${QUANT}" \\
         ${prefix} \\
         ${bam}
 

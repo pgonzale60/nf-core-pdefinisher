@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/sanger-tol/nf-core-modules/main/modules/meta-schema.json
 name: "mosdepthquantize"
-description: Quantize BAM depth at the classifier's T_GRS (mapq 0, repeats kept) and flag intervals overlapping RED repeats.
+description: "Quantize BAM depth into three classes at floor/ceil of the classifier T_GRS (mapq 0, repeats kept) and flag intervals overlapping RED repeats."
 keywords:
   - pde
   - grs
