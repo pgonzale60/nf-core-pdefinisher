@@ -153,7 +153,7 @@ workflow PDE_RECONNAISSANCE {
         "${projectDir}/assets/curation_policy.json",
         "${workflow.projectDir}/assets/curation_policy.json"
     ]
-    def resolved_policy = policy_candidates.find { it && file(it).exists() }
+    def resolved_policy = policy_candidates.find { x -> x && file(x).exists() }
     if (!resolved_policy) {
         error("Could not find assets/curation_policy.json in any expected location (projectDir: ${projectDir}, workflow.projectDir: ${workflow.projectDir}, or params.curation_policy).")
     }
@@ -341,8 +341,8 @@ workflow PDE_RECONNAISSANCE {
         .map { meta, fasta ->
             def target_fa = fasta
             if (fasta instanceof List) {
-                target_fa = fasta.find { it.name.endsWith('.p_utg.fa') } ?:
-                            fasta.find { it.name.endsWith('.p_ctg.fa') } ?:
+                target_fa = fasta.find { x -> x.name.endsWith('.p_utg.fa') } ?:
+                            fasta.find { x -> x.name.endsWith('.p_ctg.fa') } ?:
                             fasta[0]
             }
             tuple(meta, target_fa)

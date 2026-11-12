@@ -195,9 +195,9 @@ Generic options:
 //
 def samplesheetToList(String samplesheet_file, String _schema_path = null) {
     def ss = file(samplesheet_file)
-    def lines = ss.readLines().findAll { it.trim() && !it.trim().startsWith('#') }
+    def lines = ss.readLines().findAll { x -> x.trim() && !x.trim().startsWith('#') }
     def separator = samplesheet_file.endsWith('.tsv') ? '\t' : ','
-    def header = lines[0].tokenize(separator).collect { it.trim() }
+    def header = lines[0].tokenize(separator).collect { x -> x.trim() }
     def sample_idx      = header.indexOf('sample')
     def assembly_idx    = header.indexOf('assembly')
     def bam_idx         = header.indexOf('bam')
@@ -209,7 +209,7 @@ def samplesheetToList(String samplesheet_file, String _schema_path = null) {
 
     def records = []
     lines.drop(1).each { line ->
-        def cols = line.tokenize(separator).collect { it.trim() }
+        def cols = line.tokenize(separator).collect { x -> x.trim() }
         def sample = sample_idx >= 0 && sample_idx < cols.size() ? cols[sample_idx] : null
         def assembly = assembly_idx >= 0 && assembly_idx < cols.size() ? cols[assembly_idx] : null
         def bam = bam_idx >= 0 && bam_idx < cols.size() ? cols[bam_idx] : null
@@ -281,12 +281,12 @@ def validateInputParameters() {
         } else if (ss_file.isEmpty()) {
             validation_errors.add("Input samplesheet file is empty: ${params.input}")
         } else {
-            def lines = ss_file.readLines().findAll { it.trim() && !it.trim().startsWith('#') }
+            def lines = ss_file.readLines().findAll { x -> x.trim() && !x.trim().startsWith('#') }
             if (lines.size() < 2) {
                 validation_errors.add("Input samplesheet contains no sample rows: ${params.input}")
             } else {
                 def separator = params.input.endsWith('.tsv') ? '\t' : ','
-                def header = lines[0].tokenize(separator).collect { it.trim() }
+                def header = lines[0].tokenize(separator).collect { x -> x.trim() }
                 def sample_idx   = header.indexOf('sample')
                 def assembly_idx = header.indexOf('assembly')
                 def bam_idx      = header.indexOf('bam')
@@ -305,7 +305,7 @@ def validateInputParameters() {
 
                 lines.drop(1).eachWithIndex { line, line_idx ->
                     def row_num = line_idx + 2
-                    def cols = line.tokenize(separator).collect { it.trim() }
+                    def cols = line.tokenize(separator).collect { x -> x.trim() }
                     def sample_id = sample_idx >= 0 && sample_idx < cols.size() ? cols[sample_idx] : "row_${row_num}"
 
                     if (!sample_id || sample_id.contains(' ')) {
