@@ -33,6 +33,7 @@ workflow {
     grs_summary_tsv            = RECON_MOTIF_PIPELINE.out.grs_summary_tsv
     pde_segments_bed           = RECON_MOTIF_PIPELINE.out.pde_segments_bed
     delfies_bed                = RECON_MOTIF_PIPELINE.out.delfies_bed
+    delfies_foci_s2g           = RECON_MOTIF_PIPELINE.out.delfies_foci_s2g
     terminal_ends_summary      = RECON_MOTIF_PIPELINE.out.terminal_ends_summary
     best_core_motif            = RECON_MOTIF_PIPELINE.out.best_core_motif
     core_motif_metrics_json    = RECON_MOTIF_PIPELINE.out.core_motif_metrics_json
@@ -56,6 +57,10 @@ output {
         mode params.publish_dir_mode
     }
     delfies_bed {
+        path { meta, _file -> PdePublish.pathFor(params, meta, "pde_reconnaissance") }
+        mode params.publish_dir_mode
+    }
+    delfies_foci_s2g {
         path { meta, _file -> PdePublish.pathFor(params, meta, "pde_reconnaissance") }
         mode params.publish_dir_mode
     }

@@ -9,7 +9,7 @@ process IDENTIFYPUTATIVEGRS {
 
     input:
     tuple val(meta), path(assembly)
-    tuple val(meta2), path(delfies_bed)
+    tuple val(meta2), path(breakpoint_foci)
     tuple val(meta3), path(regions_bed)
     tuple val(meta4), path(red_bed)
     val chromosomes
@@ -28,14 +28,14 @@ process IDENTIFYPUTATIVEGRS {
     def args   = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}"
 
-    def bp_arg   = delfies_bed ? "--breakpoints-bed ${delfies_bed}" : ""
+    def bp_arg   = breakpoint_foci ? "--breakpoint-foci ${breakpoint_foci}" : ""
     def cov_arg  = regions_bed ? "--regions-bed ${regions_bed}" : ""
     def red_arg  = (red_bed && red_bed != "" && red_bed != "null") ? "--red-bed ${red_bed}" : ""
     def chr_val  = meta.chromosomes ?: chromosomes
     def chr_arg  = (chr_val && chr_val != "" && chr_val != "null") ? "--chromosomes \"${chr_val}\"" : ""
 
     """
-    # Tool: pde_identify_grs.py | Script-SHA: 70b3fce863bc8978
+    # Tool: pde_identify_grs.py | Script-SHA: 7b5d7ba0371be315
     python3 ${moduleDir}/resources/usr/bin/pde_identify_grs.py --version
     python3 ${moduleDir}/resources/usr/bin/pde_identify_grs.py \\
         --assembly "${assembly}" \\

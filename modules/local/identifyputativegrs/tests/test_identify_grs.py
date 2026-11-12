@@ -194,9 +194,11 @@ class TestIdentifyPutativeGRS(unittest.TestCase):
                     f.write(f"chrB\t{p}\t{p+10000}\t{d}\n")
                 for p in range(0, 2000000, 10000):
                     f.write(f"u1\t{p}\t{p+10000}\t4\n")
-            bp = os.path.join(tmpdir, "bp.bed")
+            bp = os.path.join(tmpdir, "breakpoint_foci__S2G.tsv")
             with open(bp, "w") as f:
-                f.write("chrB\t100000\t100001\tb1\t12\t-\n")
+                f.write("contig\tstart\tend\tread_depth\tbreakpoint_type\tsample_name\tnum_supporting_reads__forward\tnum_supporting_reads__reverse\n")
+                f.write("chrB\t100000\t100001\t30\tS2G\ttest.1\t0\t12\n")
+                f.write("chrB\t-1\t0\t30\tS2G\ttest.1\t3\t0\n")
             red = os.path.join(tmpdir, "red.bed")
             with open(red, "w") as f:
                 f.write("u1\t0\t1999500\n")
@@ -205,7 +207,7 @@ class TestIdentifyPutativeGRS(unittest.TestCase):
             cmd = [
                 "python3", script,
                 "--assembly", fa,
-                "--breakpoints-bed", bp,
+                "--breakpoint-foci", bp,
                 "--regions-bed", cov,
                 "--red-bed", red,
                 "--chromosomes", "chrA,chrB",

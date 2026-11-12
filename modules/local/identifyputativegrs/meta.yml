@@ -27,10 +27,10 @@ input:
   - - meta2:
         type: map
         description: Groovy Map containing sample information
-    - delfies_bed:
+    - breakpoint_foci:
         type: file
-        description: Delfies breakpoint locations BED file
-        pattern: "*.breakpoint_locations.bed"
+        description: DELFIES breakpoint_foci__S2G.tsv (per-position, per-strand soft-clip support)
+        pattern: "*.breakpoint_foci__S2G.tsv"
   - - meta3:
         type: map
         description: Groovy Map containing sample information
