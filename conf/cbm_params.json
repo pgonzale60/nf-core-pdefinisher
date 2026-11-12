@@ -15,7 +15,7 @@
     "distal_bg_exclusion_radius": 60,
     "somatic_dedup_cbm_exclusion_bp": 20,
     "cleavage_mh_protection_radius": 6,
-    "core_grid_radii": [30, 50, 100, 150, 300],
+    "core_grid_radii": [30, 50, 100, 150],
     "core_grid_models": ["zoops", "anr", "oops"],
     "core_grid_width_ranges": [
         { "label": "w6_15", "args": ["-minw", "6", "-maxw", "15"] },
