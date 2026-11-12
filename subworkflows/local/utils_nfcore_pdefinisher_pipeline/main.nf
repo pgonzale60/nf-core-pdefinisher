@@ -23,14 +23,14 @@ workflow PIPELINE_INITIALISATION {
 
     take:
     version           // boolean: Display version and exit
-    validate_params   // boolean: Boolean whether to validate parameters against the schema at runtime
+    _validate_params  // boolean: Boolean whether to validate parameters against the schema at runtime
     monochrome_logs   // boolean: Do not use coloured log outputs
     nextflow_cli_args //   array: List of positional nextflow CLI args
     outdir            //  string: The output directory where the results will be saved
     input             //  string: Path to input samplesheet
     help              // boolean: Display help message and exit
     help_full         // boolean: Show the full help message
-    show_hidden       // boolean: Show hidden parameters in the help message
+    _show_hidden       // boolean: Show hidden parameters in the help message
 
     main:
 
@@ -145,7 +145,7 @@ workflow PIPELINE_COMPLETION {
 //
 // Command-line help banner
 //
-def paramsHelp(monochrome_logs=false) {
+def paramsHelp(_monochrome_logs=false) {
     def logo = """
 ------------------------------------------------------
                                         ,--./,-.
@@ -193,7 +193,7 @@ Generic options:
 //
 // Native samplesheet CSV parser and validator (runs without nf-schema plugin)
 //
-def samplesheetToList(String samplesheet_file, String schema_path = null) {
+def samplesheetToList(String samplesheet_file, String _schema_path = null) {
     def ss = file(samplesheet_file)
     def lines = ss.readLines().findAll { it.trim() && !it.trim().startsWith('#') }
     def separator = samplesheet_file.endsWith('.tsv') ? '\t' : ','
@@ -233,7 +233,7 @@ def samplesheetToList(String samplesheet_file, String schema_path = null) {
 //
 // Native parameter summary map for MultiQC and completion reports
 //
-def paramsSummaryMap(workflow, Map options = [:]) {
+def paramsSummaryMap(_workflow, Map _options = [:]) {
     def summary = [:]
     summary['Input / Output Options'] = [
         'input'                      : params.input,

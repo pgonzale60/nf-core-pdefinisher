@@ -73,7 +73,7 @@ workflow AUTOMATED_PDE_CURATION {
         .join(ch_s12, by: 0)
         .join(ch_s13, by: 0)
         .join(ch_s14, by: 0)
-        .map { id, meta, fasta, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14 ->
+        .map { _id, meta, fasta, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14 ->
             [ meta, fasta, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14 ]
         }
 
@@ -197,7 +197,7 @@ workflow AUTOMATED_PDE_CURATION {
     def ch_val_bai  = Channel.empty()
 
     if (!params.skip_validation) {
-        ch_val_reads = ch_bam.map { meta, bam, bai -> tuple(meta, bam) }
+        ch_val_reads = ch_bam.map { meta, bam, _bai -> tuple(meta, bam) }
         CURATION_VALIDATION (
             ch_val_reads,
             ASSEMBLY_SURGERY.out.curated_fasta,

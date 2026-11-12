@@ -15,7 +15,6 @@ process EXTRACT_UNMAPPED_HIFI {
     tuple val("${task.process}"), val('samtools'), eval("samtools --version | head -n1 | cut -d' ' -f2"), emit: versions, topic: versions
 
     script:
-    def args = task.ext.args ?: ''
     prefix   = task.ext.prefix ?: "${meta.id}"
     """
     samtools view -@ ${task.cpus} -b -f 4 ${bam} | \\

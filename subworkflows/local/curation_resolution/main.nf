@@ -106,12 +106,12 @@ workflow CURATION_RESOLUTION {
     ch_versions = ch_versions.mix(TRANSCHROMOSOMALLINKRESOLVER.out.versions_trans)
 
     emit:
-    gap_manifest    = TARGETEDGAPASSEMBLY.out.manifest.map { meta, dir, tsv -> [ meta, tsv ] }
-    gap_patches     = TARGETEDGAPASSEMBLY.out.manifest.map { meta, dir, tsv -> [ meta, dir ] }
-    walker_manifest = TELOMEREWALKER.out.manifest.map { meta, dir, tsv -> [ meta, tsv ] }
-    walker_patches  = TELOMEREWALKER.out.manifest.map { meta, dir, tsv -> [ meta, dir ] }
-    rdna_manifest   = RDNACASSETTERESOLVER.out.manifest.map { meta, dir, tsv -> [ meta, tsv ] }
-    rdna_cassettes  = RDNACASSETTERESOLVER.out.manifest.map { meta, dir, tsv -> [ meta, dir ] }
+    gap_manifest    = TARGETEDGAPASSEMBLY.out.manifest.map { meta, _dir, tsv -> [ meta, tsv ] }
+    gap_patches     = TARGETEDGAPASSEMBLY.out.manifest.map { meta, dir, _tsv -> [ meta, dir ] }
+    walker_manifest = TELOMEREWALKER.out.manifest.map { meta, _dir, tsv -> [ meta, tsv ] }
+    walker_patches  = TELOMEREWALKER.out.manifest.map { meta, dir, _tsv -> [ meta, dir ] }
+    rdna_manifest   = RDNACASSETTERESOLVER.out.manifest.map { meta, _dir, tsv -> [ meta, tsv ] }
+    rdna_cassettes  = RDNACASSETTERESOLVER.out.manifest.map { meta, dir, _tsv -> [ meta, dir ] }
     trans_manifest  = TRANSCHROMOSOMALLINKRESOLVER.out.manifest
     versions        = ch_versions
 }
