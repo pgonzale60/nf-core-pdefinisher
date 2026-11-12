@@ -136,6 +136,7 @@
   - `FILTERCHROMOSOMES` from `../../../modules/local/filterchromosomes/main`
   - `RED` from `../../../modules/local/red/main`
   - `IDENTIFYPUTATIVEGRS` from `../../../modules/local/identifyputativegrs/main`
+  - `MOSDEPTHQUANTIZE` from `../../../modules/local/mosdepthquantize/main`
   - `EXTRACTGAPEVIDENCE` from `../../../modules/local/extractgapevidence/main`
   - `TELOCLIP_EXTRACT` from `../../../modules/local/teloclip/extract/main`
 - **Workflow `PDE_RECONNAISSANCE`:**
@@ -180,6 +181,7 @@
 | `MEMECOREGRID` | `modules/local/memecoregrid/main.nf` | `tuple val(meta), path(break_windows_fasta)` | `tuple val(meta), path("*.best_core_motif.meme") , emit: best_core_motif`<br>`tuple val(meta), path("*.core_grid_summary.tsv") , emit: grid_summary_tsv`<br>`tuple val(meta), path("*.core_motif_metrics.json"), emit: motif_metrics_json`<br>`tuple val(meta), path("*.best_background.bfile") , emit: best_background`<br>`tuple val("${task.process}"), val('python'), eval("python3 --version \| sed 's/Python //'"), topic: versions, emit: versions_python`<br>`tuple val("${task.process}"), val('meme') , eval("meme -version"), topic: versions, emit: versions_meme` |
 | `MINIMAP2_ALIGN` | `modules/local/minimap2/align/main.nf` | `tuple val(meta), path(reads)`<br>`tuple val(meta2), path(reference)`<br>`val bam_format`<br>`val bam_index_extension`<br>`val cigar_paf_format`<br>`val cigar_bam`<br>`val bed_bool` | `tuple val(meta), path("*.paf") , optional: true, emit: paf`<br>`tuple val(meta), path("*.bam") , optional: true, emit: bam`<br>`tuple val(meta), path("*.bed") , optional: true, emit: bed`<br>`tuple val(meta), path("*.bam.${bam_index_extension}"), optional: true, emit: index`<br>`tuple val("${task.process}"), val("minimap2"), eval("minimap2 --version"), topic: versions, emit: versions_minimap2` |
 | `MODDOTPLOT` | `modules/local/moddotplot/main.nf` | `tuple val(meta), path(fasta)` | `tuple val(meta), path("*_moddotplot"), emit: plots`<br>`tuple val("${task.process}"), val('moddotplot'), eval("moddotplot --version 2>&1 \| head -n 1 \| sed 's/moddotplot //'"), topic: versions, emit: versions_moddotplot` |
+| `MOSDEPTHQUANTIZE` | `modules/local/mosdepthquantize/main.nf` | `tuple val(meta), path(bam), path(bai)`<br>`tuple val(meta2), path(red_bed)`<br>`tuple val(meta3), path(core_coverage_tsv)` | `tuple val(meta), path("*.quantized.red_masked.bed"), emit: quantized_bed`<br>`tuple val("${task.process}"), val('mosdepth'), eval("mosdepth --version \| sed 's/mosdepth //g'"), topic: versions, emit: versions_mosdepth`<br>`tuple val("${task.process}"), val('gzip'), eval("gzip -V 2>&1 \| sed 's/gzip \\([0-9.]*\\).*/\\1/;q'"), topic: versions, emit: versions_gzip` |
 | `EXTRACT_UNMAPPED_HIFI` | `modules/local/pde_curated_validation/main.nf` | `tuple val(meta), path(bam), path(bai)` | `tuple val(meta), path("${prefix}.unmapped.fastq.gz"), emit: fastq`<br>`tuple val(meta), path("${prefix}.unmapped.count") , emit: count`<br>`tuple val("${task.process}"), val('samtools'), eval("samtools --version \| head -n1 \| cut -d' ' -f2"), emit: versions, topic: versions` |
 | `MASH_DECONTAMINATE` | `modules/local/pde_curated_validation/main.nf` | — | — |
 | `MITOHIFI_SEGREGATE` | `modules/local/pde_curated_validation/main.nf` | — | — |
@@ -521,23 +523,24 @@
 
 | Symbol | Kind | Lines | Signature | Summary |
 | :--- | :--- | :--- | :--- | :--- |
-| `get_script_fingerprint` | `function` | `L27-L32` | `def get_script_fingerprint()` | — |
-| `find_curation_policy` | `function` | `L35-L49` | `def find_curation_policy(policy_path=None)` | Locate assets/curation_policy.json, the Single Source of Truth. |
-| `load_curation_policy` | `function` | `L52-L61` | `def load_curation_policy(policy_path=None)` | Load curation policy parameters strictly from assets/curation_policy.json. |
-| `parse_args` | `function` | `L64-L117` | `def parse_args()` | — |
-| `get_chromosome_lengths` | `function` | `L120-L148` | `def get_chromosome_lengths(assembly_file)` | — |
-| `parse_breakpoint_foci` | `function` | `L151-L192` | `def parse_breakpoint_foci(foci_tsv)` | Parse DELFIES breakpoint_foci__S2G.tsv into per-strand breakpoint records. |
-| `parse_coverage_windows` | `function` | `L195-L212` | `def parse_coverage_windows(mosdepth_file)` | — |
-| `get_median_depth` | `function` | `L217-L225` | `def get_median_depth(cov_windows, chrom, start, end)` | — |
-| `cluster_breakpoints_by_strand` | `function` | `L228-L264` | `def cluster_breakpoints_by_strand(bp_list, max_dist=3, min_support=5.0)` | Groups DELFIES signals by strand where consecutive signals are <= max_dist bp apart. |
-| `fit_em_2comp` | `function` | `L267-L335` | `def fit_em_2comp(vals, max_iter=100, tol=0.0001)` | Fit a 2-component Gaussian mixture model: |
-| `parse_red_bed` | `function` | `L338-L360` | `def parse_red_bed(red_file)` | Load repeat intervals (BED) merged per scaffold; empty when no mask is available. |
-| `quantize_drops` | `function` | `L363-L382` | `def quantize_drops(cov_windows, chrom, t_grs, merge_gap_bp)` | Quantize coverage windows into low-coverage drops (depth <= t_grs). |
-| `drop_overlap_bp` | `function` | `L385-L393` | `def drop_overlap_bp(drops, start, end)` | — |
-| `delfies_bounded_grs` | `function` | `L396-L483` | `def delfies_bounded_grs(length, clustered_bps, raw_drops, merged_drops, rules)` | GRS intervals on a chromosomal scaffold. Every interval is anchored by >= 1 DELFIES breakpoint. |
-| `build_chromosomal_segments` | `function` | `L486-L501` | `def build_chromosomal_segments(chrom, length, grs_intervals, cov_windows)` | Tile a chromosomal scaffold: DELFIES-anchored GRS intervals, everything else putative_core. |
-| `classify_unplaced` | `function` | `L504-L513` | `def classify_unplaced(chrom, length, raw_drops, repeats, rules)` | Non-chromosomal scaffold: repeat-aware call with an explicit uncertain class. |
-| `main` | `function` | `L516-L710` | `def main()` | — |
+| `get_script_fingerprint` | `function` | `L28-L33` | `def get_script_fingerprint()` | — |
+| `find_curation_policy` | `function` | `L36-L50` | `def find_curation_policy(policy_path=None)` | Locate assets/curation_policy.json, the Single Source of Truth. |
+| `load_curation_policy` | `function` | `L53-L62` | `def load_curation_policy(policy_path=None)` | Load curation policy parameters strictly from assets/curation_policy.json. |
+| `parse_args` | `function` | `L65-L118` | `def parse_args()` | — |
+| `get_chromosome_lengths` | `function` | `L121-L149` | `def get_chromosome_lengths(assembly_file)` | — |
+| `parse_breakpoint_foci` | `function` | `L152-L193` | `def parse_breakpoint_foci(foci_tsv)` | Parse DELFIES breakpoint_foci__S2G.tsv into per-strand breakpoint records. |
+| `parse_coverage_windows` | `function` | `L196-L213` | `def parse_coverage_windows(mosdepth_file)` | — |
+| `get_median_depth` | `function` | `L218-L226` | `def get_median_depth(cov_windows, chrom, start, end)` | — |
+| `cluster_breakpoints_by_strand` | `function` | `L229-L265` | `def cluster_breakpoints_by_strand(bp_list, max_dist=3, min_support=5.0)` | Groups DELFIES signals by strand where consecutive signals are <= max_dist bp apart. |
+| `red_covered_fraction` | `function` | `L272-L281` | `def red_covered_fraction(start, end, starts, ends)` | Fraction of [start, end) covered by merged RED intervals. starts/ends are their sorted columns. |
+| `fit_em_2comp` | `function` | `L284-L352` | `def fit_em_2comp(vals, max_iter=100, tol=0.0001)` | Fit a 2-component Gaussian mixture model: |
+| `parse_red_bed` | `function` | `L355-L377` | `def parse_red_bed(red_file)` | Load repeat intervals (BED) merged per scaffold; empty when no mask is available. |
+| `quantize_drops` | `function` | `L380-L399` | `def quantize_drops(cov_windows, chrom, t_grs, merge_gap_bp)` | Quantize coverage windows into low-coverage drops (depth <= t_grs). |
+| `drop_overlap_bp` | `function` | `L402-L410` | `def drop_overlap_bp(drops, start, end)` | — |
+| `delfies_bounded_grs` | `function` | `L413-L500` | `def delfies_bounded_grs(length, clustered_bps, raw_drops, merged_drops, rules)` | GRS intervals on a chromosomal scaffold. Every interval is anchored by >= 1 DELFIES breakpoint. |
+| `build_chromosomal_segments` | `function` | `L503-L518` | `def build_chromosomal_segments(chrom, length, grs_intervals, cov_windows)` | Tile a chromosomal scaffold: DELFIES-anchored GRS intervals, everything else putative_core. |
+| `classify_unplaced` | `function` | `L521-L530` | `def classify_unplaced(chrom, length, raw_drops, repeats, rules)` | Non-chromosomal scaffold: repeat-aware call with an explicit uncertain class. |
+| `main` | `function` | `L533-L734` | `def main()` | — |
 
 ### `modules/local/memecoregrid/resources/usr/bin/cbm_meme_core_grid.py`
 

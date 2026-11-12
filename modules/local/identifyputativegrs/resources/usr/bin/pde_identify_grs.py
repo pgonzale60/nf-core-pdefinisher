@@ -12,6 +12,7 @@ Identify putative GRS (eliminated) and Core segments using:
 """
 
 import argparse
+import bisect
 import gzip
 import hashlib
 import json
@@ -262,6 +263,22 @@ def cluster_breakpoints_by_strand(bp_list, max_dist=3, min_support=5.0):
 
     clustered.sort(key=lambda x: x[0])
     return clustered
+
+
+# Windows with a larger RED-masked fraction are excluded from the 2-component EM fit
+MAX_REPEAT_FRACTION_FOR_EM = 0.9
+
+
+def red_covered_fraction(start, end, starts, ends):
+    """Fraction of [start, end) covered by merged RED intervals. starts/ends are their sorted columns."""
+    if end <= start:
+        return 0.0
+    covered = 0
+    i = bisect.bisect_right(ends, start)
+    while i < len(starts) and starts[i] < end:
+        covered += min(end, ends[i]) - max(start, starts[i])
+        i += 1
+    return covered / (end - start)
 
 
 def fit_em_2comp(vals, max_iter=100, tol=1e-4):
@@ -555,12 +572,20 @@ def main():
 
     breakpoints = parse_breakpoint_foci(args.breakpoint_foci)
     cov_windows = parse_coverage_windows(args.regions_bed)
+    repeats = parse_red_bed(args.red_bed)
 
-    # 2. Gather whole-genome window depths across major chromosomes (>= 1 Mb)
+    # 2. Gather whole-genome window depths across major chromosomes (>= 1 Mb).
+    # Windows that are mostly RED-masked repeats are excluded: MAPQ 0 reads depress their depth artificially.
     all_core_vals = []
     for c, l in chr_lens.items():
         if is_canonical_chromosome(c, l) and c in cov_windows:
-            all_core_vals.extend([w[2] for w in cov_windows[c]])
+            rep_ivs = repeats.get(c, [])
+            rep_starts = [iv[0] for iv in rep_ivs]
+            rep_ends = [iv[1] for iv in rep_ivs]
+            for ws, we, wv in cov_windows[c]:
+                frac = red_covered_fraction(ws, we, rep_starts, rep_ends)
+                if frac <= MAX_REPEAT_FRACTION_FOR_EM:
+                    all_core_vals.append(wv)
 
     # 3. Cluster breakpoints by strand within 3 bp
     clustered_bps_by_chr = {}
@@ -650,7 +675,6 @@ def main():
             )
 
     segments = []
-    repeats = parse_red_bed(args.red_bed)
     canon_grs_bp = unplaced_grs_bp = unplaced_uncertain_bp = unplaced_core_bp = 0
 
     for chrom, length in chr_lens.items():

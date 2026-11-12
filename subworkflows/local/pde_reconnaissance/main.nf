@@ -20,6 +20,7 @@ include { SNIFFLES                        } from '../../../modules/local/sniffle
 include { FILTERCHROMOSOMES               } from '../../../modules/local/filterchromosomes/main'
 include { RED                             } from '../../../modules/local/red/main'
 include { IDENTIFYPUTATIVEGRS             } from '../../../modules/local/identifyputativegrs/main'
+include { MOSDEPTHQUANTIZE               } from '../../../modules/local/mosdepthquantize/main'
 include { EXTRACTGAPEVIDENCE            } from '../../../modules/local/extractgapevidence/main'
 include { TELOCLIP_EXTRACT              } from '../../../modules/local/teloclip/extract/main'
 
@@ -278,6 +279,24 @@ workflow PDE_RECONNAISSANCE {
         val_chromosomes
     )
 
+    //
+    // MODULE: MOSDEPTHQUANTIZE — Quantize coverage at the inferred T_GRS (MAPQ 0), flag RED repeat overlaps
+    //
+    ch_quantize_input = ch_bam
+        .join(RED.out.bed, by: 0)
+        .join(IDENTIFYPUTATIVEGRS.out.core_coverage_tsv, by: 0)
+        .multiMap { meta, bam, bai, red_bed, cov_tsv ->
+            bam:      tuple(meta, bam, bai)
+            red:      tuple(meta, red_bed)
+            cov:      tuple(meta, cov_tsv)
+        }
+
+    MOSDEPTHQUANTIZE (
+        ch_quantize_input.bam,
+        ch_quantize_input.red,
+        ch_quantize_input.cov
+    )
+
     ch_meta_with_coverage = IDENTIFYPUTATIVEGRS.out.core_coverage
         .map { meta, cov_file ->
             def txt = cov_file.text.trim()
@@ -349,6 +368,7 @@ workflow PDE_RECONNAISSANCE {
     delfies_bed                = DELFIES.out.bed
     delfies_fasta              = DELFIES.out.fasta
     delfies_foci_s2g           = DELFIES.out.foci_s2g
+    grs_quantized_bed          = MOSDEPTHQUANTIZE.out.quantized_bed
     mosdepth_summary           = MOSDEPTH.out.summary_txt
     mosdepth_regions           = MOSDEPTH.out.regions_bed
     barrnap_gff                = BARRNAP.out.gff

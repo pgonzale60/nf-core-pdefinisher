@@ -34,6 +34,7 @@ workflow {
     pde_segments_bed           = RECON_MOTIF_PIPELINE.out.pde_segments_bed
     delfies_bed                = RECON_MOTIF_PIPELINE.out.delfies_bed
     delfies_foci_s2g           = RECON_MOTIF_PIPELINE.out.delfies_foci_s2g
+    grs_quantized_bed          = RECON_MOTIF_PIPELINE.out.grs_quantized_bed
     terminal_ends_summary      = RECON_MOTIF_PIPELINE.out.terminal_ends_summary
     best_core_motif            = RECON_MOTIF_PIPELINE.out.best_core_motif
     core_motif_metrics_json    = RECON_MOTIF_PIPELINE.out.core_motif_metrics_json
@@ -61,6 +62,11 @@ output {
         mode params.publish_dir_mode
     }
     delfies_foci_s2g {
+        path { meta, _file -> PdePublish.pathFor(params, meta, "pde_reconnaissance") }
+        mode params.publish_dir_mode
+    }
+
+    grs_quantized_bed {
         path { meta, _file -> PdePublish.pathFor(params, meta, "pde_reconnaissance") }
         mode params.publish_dir_mode
     }
