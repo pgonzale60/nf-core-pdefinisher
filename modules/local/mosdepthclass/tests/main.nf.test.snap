@@ -1,0 +1,73 @@
+{
+    "nematode - bam, bai, segments - stub": {
+        "content": [
+            {
+                "0": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.class.regions.bed.gz:md5,68b329da9893e34099c7d8ad5cb9c940"
+                    ]
+                ],
+                "1": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.class.regions.bed.gz.csi:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "2": [
+                    [
+                        "MOSDEPTHCLASS",
+                        "mosdepth",
+                        ""
+                    ]
+                ],
+                "3": [
+                    [
+                        "MOSDEPTHCLASS",
+                        "gzip",
+                        "Apple 479"
+                    ]
+                ],
+                "class_regions_bed": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.class.regions.bed.gz:md5,68b329da9893e34099c7d8ad5cb9c940"
+                    ]
+                ],
+                "class_regions_csi": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.class.regions.bed.gz.csi:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "versions_gzip": [
+                    [
+                        "MOSDEPTHCLASS",
+                        "gzip",
+                        "Apple 479"
+                    ]
+                ],
+                "versions_mosdepth": [
+                    [
+                        "MOSDEPTHCLASS",
+                        "mosdepth",
+                        ""
+                    ]
+                ]
+            }
+        ],
+        "timestamp": "2026-11-12T22:07:12.649814",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.6"
+        }
+    }
+}

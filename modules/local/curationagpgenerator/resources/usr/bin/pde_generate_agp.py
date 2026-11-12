@@ -252,7 +252,7 @@ def assign_chromosome_pde_segments(chrom, blocks, input_segs_by_chr, red_repeats
         return "grs" in str(lbl).lower()
 
     def is_canonical_grs_label(lbl):
-        # putative_GRS_uncertain (fully repetitive unplaced scaffolds) must never become the label
+        # uncertain (fully repetitive unplaced scaffolds) must never become the label
         # that newly assigned GRS blocks inherit
         return is_grs_label(lbl) and "uncertain" not in str(lbl).lower()
 

@@ -46,7 +46,7 @@ process CURATIONAGPGENERATOR {
     def seg_arg     = pde_segments ? "--pde-segments \"${pde_segments}\"" : ""
     def red_arg     = red_bed ? "--red-bed \"${red_bed}\"" : ""
     """
-    # Tool: pde_generate_agp.py | Script-SHA: 55f458301a7a23b8
+    # Tool: pde_generate_agp.py | Script-SHA: d585aa6ebdb32381
     pde_generate_agp.py \\
         --blueprint "${blueprint_json}" \\
         --ref "${ref_fasta}" \\

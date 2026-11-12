@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/modules/meta-schema.json
+name: "mosdepthclass"
+description: Per-region mean depth over the final genome classification segments (putative_core, putative_GRS, uncertain).
+keywords:
+  - pde
+  - grs
+  - coverage
+  - mosdepth
+input:
+  - - meta:
+        type: map
+        description: Sample metadata
+    - bam:
+        type: file
+        pattern: "*.bam"
+    - bai:
+        type: file
+        pattern: "*.bai"
+  - - meta2:
+        type: map
+        description: Sample metadata
+    - segments_bed:
+        type: file
+        description: Final classification segments (chrom, start, end, classification)
+        pattern: "*.pde_segments.bed"
+output:
+  class_regions_bed:
+    - - meta:
+          type: map
+          description: Sample metadata
+      - "*.class.regions.bed.gz":
+          type: file
+          description: Per-segment mean depth, named by classification
+          pattern: "*.class.regions.bed.gz"
+  class_regions_csi:
+    - - meta:
+          type: map
+          description: Sample metadata
+      - "*.class.regions.bed.gz.csi":
+          type: file
+          description: CSI index for class_regions_bed
+          pattern: "*.class.regions.bed.gz.csi"
+  versions_mosdepth:
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - mosdepth:
+          type: string
+          description: The tool name
+      - eval:
+          type: string
+          description: The mosdepth version
+  versions_gzip:
+    - - ${task.process}:
+          type: string
+          description: The process the versions were collected from
+      - gzip:
+          type: string
+          description: The tool name
+      - eval:
+          type: string
+          description: The gzip version
+authors:
+  - "@pgonzale60"

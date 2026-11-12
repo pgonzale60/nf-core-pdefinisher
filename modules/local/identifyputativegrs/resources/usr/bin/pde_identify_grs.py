@@ -7,8 +7,8 @@ Identify putative GRS (eliminated) and Core segments using:
 3. Chromosomal scaffolds: a GRS interval must be anchored by >= 1 DELFIES breakpoint;
    mosdepth coverage drops (depth <= T_GRS) only validate or close it. Repeats are never
    consulted and everything else is putative_core.
-4. Non-chromosomal scaffolds: repeat-aware (RED) call with an explicit
-   putative_GRS_uncertain class and a [min_elim_bp, max_elim_bp] range.
+4. Non-chromosomal scaffolds: repeat-aware (RED) call; fully repetitive scaffolds fold into
+   putative_GRS (subtype fully_repetitive_unplaced), and a [min_elim_bp, max_elim_bp] range.
 """
 
 import argparse
@@ -519,12 +519,12 @@ def build_chromosomal_segments(chrom, length, grs_intervals, cov_windows):
 
 
 def classify_unplaced(chrom, length, raw_drops, repeats, rules):
-    """Non-chromosomal scaffold: repeat-aware call with an explicit uncertain class."""
+    """Non-chromosomal scaffold: repeat-aware call; fully repetitive scaffolds fold into putative_GRS."""
     repeat_bp = sum(min(length, e) - max(0, s) for s, e in repeats.get(chrom, []) if e > 0 and s < length)
     non_rep_bp = max(0, length - repeat_bp)
     drop_bp = sum(e - s for s, e in raw_drops)
     if non_rep_bp < rules["unplaced_min_nonrepeat_bp"]:
-        return "putative_GRS_uncertain", "fully_repetitive_unplaced"
+        return "putative_GRS", "fully_repetitive_unplaced"
     if drop_bp / max(1, length) >= rules["unplaced_grs_drop_fraction"]:
         return "putative_GRS", "unplaced_coverage_drop"
     return "putative_core", "-"
@@ -693,7 +693,7 @@ def main():
             label, subtype = classify_unplaced(chrom, length, raw_drops, repeats, rules)
             med = get_median_depth(cov_windows, chrom, 0, length)
             segments.append((chrom, 0, length, label, med, subtype))
-            if label == "putative_GRS_uncertain":
+            if label == "uncertain":
                 unplaced_uncertain_bp += length
             elif label == "putative_GRS":
                 unplaced_grs_bp += length

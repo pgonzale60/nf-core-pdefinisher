@@ -145,7 +145,7 @@ class TestIdentifyPutativeGRS(unittest.TestCase):
         drops_all = [(0, 50_000)]
         # mostly repeat: < 1 kb unique sequence -> uncertain, whatever the coverage
         self.assertEqual(classify_unplaced("u1", 50_000, drops_all, {"u1": [(0, 49_500)]}, RULES)[0],
-                         "putative_GRS_uncertain")
+                         "putative_GRS")
         # enough unique sequence: deterministic on drop fraction
         self.assertEqual(classify_unplaced("u1", 50_000, drops_all, {}, RULES)[0], "putative_GRS")
         self.assertEqual(classify_unplaced("u1", 50_000, [(0, 10_000)], {}, RULES)[0], "putative_core")
@@ -221,9 +221,9 @@ class TestIdentifyPutativeGRS(unittest.TestCase):
                 rows = [l.split("\t") for l in bf.read().strip().split("\n")]
             # chrB (500 kb) was recognized as chromosomal despite being < 1 Mb
             self.assertTrue(any(r[0] == "chrB" and r[3] == "putative_GRS" for r in rows))
-            # u1 (2 Mb) was recognized as unplaced despite being >= 1 Mb, labeled putative_GRS_uncertain
+            # u1 (2 Mb) was recognized as unplaced despite being >= 1 Mb, folded into putative_GRS
             u1_rows = [r for r in rows if r[0] == "u1"]
-            self.assertEqual(u1_rows[0][3], "putative_GRS_uncertain")
+            self.assertEqual(u1_rows[0][3], "putative_GRS")
 
 if __name__ == "__main__":
     unittest.main()
