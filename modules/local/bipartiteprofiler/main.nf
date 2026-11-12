@@ -27,7 +27,7 @@ process BIPARTITEPROFILER {
     def telomere_repeat = meta.telomere_repeat ?: (params.telomere_repeat ?: 'TTAGGC')
 
     """
-    # Tool: cbm_bipartite_profiler.py | Script-SHA: 68f0e6f38e3dbb5b
+    # Tool: cbm_bipartite_profiler.py | Script-SHA: e66c4190636d9d06
     cbm_bipartite_profiler.py \\
         --break-windows "${break_windows_fasta}" \\
         --core-meme "${best_core_motif}" \\
