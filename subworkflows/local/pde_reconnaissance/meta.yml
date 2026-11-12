@@ -8,7 +8,6 @@ keywords:
   - diminution
   - breakpoint
   - coverage
-  - hifiasm
   - delfies
   - softclip
 components:
@@ -17,7 +16,6 @@ components:
   - barrnap
   - extracttelomericreads
   - softclipends
-  - hifiasm
   - minimap2/align
   - sniffles
   - filterchromosomes
@@ -120,18 +118,6 @@ output:
         TSV summary table per sequence end with softclip counts, max overhang, and capping status.
         Structure: [ val(meta), path(summary) ]
       pattern: "*.terminal_ends_summary.tsv"
-  - telo_unitigs:
-      type: file
-      description: |
-        FASTA file containing de novo assembled telomeric unitigs from reads.
-        Structure: [ val(meta), path(assembly_fasta) ]
-      pattern: "*.fa.gz"
-  - telo_paf:
-      type: file
-      description: |
-        PAF file containing alignment of telomeric unitigs to the baseline assembly.
-        Structure: [ val(meta), path(paf) ]
-      pattern: "*.paf"
   - sniffles_vcf:
       type: file
       description: |
@@ -156,32 +142,6 @@ output:
         BED file of 18S/28S rDNA arrays expanded by flanking anchor bp.
         Structure: [ val(meta), path(bed) ]
       pattern: "*.rdna_regions.bed"
-  - rdna_assembly_fasta:
-      type: file
-      description: |
-        FASTA file of Flye metagenome assembly of rDNA arrays and anchors.
-        Structure: [ val(meta), path(fasta) ]
-      pattern: "assembly.fasta"
-  - rdna_assembly_gfa:
-      type: file
-      description: |
-        GFA repeat graph file from Flye assembly of rDNA arrays.
-        Structure: [ val(meta), path(gfa) ]
-      pattern: "assembly_graph.gfa"
-  - rdna_assembly_info:
-      type: file
-      description: |
-        Text file with contig info and repeat status from Flye assembly.
-        Structure: [ val(meta), path(txt) ]
-      pattern: "assembly_info.txt"
-  - rdna_assembly_paf:
-      type: file
-      description: |
-        PAF alignment of the Flye rDNA assembly contigs against the baseline assembly. Used to
-        identify the single-copy core anchor of each resolved cassette: a contig aligning to the
-        locus chromosome at high MAPQ. Also confirms the chromosome a resolved array belongs to.
-        Structure: [ val(meta), path(paf) ]
-      pattern: "*.paf"
   - pde_segments_bed:
       type: file
       description: |

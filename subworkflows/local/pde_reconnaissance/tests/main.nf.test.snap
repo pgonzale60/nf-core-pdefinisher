@@ -23,7 +23,7 @@
                         {
                             "id": "test_sample"
                         },
-                        "test_sample.rdna_regions.bed:md5,d41d8cd98f00b204e9800998ecf8427e"
+                        "test_sample.regions.bed.gz:md5,68b329da9893e34099c7d8ad5cb9c940"
                     ]
                 ],
                 "11": [
@@ -31,7 +31,7 @@
                         {
                             "id": "test_sample"
                         },
-                        "test_sample.p_utg.fa:md5,d41d8cd98f00b204e9800998ecf8427e"
+                        "test_sample_euk.gff:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
                 "12": [
@@ -39,15 +39,7 @@
                         {
                             "id": "test_sample"
                         },
-                        [
-                            "test_sample.a_ctg.gfa.gz:md5,68b329da9893e34099c7d8ad5cb9c940",
-                            "test_sample.bp.p_ctg.gfa.gz:md5,68b329da9893e34099c7d8ad5cb9c940",
-                            "test_sample.hap1.p_ctg.gfa.gz:md5,68b329da9893e34099c7d8ad5cb9c940",
-                            "test_sample.hap2.p_ctg.gfa.gz:md5,68b329da9893e34099c7d8ad5cb9c940",
-                            "test_sample.p_ctg.gfa.gz:md5,68b329da9893e34099c7d8ad5cb9c940",
-                            "test_sample.p_utg.gfa.gz:md5,68b329da9893e34099c7d8ad5cb9c940",
-                            "test_sample.r_utg.gfa.gz:md5,68b329da9893e34099c7d8ad5cb9c940"
-                        ]
+                        "test_sample.rdna_reads.fastq.gz:md5,68b329da9893e34099c7d8ad5cb9c940"
                     ]
                 ],
                 "13": [
@@ -55,24 +47,16 @@
                         {
                             "id": "test_sample"
                         },
-                        "test_sample.log:md5,d41d8cd98f00b204e9800998ecf8427e"
+                        "test_sample.rdna_regions.bed:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
                 "14": [
-                    [
-                        {
-                            "id": "test_sample"
-                        },
-                        "test_sample.paf:md5,d41d8cd98f00b204e9800998ecf8427e"
-                    ]
-                ],
-                "15": [
                     {
                         "coverage": 0.0,
                         "id": "test_sample"
                     }
                 ],
-                "16": [
+                "15": [
                     [
                         {
                             "id": "test_sample"
@@ -80,7 +64,7 @@
                         "test_sample.core_coverage.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
-                "17": [
+                "16": [
                     [
                         {
                             "id": "test_sample"
@@ -88,7 +72,7 @@
                         "test_sample.pde_segments.bed:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
-                "18": [
+                "17": [
                     [
                         {
                             "id": "test_sample"
@@ -96,12 +80,20 @@
                         "test_sample.grs_summary.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
-                "19": [
+                "18": [
                     [
                         {
                             "id": "test_sample"
                         },
                         "test_sample.telomeric_reads.fastq.gz:md5,68b329da9893e34099c7d8ad5cb9c940"
+                    ]
+                ],
+                "19": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.terminal_softclips.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
                 "2": [
@@ -117,7 +109,7 @@
                         {
                             "id": "test_sample"
                         },
-                        "test_sample.terminal_softclips.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                        "test_sample.terminal_ends_summary.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
                 "21": [
@@ -125,7 +117,9 @@
                         {
                             "id": "test_sample"
                         },
-                        "test_sample.terminal_ends_summary.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                        [
+                            
+                        ]
                     ]
                 ],
                 "22": [
@@ -133,15 +127,7 @@
                         {
                             "id": "test_sample"
                         },
-                        [
-                            "test_sample.a_ctg.fa:md5,d41d8cd98f00b204e9800998ecf8427e",
-                            "test_sample.bp.p_ctg.fa:md5,d41d8cd98f00b204e9800998ecf8427e",
-                            "test_sample.hap1.p_ctg.fa:md5,d41d8cd98f00b204e9800998ecf8427e",
-                            "test_sample.hap2.p_ctg.fa:md5,d41d8cd98f00b204e9800998ecf8427e",
-                            "test_sample.p_ctg.fa:md5,d41d8cd98f00b204e9800998ecf8427e",
-                            "test_sample.p_utg.fa:md5,d41d8cd98f00b204e9800998ecf8427e",
-                            "test_sample.r_utg.fa:md5,d41d8cd98f00b204e9800998ecf8427e"
-                        ]
+                        "test_sample.telomeric_junctions.json:md5,b8f73d632514a4625152db321422e8c8"
                     ]
                 ],
                 "23": [
@@ -149,7 +135,7 @@
                         {
                             "id": "test_sample"
                         },
-                        "test_sample.paf:md5,d41d8cd98f00b204e9800998ecf8427e"
+                        "test_sample.telomeric_junctions.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
                 "24": [
@@ -157,7 +143,7 @@
                         {
                             "id": "test_sample"
                         },
-                        "test_sample.telomeric_junctions.json:md5,b8f73d632514a4625152db321422e8c8"
+                        "test_sample.vcf.gz:md5,68b329da9893e34099c7d8ad5cb9c940"
                     ]
                 ],
                 "25": [
@@ -165,7 +151,7 @@
                         {
                             "id": "test_sample"
                         },
-                        "test_sample.telomeric_junctions.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                        "test_sample.vcf.gz.tbi:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
                 "26": [
@@ -173,26 +159,10 @@
                         {
                             "id": "test_sample"
                         },
-                        "test_sample.vcf.gz:md5,68b329da9893e34099c7d8ad5cb9c940"
-                    ]
-                ],
-                "27": [
-                    [
-                        {
-                            "id": "test_sample"
-                        },
-                        "test_sample.vcf.gz.tbi:md5,d41d8cd98f00b204e9800998ecf8427e"
-                    ]
-                ],
-                "28": [
-                    [
-                        {
-                            "id": "test_sample"
-                        },
                         "test_sample.gaps.bed:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
-                "29": [
+                "27": [
                     [
                         {
                             "id": "test_sample"
@@ -205,7 +175,7 @@
                         {
                             "id": "test_sample"
                         },
-                        "test_sample.paf:md5,d41d8cd98f00b204e9800998ecf8427e"
+                        "test_sample.unplaced_to_chr.paf:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
                 "4": [
@@ -229,7 +199,7 @@
                         {
                             "id": "test_sample"
                         },
-                        "test_sample.summary.txt:md5,d41d8cd98f00b204e9800998ecf8427e"
+                        "test_sample.breakpoint_foci__S2G.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
                 "7": [
@@ -237,7 +207,7 @@
                         {
                             "id": "test_sample"
                         },
-                        "test_sample.regions.bed.gz:md5,68b329da9893e34099c7d8ad5cb9c940"
+                        "test_sample.quantized.red_masked.bed:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
                 "8": [
@@ -245,7 +215,7 @@
                         {
                             "id": "test_sample"
                         },
-                        "test_sample_euk.gff:md5,d41d8cd98f00b204e9800998ecf8427e"
+                        "test_sample.class.regions.bed.gz:md5,68b329da9893e34099c7d8ad5cb9c940"
                     ]
                 ],
                 "9": [
@@ -253,7 +223,7 @@
                         {
                             "id": "test_sample"
                         },
-                        "test_sample.rdna_reads.fastq.gz:md5,68b329da9893e34099c7d8ad5cb9c940"
+                        "test_sample.summary.txt:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
                 "barrnap_gff": [
@@ -270,6 +240,14 @@
                             "id": "test_sample"
                         },
                         "test_sample.chromosomes.fasta:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "class_regions_bed": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.class.regions.bed.gz:md5,68b329da9893e34099c7d8ad5cb9c940"
                     ]
                 ],
                 "core_coverage": [
@@ -302,6 +280,14 @@
                         "test_sample.breakpoint_sequences.fasta:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
+                "delfies_foci_s2g": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.breakpoint_foci__S2G.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
                 "gap_evidence_json": [
                     [
                         {
@@ -316,6 +302,14 @@
                             "id": "test_sample"
                         },
                         "test_sample.gaps.bed:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "grs_quantized_bed": [
+                    [
+                        {
+                            "id": "test_sample"
+                        },
+                        "test_sample.quantized.red_masked.bed:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
                 "grs_summary_tsv": [
@@ -356,46 +350,6 @@
                             "id": "test_sample"
                         },
                         "test_sample.pde_segments.bed:md5,d41d8cd98f00b204e9800998ecf8427e"
-                    ]
-                ],
-                "rdna_assembly_fasta": [
-                    [
-                        {
-                            "id": "test_sample"
-                        },
-                        "test_sample.p_utg.fa:md5,d41d8cd98f00b204e9800998ecf8427e"
-                    ]
-                ],
-                "rdna_assembly_gfa": [
-                    [
-                        {
-                            "id": "test_sample"
-                        },
-                        [
-                            "test_sample.a_ctg.gfa.gz:md5,68b329da9893e34099c7d8ad5cb9c940",
-                            "test_sample.bp.p_ctg.gfa.gz:md5,68b329da9893e34099c7d8ad5cb9c940",
-                            "test_sample.hap1.p_ctg.gfa.gz:md5,68b329da9893e34099c7d8ad5cb9c940",
-                            "test_sample.hap2.p_ctg.gfa.gz:md5,68b329da9893e34099c7d8ad5cb9c940",
-                            "test_sample.p_ctg.gfa.gz:md5,68b329da9893e34099c7d8ad5cb9c940",
-                            "test_sample.p_utg.gfa.gz:md5,68b329da9893e34099c7d8ad5cb9c940",
-                            "test_sample.r_utg.gfa.gz:md5,68b329da9893e34099c7d8ad5cb9c940"
-                        ]
-                    ]
-                ],
-                "rdna_assembly_info": [
-                    [
-                        {
-                            "id": "test_sample"
-                        },
-                        "test_sample.log:md5,d41d8cd98f00b204e9800998ecf8427e"
-                    ]
-                ],
-                "rdna_assembly_paf": [
-                    [
-                        {
-                            "id": "test_sample"
-                        },
-                        "test_sample.paf:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
                 "rdna_reads": [
@@ -454,27 +408,13 @@
                         "test_sample.telomeric_junctions.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
-                "telo_paf": [
-                    [
-                        {
-                            "id": "test_sample"
-                        },
-                        "test_sample.paf:md5,d41d8cd98f00b204e9800998ecf8427e"
-                    ]
-                ],
-                "telo_unitigs": [
+                "teloclip_overhangs": [
                     [
                         {
                             "id": "test_sample"
                         },
                         [
-                            "test_sample.a_ctg.fa:md5,d41d8cd98f00b204e9800998ecf8427e",
-                            "test_sample.bp.p_ctg.fa:md5,d41d8cd98f00b204e9800998ecf8427e",
-                            "test_sample.hap1.p_ctg.fa:md5,d41d8cd98f00b204e9800998ecf8427e",
-                            "test_sample.hap2.p_ctg.fa:md5,d41d8cd98f00b204e9800998ecf8427e",
-                            "test_sample.p_ctg.fa:md5,d41d8cd98f00b204e9800998ecf8427e",
-                            "test_sample.p_utg.fa:md5,d41d8cd98f00b204e9800998ecf8427e",
-                            "test_sample.r_utg.fa:md5,d41d8cd98f00b204e9800998ecf8427e"
+                            
                         ]
                     ]
                 ],
@@ -507,12 +447,12 @@
                         {
                             "id": "test_sample"
                         },
-                        "test_sample.paf:md5,d41d8cd98f00b204e9800998ecf8427e"
+                        "test_sample.unplaced_to_chr.paf:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ]
             }
         ],
-        "timestamp": "2026-09-27T08:18:21.261323",
+        "timestamp": "2026-11-12T23:20:07.222269",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"

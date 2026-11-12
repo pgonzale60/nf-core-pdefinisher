@@ -13,7 +13,6 @@ nextflow_workflow {
     tag "barrnap"
     tag "extracttelomericreads"
     tag "softclipends"
-    tag "hifiasm"
     tag "minimap2/align"
     tag "sniffles"
     tag "filterchromosomes"
@@ -31,7 +30,6 @@ nextflow_workflow {
     tag "subworkflows/../../modules/sanger-tol/extractrdnareads"
     tag "subworkflows/../../modules/sanger-tol/identifyputativegrs"
     tag "subworkflows/../../modules/sanger-tol/softclipends"
-    tag "subworkflows/../../modules/sanger-tol/hifiasm"
     tag "subworkflows/../../modules/sanger-tol/minimap2/align"
     tag "subworkflows/../../modules/sanger-tol/telomericjunctionprofiler"
     tag "subworkflows/../../modules/nf-core/mosdepth"
@@ -57,7 +55,6 @@ nextflow_workflow {
             params {
                 delfies_args        = '--telomere-repeat TTAGGC'
                 mosdepth_args       = '--by 1000 --fast-mode'
-                hifiasm_args        = '-f0 -k 21 -w 11'
                 minimap2_align_args = '-x asm5'
             }
             workflow {
