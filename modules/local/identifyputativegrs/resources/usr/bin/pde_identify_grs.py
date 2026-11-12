@@ -72,10 +72,10 @@ def parse_args():
     )
     parser.add_argument("--assembly", required=True, help="Assembly FASTA file")
     parser.add_argument(
-        "--breakpoints-bed",
+        "--breakpoint-foci",
         required=False,
         default=None,
-        help="Delfies breakpoints BED file",
+        help="DELFIES breakpoint_foci__S2G.tsv (per-strand soft-clip support)",
     )
     parser.add_argument(
         "--regions-bed",
@@ -148,39 +148,47 @@ def get_chromosome_lengths(assembly_file):
     return chr_lens
 
 
-def parse_breakpoints(bed_file):
-    breakpoints = {}
-    bp_records_by_coord = {}
-    if not bed_file or not os.path.exists(bed_file):
-        return breakpoints, bp_records_by_coord
+def parse_breakpoint_foci(foci_tsv):
+    """Parse DELFIES breakpoint_foci__S2G.tsv into per-strand breakpoint records.
 
-    try:
-        with open(bed_file) as f:
-            for line in f:
-                if not line.strip() or line.startswith("#"):
+    Each row is one genomic position with per-strand soft-clip read support.
+    Both strands at a position are kept as separate records, so reciprocal
+    opposite-strand cuts (micro-GRS) survive clustering.
+    """
+    breakpoints = {}
+    if not foci_tsv or not os.path.exists(foci_tsv):
+        return breakpoints
+
+    with open(foci_tsv) as f:
+        header = f.readline().rstrip("\n").split("\t")
+        col = {name: i for i, name in enumerate(header)}
+        for line in f:
+            if not line.strip():
+                continue
+            parts = line.rstrip("\n").split("\t")
+            chrom = parts[col["contig"]]
+            pos = int(parts[col["start"]])
+            end = int(parts[col["end"]])
+            sample = parts[col["sample_name"]]
+            bp_type = parts[col["breakpoint_type"]]
+            for strand, support_col in (
+                ("+", "num_supporting_reads__forward"),
+                ("-", "num_supporting_reads__reverse"),
+            ):
+                support = float(parts[col[support_col]])
+                if support <= 0:
                     continue
-                parts = line.strip().split("\t")
-                if len(parts) >= 6:
-                    chrom = parts[0]
-                    pos = max(0, int(parts[1]))
-                    strand = parts[5]
-                    score = float(parts[4]) if len(parts) > 4 else 1.0
-                    name = parts[3] if len(parts) > 3 else f"{chrom}_{pos}"
-                    extra = parts[6:] if len(parts) > 6 else []
-                    rec = {
-                        "chrom": chrom,
-                        "start": pos,
-                        "end": int(parts[2]),
-                        "name": name,
-                        "score": score,
-                        "strand": strand,
-                        "extra": extra,
-                    }
-                    breakpoints.setdefault(chrom, []).append((pos, strand, score, rec))
-                    bp_records_by_coord[(chrom, pos)] = rec
-    except Exception:
-        pass
-    return breakpoints, bp_records_by_coord
+                rec = {
+                    "chrom": chrom,
+                    "start": pos,
+                    "end": end,
+                    "name": f"{sample}_{chrom}_{pos}{strand}",
+                    "score": support,
+                    "strand": strand,
+                    "extra": [bp_type],
+                }
+                breakpoints.setdefault(chrom, []).append((pos, strand, support, rec))
+    return breakpoints
 
 
 def parse_coverage_windows(mosdepth_file):
@@ -544,7 +552,7 @@ def main():
             return name in canon_chrom_set
         return length >= rules["chromosomal_min_bp"]
 
-    breakpoints, bp_records_by_coord = parse_breakpoints(args.breakpoints_bed)
+    breakpoints = parse_breakpoint_foci(args.breakpoint_foci)
     cov_windows = parse_coverage_windows(args.regions_bed)
 
     # 2. Gather whole-genome window depths across major chromosomes (>= 1 Mb)

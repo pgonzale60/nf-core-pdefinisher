@@ -45,6 +45,7 @@ workflow RECON_MOTIF_PIPELINE {
     grs_summary_tsv            = PDE_RECONNAISSANCE.out.grs_summary_tsv
     pde_segments_bed           = PDE_RECONNAISSANCE.out.pde_segments_bed
     delfies_bed                = PDE_RECONNAISSANCE.out.delfies_bed
+    delfies_foci_s2g           = PDE_RECONNAISSANCE.out.delfies_foci_s2g
     terminal_ends_summary      = PDE_RECONNAISSANCE.out.terminal_ends_summary
     best_core_motif            = PDE_MOTIF_DISCOVERY.out.best_core_motif
     core_motif_metrics_json    = PDE_MOTIF_DISCOVERY.out.core_motif_metrics_json

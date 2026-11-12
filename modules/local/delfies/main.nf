@@ -13,6 +13,7 @@ process DELFIES {
     output:
     tuple val(meta), path("*.breakpoint_locations.bed") , emit: bed
     tuple val(meta), path("*.breakpoint_sequences.fasta"), emit: fasta, optional: true
+    tuple val(meta), path("*.breakpoint_foci__S2G.tsv"), emit: foci_s2g
     tuple val("${task.process}"), val('delfies'), eval("delfies --version | sed 's/delfies, version //'"), topic: versions, emit: versions_delfies
 
     when:
@@ -38,6 +39,7 @@ process DELFIES {
     if [ -f "${prefix}_delfies/breakpoint_sequences.fasta" ]; then
         mv ${prefix}_delfies/breakpoint_sequences.fasta ${prefix}.breakpoint_sequences.fasta
     fi
+    mv ${prefix}_delfies/breakpoint_foci__S2G.tsv ${prefix}.breakpoint_foci__S2G.tsv
     """
 
     stub:
@@ -45,5 +47,6 @@ process DELFIES {
     """
     touch ${prefix}.breakpoint_locations.bed
     touch ${prefix}.breakpoint_sequences.fasta
+    touch ${prefix}.breakpoint_foci__S2G.tsv
     """
 }

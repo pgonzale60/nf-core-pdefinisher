@@ -48,6 +48,14 @@ output:
           description: BED format file containing identified elimination breakpoints with strand and read support
           pattern: "*.breakpoint_locations.bed"
           ontologies: []
+  foci_s2g:
+    - - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.breakpoint_foci__S2G.tsv":
+          type: file
+          description: Per-position, per-strand S2G breakpoint focus support
+          pattern: "*.breakpoint_foci__S2G.tsv"
   fasta:
     - - meta:
           type: map

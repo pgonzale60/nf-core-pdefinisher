@@ -260,19 +260,19 @@ workflow PDE_RECONNAISSANCE {
     // MODULE: IDENTIFYPUTATIVEGRS — Classify regions into putative_core vs putative_GRS
     //
     ch_identify_grs_input = ch_assembly
-        .join(DELFIES.out.bed, by: 0)
+        .join(DELFIES.out.foci_s2g, by: 0)
         .join(MOSDEPTH.out.regions_bed, by: 0)
         .join(RED.out.bed, by: 0)
-        .multiMap { meta, assembly, delfies, mosdepth, red_bed ->
+        .multiMap { meta, assembly, foci, mosdepth, red_bed ->
             assembly: tuple(meta, assembly)
-            delfies:  tuple(meta, delfies)
+            foci:     tuple(meta, foci)
             mosdepth: tuple(meta, mosdepth)
             red:      tuple(meta, red_bed)
         }
 
     IDENTIFYPUTATIVEGRS (
         ch_identify_grs_input.assembly,
-        ch_identify_grs_input.delfies,
+        ch_identify_grs_input.foci,
         ch_identify_grs_input.mosdepth,
         ch_identify_grs_input.red,
         val_chromosomes
@@ -348,6 +348,7 @@ workflow PDE_RECONNAISSANCE {
     unplaced_paf               = ALIGN_UNPLACED.out.paf
     delfies_bed                = DELFIES.out.bed
     delfies_fasta              = DELFIES.out.fasta
+    delfies_foci_s2g           = DELFIES.out.foci_s2g
     mosdepth_summary           = MOSDEPTH.out.summary_txt
     mosdepth_regions           = MOSDEPTH.out.regions_bed
     barrnap_gff                = BARRNAP.out.gff
