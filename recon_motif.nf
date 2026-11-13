@@ -41,6 +41,7 @@ workflow {
     grs_quantized_bed          = RECON_MOTIF_PIPELINE.out.grs_quantized_bed
     class_regions_bed          = RECON_MOTIF_PIPELINE.out.class_regions_bed
     class_regions_csi          = RECON_MOTIF_PIPELINE.out.class_regions_csi
+    break_windows_fasta        = RECON_MOTIF_PIPELINE.out.break_windows_fasta
     best_core_motif            = RECON_MOTIF_PIPELINE.out.best_core_motif
     core_motif_metrics_json    = RECON_MOTIF_PIPELINE.out.core_motif_metrics_json
     grid_summary_tsv           = RECON_MOTIF_PIPELINE.out.grid_summary_tsv
@@ -92,6 +93,10 @@ output {
     }
     class_regions_csi {
         path { meta, _file -> PdePublish.pathFor(params, meta, "pde_reconnaissance") }
+        mode params.publish_dir_mode
+    }
+    break_windows_fasta {
+        path { meta, _file -> PdePublish.pathFor(params, meta, "motif_discovery") }
         mode params.publish_dir_mode
     }
     best_core_motif {
