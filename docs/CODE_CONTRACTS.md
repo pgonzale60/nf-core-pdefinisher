@@ -326,11 +326,11 @@
 | `subtract_gaps` | `function` | `L143-L159` | `def subtract_gaps(lo, hi, gaps)` | Split [lo, hi) around sorted gap intervals; returns the non-gap sub-intervals. |
 | `build_observations` | `function` | `L162-L183` | `def build_observations(s, e, quant, gaps, red, repeat_fraction)` | Ordered, non-overlapping observations over [s, e). |
 | `viterbi` | `function` | `L186-L228` | `def viterbi(obs, switch_penalty)` | Two-state path over observations; returns a state per observation. |
-| `find_islands` | `function` | `L231-L246` | `def find_islands(obs, path, gaps_clip)` | Maximal HIGH stretches [a, b) whose span touches an assembly gap. |
-| `carve_row` | `function` | `L249-L283` | `def carve_row(row, quant, gaps, red, baseline, policy)` | Return (pieces, n_islands, carved_bp) for one summary row. |
-| `read_summary` | `function` | `L286-L297` | `def read_summary(path)` | Return (metadata lines, data rows) of a grs_summary.tsv. |
-| `parse_args` | `function` | `L300-L313` | `def parse_args(argv)` | — |
-| `main` | `function` | `L316-L343` | `def main(argv=None)` | — |
+| `find_islands` | `function` | `L231-L247` | `def find_islands(obs, path, gaps_clip)` | Maximal HIGH stretches [a, b) whose span touches an assembly gap. |
+| `carve_row` | `function` | `L250-L284` | `def carve_row(row, quant, gaps, red, baseline, policy)` | Return (pieces, n_islands, carved_bp) for one summary row. |
+| `read_summary` | `function` | `L287-L298` | `def read_summary(path)` | Return (metadata lines, data rows) of a grs_summary.tsv. |
+| `parse_args` | `function` | `L301-L314` | `def parse_args(argv)` | — |
+| `main` | `function` | `L317-L344` | `def main(argv=None)` | — |
 
 ### `modules/local/curationagpgenerator/resources/usr/bin/pde_generate_agp.py`
 

@@ -189,8 +189,8 @@ def viterbi(obs, switch_penalty):
     Informative runs cost their length when the state disagrees with them. A state change
     costs switch_penalty and is charged only when entering an informative observation:
     masked and gap observations carry the previous state forward at zero cost and can
-    never initiate a switch (carry-forward). Ties keep the previous state; ties at the
-    start and at the end resolve to HIGH.
+    never initiate a switch (carry-forward). Ties keep the previous state. Ties at the
+    end resolve to LOW, so unsupported stretches never become core.
     """
     if not obs:
         return []
@@ -220,7 +220,7 @@ def viterbi(obs, switch_penalty):
             new[state] = best + emit[state]
         values = new
         back.append(ptr)
-    state = HIGH if values[HIGH] <= values[LOW] else LOW
+    state = HIGH if values[HIGH] < values[LOW] else LOW
     path = [0] * len(obs)
     for idx in range(len(obs) - 1, -1, -1):
         path[idx] = state
@@ -240,7 +240,8 @@ def find_islands(obs, path, gaps_clip):
         while j + 1 < len(obs) and path[j + 1] == HIGH:
             j += 1
         a, b = obs[i][0], obs[j][1]
-        if any(gs <= b and ge >= a for gs, ge in gaps_clip):
+        has_evidence = any(obs[k][2] == "info" and not obs[k][3] for k in range(i, j + 1))
+        if has_evidence and any(gs <= b and ge >= a for gs, ge in gaps_clip):
             islands.append((a, b))
         i = j + 1
     return islands

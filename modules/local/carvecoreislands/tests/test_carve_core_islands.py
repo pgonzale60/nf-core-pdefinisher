@@ -137,6 +137,12 @@ class CarveCoreIslandsTest(unittest.TestCase):
         self.assertEqual(row, [unplaced])
         self.assertEqual(n, 0)
 
+    def test_no_informative_evidence_never_core(self):
+        # Whole GRS is repeat-masked with a gap inside: nothing supports HIGH, so no island.
+        pieces, n, bp = carve(GRS, [(0, 100000, True)], gaps=[(49000, 50000)], red=[(0, 100000)])
+        self.assertEqual(pieces, [GRS])
+        self.assertEqual((n, bp), (0, 0))
+
 
 if __name__ == "__main__":
     unittest.main()

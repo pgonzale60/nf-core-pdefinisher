@@ -24,7 +24,7 @@ process CARVECOREISLANDS {
     def args   = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
-    # Tool: pde_carve_core_islands.py | Script-SHA: 34a313e3e19fc750
+    # Tool: pde_carve_core_islands.py | Script-SHA: 1e139669e3db09f0
     pde_carve_core_islands.py \\
         --summary-tsv ${summary_tsv} \\
         --quantized-bed ${quantized_bed} \\
