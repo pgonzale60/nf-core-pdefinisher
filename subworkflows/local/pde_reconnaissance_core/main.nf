@@ -82,7 +82,7 @@ workflow PDE_RECONNAISSANCE_CORE {
         ch_quantize_input.cov
     )
 
-    // MODULE: GFASTATSGAPS — assembly N-gap intervals, input to core-island carving
+    // MODULE: GFASTATSGAPS — assembly N-gap intervals, input to SEGMENTQUANTIZED
     GFASTATSGAPS (
         ch_assembly
     )
