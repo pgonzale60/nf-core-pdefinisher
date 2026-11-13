@@ -1,0 +1,35 @@
+nextflow_process {
+
+    name "Test Process GFASTATSGAPS"
+    script "../main.nf"
+    process "GFASTATSGAPS"
+
+    tag "modules"
+    tag "modules_sangertol"
+    tag "gfastatsgaps"
+
+    test("sarscov2 - fasta - stub") {
+
+        options "-stub"
+
+        when {
+            process {
+                """
+                input[0] = [
+                    [ id:'test' ],
+                    file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/genome/genome.fasta', checkIfExists: true)
+                ]
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert process.success },
+                { assert snapshot(process.out).match() }
+            )
+        }
+
+    }
+
+}

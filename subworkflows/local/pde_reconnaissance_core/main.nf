@@ -9,6 +9,8 @@ include { MOSDEPTH             } from '../../../modules/nf-core/mosdepth/main'
 include { IDENTIFYPUTATIVEGRS  } from '../../../modules/local/identifyputativegrs/main'
 include { MOSDEPTHQUANTIZE     } from '../../../modules/local/mosdepthquantize/main'
 include { MOSDEPTHCLASS        } from '../../../modules/local/mosdepthclass/main'
+include { GFASTATSGAPS                   } from '../../../modules/local/gfastatsgaps/main'
+include { CARVECOREISLANDS               } from '../../../modules/local/carvecoreislands/main'
 
 workflow PDE_RECONNAISSANCE_CORE {
 
@@ -80,9 +82,36 @@ workflow PDE_RECONNAISSANCE_CORE {
         ch_quantize_input.cov
     )
 
+    // MODULE: GFASTATSGAPS — assembly N-gap intervals, input to core-island carving
+    GFASTATSGAPS (
+        ch_assembly
+    )
+
+    // MODULE: CARVECOREISLANDS — subtract high-confidence core islands from long GRS intervals
+    ch_carve_input = IDENTIFYPUTATIVEGRS.out.summary
+        .join(MOSDEPTHQUANTIZE.out.quantized_bed, by: 0)
+        .join(GFASTATSGAPS.out.gaps_bed, by: 0)
+        .join(RED.out.bed, by: 0)
+        .join(IDENTIFYPUTATIVEGRS.out.core_coverage_tsv, by: 0)
+        .multiMap { meta, summary, quantized, gaps, red_bed, cov ->
+            summary:   tuple(meta, summary)
+            quantized: tuple(meta, quantized)
+            gaps:      tuple(meta, gaps)
+            red:       tuple(meta, red_bed)
+            cov:       tuple(meta, cov)
+        }
+
+    CARVECOREISLANDS (
+        ch_carve_input.summary,
+        ch_carve_input.quantized,
+        ch_carve_input.gaps,
+        ch_carve_input.red,
+        ch_carve_input.cov
+    )
+
     // MODULE: MOSDEPTHCLASS — per-region depth over the final classification segments (core / GRS / uncertain)
     ch_class_input = ch_bam
-        .join(IDENTIFYPUTATIVEGRS.out.bed, by: 0)
+        .join(CARVECOREISLANDS.out.bed, by: 0)
         .multiMap { meta, bam, bai, segments_bed ->
             bam:      tuple(meta, bam, bai)
             segments: tuple(meta, segments_bed)
@@ -102,6 +131,6 @@ workflow PDE_RECONNAISSANCE_CORE {
     grs_quantized_bed          = MOSDEPTHQUANTIZE.out.quantized_bed
     class_regions_bed          = MOSDEPTHCLASS.out.class_regions_bed
     class_regions_csi          = MOSDEPTHCLASS.out.class_regions_csi
-    grs_summary_tsv            = IDENTIFYPUTATIVEGRS.out.summary
-    pde_segments_bed           = IDENTIFYPUTATIVEGRS.out.bed
+    grs_summary_tsv            = CARVECOREISLANDS.out.summary
+    pde_segments_bed           = CARVECOREISLANDS.out.bed
 }

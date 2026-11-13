@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sanger-tol/nf-core-modules/main/modules/meta-schema.json
+name: "gfastatsgaps"
+description: Report assembly N-gap intervals as a sorted headerless BED (chrom, start, end, N_gap, length, strand) using gfastats.
+keywords:
+  - gaps
+  - assembly
+  - N-runs
+tools:
+  - gfastats:
+      description: Fast statistics and gap reporting for genome assemblies.
+      homepage: https://github.com/vgl-hub/gfastats
+      licence:
+        - "MIT"
+      identifier: biotools:gfastats
+input:
+  - - meta:
+        type: map
+        description: Groovy Map containing sample information e.g. [ id:'test' ]
+    - assembly:
+        type: file
+        description: Assembly FASTA file, plain or gzipped
+        pattern: "*.{fa,fasta,fa.gz,fasta.gz}"
+output:
+  - gaps_bed:
+      - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.gaps.bed":
+          type: file
+          description: Sorted N-gap intervals, one per line
+          pattern: "*.gaps.bed"
+  - versions_gfastats:
+      - - ${task.process}:
+            type: string
+            description: The process the versions were collected from
+        - gfastats:
+            type: string
+            description: The tool name
+        - eval("gfastats --version"):
+            type: string
+            description: The tool version
+authors:
+  - "@pg17"

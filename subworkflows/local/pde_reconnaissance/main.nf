@@ -22,6 +22,8 @@ include { RED                             } from '../../../modules/local/red/mai
 include { IDENTIFYPUTATIVEGRS             } from '../../../modules/local/identifyputativegrs/main'
 include { MOSDEPTHQUANTIZE               } from '../../../modules/local/mosdepthquantize/main'
 include { MOSDEPTHCLASS                  } from '../../../modules/local/mosdepthclass/main'
+include { GFASTATSGAPS                   } from '../../../modules/local/gfastatsgaps/main'
+include { CARVECOREISLANDS               } from '../../../modules/local/carvecoreislands/main'
 include { EXTRACTGAPEVIDENCE            } from '../../../modules/local/extractgapevidence/main'
 include { TELOCLIP_EXTRACT              } from '../../../modules/local/teloclip/extract/main'
 
@@ -298,9 +300,36 @@ workflow PDE_RECONNAISSANCE {
         ch_quantize_input.cov
     )
 
+    // MODULE: GFASTATSGAPS — assembly N-gap intervals, input to core-island carving
+    GFASTATSGAPS (
+        ch_assembly
+    )
+
+    // MODULE: CARVECOREISLANDS — subtract high-confidence core islands from long GRS intervals
+    ch_carve_input = IDENTIFYPUTATIVEGRS.out.summary
+        .join(MOSDEPTHQUANTIZE.out.quantized_bed, by: 0)
+        .join(GFASTATSGAPS.out.gaps_bed, by: 0)
+        .join(RED.out.bed, by: 0)
+        .join(IDENTIFYPUTATIVEGRS.out.core_coverage_tsv, by: 0)
+        .multiMap { meta, summary, quantized, gaps, red_bed, cov ->
+            summary:   tuple(meta, summary)
+            quantized: tuple(meta, quantized)
+            gaps:      tuple(meta, gaps)
+            red:       tuple(meta, red_bed)
+            cov:       tuple(meta, cov)
+        }
+
+    CARVECOREISLANDS (
+        ch_carve_input.summary,
+        ch_carve_input.quantized,
+        ch_carve_input.gaps,
+        ch_carve_input.red,
+        ch_carve_input.cov
+    )
+
     // MODULE: MOSDEPTHCLASS — per-region depth over the final classification segments (core / GRS / uncertain)
     ch_class_input = ch_bam
-        .join(IDENTIFYPUTATIVEGRS.out.bed, by: 0)
+        .join(CARVECOREISLANDS.out.bed, by: 0)
         .multiMap { meta, bam, bai, segments_bed ->
             bam:      tuple(meta, bam, bai)
             segments: tuple(meta, segments_bed)
@@ -396,8 +425,8 @@ workflow PDE_RECONNAISSANCE {
 
     core_coverage              = ch_meta_with_coverage
     core_coverage_tsv          = IDENTIFYPUTATIVEGRS.out.core_coverage_tsv
-    pde_segments_bed           = IDENTIFYPUTATIVEGRS.out.bed
-    grs_summary_tsv            = IDENTIFYPUTATIVEGRS.out.summary
+    pde_segments_bed           = CARVECOREISLANDS.out.bed
+    grs_summary_tsv            = CARVECOREISLANDS.out.summary
     telomeric_reads            = EXTRACTTELOMERICREADS.out.reads
     terminal_softclips         = SOFTCLIPENDS.out.softclips
     terminal_ends_summary      = SOFTCLIPENDS.out.summary

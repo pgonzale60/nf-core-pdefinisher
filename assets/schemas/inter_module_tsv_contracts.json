@@ -66,15 +66,15 @@
         },
         "grs_summary.tsv": {
             "file_pattern": "*.grs_summary.tsv",
-            "producer_module": "IDENTIFYPUTATIVEGRS",
-            "producer_script": "modules/local/identifyputativegrs/resources/usr/bin/pde_identify_grs.py",
+            "producer_module": "CARVECOREISLANDS",
+            "producer_script": "modules/local/carvecoreislands/resources/usr/bin/pde_carve_core_islands.py",
             "consumer_modules": ["CURATIONSYNTHESIS", "PDEMOTIFPROFILER"],
             "consumer_scripts": ["modules/local/curationsynthesis/resources/usr/lib/curationsynthesis/evidence_io.py"],
             "consumer_functions": ["load_grs_summary"],
             "columns": ["chromosome", "start", "end", "length", "classification", "median_depth"],
             "status_column": "classification",
             "allowed_statuses": ["putative_core", "putative_GRS", "putative_GRS_uncertain"],
-            "notes": "Contains mandatory # GRS_THRESHOLD=<float> and # ELIMINATION_RANGE metadata header comments."
+            "notes": "Produced by CARVECOREISLANDS from IDENTIFYPUTATIVEGRS output: carved core islands are relabelled putative_core. Contains mandatory # GRS_THRESHOLD=<float> and # ELIMINATION_RANGE metadata header comments (from IDENTIFYPUTATIVEGRS) plus a # CORE_ISLANDS comment line."
         },
         "telomeric_junctions.tsv": {
             "file_pattern": "*.telomeric_junctions.tsv",
