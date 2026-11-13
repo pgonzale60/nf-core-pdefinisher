@@ -1,12 +1,12 @@
 nextflow_process {
 
-    name "Test Process CARVECOREISLANDS"
+    name "Test Process SEGMENTQUANTIZED"
     script "../main.nf"
-    process "CARVECOREISLANDS"
+    process "SEGMENTQUANTIZED"
 
     tag "modules"
     tag "modules_sangertol"
-    tag "carvecoreislands"
+    tag "segmentquantized"
 
     test("sarscov2 - stub") {
 
@@ -20,17 +20,5 @@ nextflow_process {
                 input[2] = [ [ id:'test' ], file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/genome/bed/test.bed', checkIfExists: true) ]
                 input[3] = [ [ id:'test' ], file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/genome/bed/test.bed', checkIfExists: true) ]
                 input[4] = [ [ id:'test' ], file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/genome/bed/test.bed', checkIfExists: true) ]
-                """
-            }
-        }
-
-        then {
-            assertAll(
-                { assert process.success },
-                { assert snapshot(process.out).match() }
-            )
-        }
-
-    }
-
-}
+                input[5] = [ [ id:'test' ], file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/genome/bed/test.bed', checkIfExists: true) ]
+                input[6] = 'sarscov2'

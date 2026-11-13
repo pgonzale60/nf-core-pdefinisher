@@ -518,15 +518,26 @@ def build_chromosomal_segments(chrom, length, grs_intervals, cov_windows):
     return segs
 
 
+def write_breakpoints_tsv(path, clustered_by_chr):
+    """Clustered DELFIES breakpoints, one row each, for the quantized-depth segmenter."""
+    with open(path, "w") as out:
+        out.write("chrom\tpos\tend\tstrand\tsupport\n")
+        for chrom in sorted(clustered_by_chr):
+            for entry in sorted(clustered_by_chr[chrom], key=lambda x: x[0]):
+                pos, strand, support, rec = entry[0], entry[1], entry[2], entry[3]
+                end = max(pos, int(rec["end"]))
+                out.write(f"{chrom}\t{pos}\t{end}\t{strand}\t{support:.1f}\n")
+
+
 def classify_unplaced(chrom, length, raw_drops, repeats, rules):
-    """Non-chromosomal scaffold: repeat-aware call; fully repetitive scaffolds fold into putative_GRS."""
+    """Non-chromosomal scaffold: repeat-aware call; uncertain when fully repetitive or coverage-dropped."""
     repeat_bp = sum(min(length, e) - max(0, s) for s, e in repeats.get(chrom, []) if e > 0 and s < length)
     non_rep_bp = max(0, length - repeat_bp)
     drop_bp = sum(e - s for s, e in raw_drops)
     if non_rep_bp < rules["unplaced_min_nonrepeat_bp"]:
-        return "putative_GRS", "fully_repetitive_unplaced"
+        return "putative_uncertain", "fully_repetitive_unplaced"
     if drop_bp / max(1, length) >= rules["unplaced_grs_drop_fraction"]:
-        return "putative_GRS", "unplaced_coverage_drop"
+        return "putative_uncertain", "unplaced_coverage_drop"
     return "putative_core", "-"
 
 
@@ -693,7 +704,7 @@ def main():
             label, subtype = classify_unplaced(chrom, length, raw_drops, repeats, rules)
             med = get_median_depth(cov_windows, chrom, 0, length)
             segments.append((chrom, 0, length, label, med, subtype))
-            if label == "uncertain":
+            if label == "putative_uncertain":
                 unplaced_uncertain_bp += length
             elif label == "putative_GRS":
                 unplaced_grs_bp += length
@@ -701,8 +712,8 @@ def main():
                 unplaced_core_bp += length
 
     min_elim_bp = canon_grs_bp + unplaced_grs_bp
-    max_elim_bp = min_elim_bp + unplaced_uncertain_bp
-    est_elim_bp = (min_elim_bp + max_elim_bp) // 2
+    max_elim_bp = min_elim_bp
+    est_elim_bp = min_elim_bp
 
     # Write outputs
     prefix = args.prefix
@@ -732,6 +743,7 @@ def main():
         for chrom, s, e, label, med, subtype in segments:
             out_bed.write(f"{chrom}\t{s}\t{e}\t{label}\n")
             out_tsv.write(f"{chrom}\t{s}\t{e}\t{e-s}\t{label}\t{med:.2f}\t{subtype}\n")
+    write_breakpoints_tsv(os.path.join(outdir, f"{prefix}.delfies_breakpoints.tsv"), clustered_bps_by_chr)
 
 
 if __name__ == "__main__":

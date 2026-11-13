@@ -19,6 +19,7 @@ process IDENTIFYPUTATIVEGRS {
     tuple val(meta), path("*.grs_summary.tsv")          , emit: summary
     tuple val(meta), path("*.core_coverage.tsv")        , emit: core_coverage_tsv
     tuple val(meta), path("*.core_coverage.txt")        , emit: core_coverage
+    tuple val(meta), path("*.delfies_breakpoints.tsv")  , emit: breakpoints_tsv
     tuple val("${task.process}"), val('python'), val('3.10'), emit: versions_identifyputativegrs, topic: versions
 
     when:
@@ -35,7 +36,7 @@ process IDENTIFYPUTATIVEGRS {
     def chr_arg  = (chr_val && chr_val != "" && chr_val != "null") ? "--chromosomes \"${chr_val}\"" : ""
 
     """
-    # Tool: pde_identify_grs.py | Script-SHA: 3c3b3d5b1c7f0e49
+    # Tool: pde_identify_grs.py | Script-SHA: 8bc05108400606a1
     python3 ${moduleDir}/resources/usr/bin/pde_identify_grs.py --version
     python3 ${moduleDir}/resources/usr/bin/pde_identify_grs.py \\
         --assembly "${assembly}" \\
@@ -55,5 +56,6 @@ process IDENTIFYPUTATIVEGRS {
     touch ${prefix}.grs_summary.tsv
     touch ${prefix}.core_coverage.tsv
     echo "0.0" > ${prefix}.core_coverage.txt
+    touch ${prefix}.delfies_breakpoints.tsv
     """
 }
