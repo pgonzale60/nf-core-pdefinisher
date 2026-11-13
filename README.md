@@ -55,7 +55,7 @@ Optional parameters:
 To run GRS definition, DELFIES and motif discovery without assembly surgery:
 
 ```bash
-nextflow run recon_motif.nf --input samplesheet.csv --outdir results
+nextflow run workflows/recon_motif.nf --input samplesheet.csv --outdir results
 ```
 
 ## Credits
