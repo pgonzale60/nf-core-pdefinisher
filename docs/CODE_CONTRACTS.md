@@ -40,11 +40,7 @@
 - **Includes:**
   - `PDE_RECONNAISSANCE_CORE` from `../subworkflows/local/pde_reconnaissance_core/main`
   - `PDE_MOTIF_DISCOVERY` from `../subworkflows/local/pde_motif_discovery/main`
-  - `PIPELINE_INITIALISATION` from `../subworkflows/local/utils_nfcore_pdefinisher_pipeline`
 - **Workflow `RECON_MOTIF_PIPELINE`:**
-  - `take:` *(none)*
-  - `emit:` *(none)*
-- **Workflow `<entry>`:**
   - `take:` *(none)*
   - `emit:` *(none)*
 
@@ -153,9 +149,9 @@
   - `RED` from `../../../modules/local/red/main`
   - `DELFIES` from `../../../modules/local/delfies/main`
   - `MOSDEPTH` from `../../../modules/nf-core/mosdepth/main`
-  - `SOFTCLIPENDS` from `../../../modules/local/softclipends/main`
   - `IDENTIFYPUTATIVEGRS` from `../../../modules/local/identifyputativegrs/main`
   - `MOSDEPTHQUANTIZE` from `../../../modules/local/mosdepthquantize/main`
+  - `MOSDEPTHCLASS` from `../../../modules/local/mosdepthclass/main`
 - **Workflow `PDE_RECONNAISSANCE_CORE`:**
   - `take:` *(none)*
   - `emit:` *(none)*
