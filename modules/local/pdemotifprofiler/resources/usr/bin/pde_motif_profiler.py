@@ -144,8 +144,10 @@ def main():
                 if compartment != "Break Site" and chrom in segs:
                     for s in segs[chrom]:
                         if start >= s["start"] and stop <= s["end"]:
-                            if "GRS" in s["label"] or "eliminated" in s["label"].lower():
+                            if s["label"] == "putative_GRS":
                                 compartment = "Eliminated Region (GRS)"
+                            elif s["label"] == "putative_uncertain":
+                                compartment = "Uncertain Region"
                             else:
                                 compartment = "Retained Genome (Core)"
                             break
@@ -170,6 +172,7 @@ def main():
     break_count = counts["Break Site"]
     grs_count = counts["Eliminated Region (GRS)"]
     core_count = counts["Retained Genome (Core)"]
+    uncertain_count = counts["Uncertain Region"]
 
     break_pct = (break_count / total_hits * 100.0) if total_hits > 0 else 0.0
     grs_pct = (grs_count / total_hits * 100.0) if total_hits > 0 else 0.0
@@ -246,6 +249,7 @@ def main():
     thresh_break_count = thresh_counts["Break Site"]
     thresh_grs_count = thresh_counts["Eliminated Region (GRS)"]
     thresh_core_count = thresh_counts["Retained Genome (Core)"]
+    thresh_uncertain_count = thresh_counts["Uncertain Region"]
 
     # Write summary TSV
     out_summary = os.path.join(args.outdir, f"{args.prefix}.motif_distribution_summary.tsv")
@@ -258,6 +262,7 @@ def main():
         f.write(f"significant_hits_in_grs\t{thresh_grs_count}\n")
         f.write(f"significant_hits_in_core\t{thresh_core_count}\n")
         f.write(f"significant_hits_total\t{len(thresh_hits)}\n")
+        f.write(f"significant_hits_in_uncertain\t{thresh_uncertain_count}\n")
 
     # Write Markdown Report
     out_report = os.path.join(args.outdir, f"{args.prefix}.motif_distribution_report.md")
@@ -270,6 +275,7 @@ def main():
         f.write(f"- **Significant Hits at Border:** {thresh_break_count:,}\n")
         f.write(f"- **Significant Hits in Eliminated Region (GRS):** {thresh_grs_count:,}\n")
         f.write(f"- **Significant Hits in Retained Genome (Core):** {thresh_core_count:,}\n")
+        f.write(f"- **Significant Hits in Uncertain Region (putative_uncertain):** {thresh_uncertain_count:,}\n")
         f.write(f"- **Total Significant Hits Genome-Wide:** {len(thresh_hits):,}\n")
 
     sys.stderr.write(

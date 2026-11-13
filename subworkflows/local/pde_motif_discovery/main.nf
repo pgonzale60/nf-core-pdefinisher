@@ -19,7 +19,7 @@ workflow PDE_MOTIF_DISCOVERY {
     pvalue_thresh       // val: e.g. 1e-4
 
     main:
-    ch_versions = Channel.empty()
+    ch_versions = channel.empty()
 
     // 1. Break windows from DELFIES S2G foci, restricted to core/GRS borders plus fissions
     ch_breaks_input = ch_delfies_s2g.map { meta, f -> [ meta.id, meta, f ] }
