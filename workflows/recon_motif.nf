@@ -5,6 +5,7 @@
 */
 include { PDE_RECONNAISSANCE_CORE } from '../subworkflows/local/pde_reconnaissance_core/main'
 include { PDE_MOTIF_DISCOVERY } from '../subworkflows/local/pde_motif_discovery/main'
+include { PIPELINE_INITIALISATION } from '../subworkflows/local/utils_nfcore_pdefinisher_pipeline'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -56,6 +57,32 @@ workflow RECON_MOTIF_PIPELINE {
     fimo_annotated_hits        = PDE_MOTIF_DISCOVERY.out.fimo_annotated_hits
     motif_distribution_summary = PDE_MOTIF_DISCOVERY.out.motif_distribution_summary
     motif_distribution_report  = PDE_MOTIF_DISCOVERY.out.motif_distribution_report
+}
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    DIRECT ENTRY: nextflow run workflows/recon_motif.nf --input samplesheet.csv
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+workflow {
+
+    main:
+    PIPELINE_INITIALISATION (
+        params.version,
+        params.validate_params,
+        params.monochrome_logs,
+        args,
+        params.outdir,
+        params.input,
+        params.help,
+        params.help_full,
+        params.show_hidden
+    )
+
+    RECON_MOTIF_PIPELINE (
+        PIPELINE_INITIALISATION.out.samplesheet
+    )
 }
 
 /*

@@ -44,7 +44,11 @@
 - **Includes:**
   - `PDE_RECONNAISSANCE_CORE` from `../subworkflows/local/pde_reconnaissance_core/main`
   - `PDE_MOTIF_DISCOVERY` from `../subworkflows/local/pde_motif_discovery/main`
+  - `PIPELINE_INITIALISATION` from `../subworkflows/local/utils_nfcore_pdefinisher_pipeline`
 - **Workflow `RECON_MOTIF_PIPELINE`:**
+  - `take:` *(none)*
+  - `emit:` *(none)*
+- **Workflow `<entry>`:**
   - `take:` *(none)*
   - `emit:` *(none)*
 
