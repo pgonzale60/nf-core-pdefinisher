@@ -177,11 +177,47 @@ def subtract_gaps(lo, hi, gaps):
     return out
 
 
+def classify_segments(length, runs, min_low):
+    """Tile [0, length) with (start, end, kind) where kind is low, high or none.
+
+    LOW runs shorter than min_low are treated as HIGH; uncovered bases are none.
+    Adjacent segments of the same kind are coalesced.
+    """
+    raw = []
+    cursor = 0
+    for rs, re_, is_low in runs:
+        rs, re_ = max(rs, 0), min(re_, length)
+        if re_ <= rs:
+            continue
+        if rs > cursor:
+            raw.append((cursor, rs, "none"))
+        kind = "low" if is_low and (re_ - rs) >= min_low else "high"
+        raw.append((rs, re_, kind))
+        cursor = max(cursor, re_)
+    if cursor < length:
+        raw.append((cursor, length, "none"))
+    merged = []
+    for s_, e_, kind in raw:
+        if merged and merged[-1][2] == kind and merged[-1][1] == s_:
+            merged[-1] = (merged[-1][0], e_, kind)
+        else:
+            merged.append((s_, e_, kind))
+    return merged
+
+
 def call_chromosome(chrom, length, runs, gaps, red, bps, policy):
-    """Tile [0, length) with (start, end, label, subtype) pieces from quantized runs."""
+    """Tile [0, length) with (start, end, label, subtype) pieces from quantized runs.
+
+    A block is a LOW run, optionally followed by HIGH bridges of at most
+    quantized_max_bridge_bp and further LOW runs. A block is anchored when a
+    '+' breakpoint lies within anchor_proximity_bp of its left edge or a '-'
+    breakpoint lies within it of its right edge. Anchored blocks are GRS
+    (bridges included, gaps uncertain); unanchored blocks use per-run rules.
+    """
     anchor = policy["anchor_proximity_bp"]
-    min_low = policy["quantized_min_low_run_bp"]
     max_rep = policy["quantized_masked_repeat_fraction"]
+    max_bridge = policy["quantized_max_bridge_bp"]
+    min_low = policy["quantized_min_low_run_bp"]
     plus_starts = [pos for pos, strand, _end in bps if strand == "+"]
     minus_ends = [end for _pos, strand, end in bps if strand == "-"]
 
@@ -191,32 +227,46 @@ def call_chromosome(chrom, length, runs, gaps, red, bps, policy):
         if e > s:
             pieces.append((s, e, label, subtype))
 
-    cursor = 0
-    for rs, re_, is_low in runs:
-        rs, re_ = max(rs, 0), min(re_, length)
-        if re_ <= rs:
+    segs = classify_segments(length, runs, min_low)
+    i = 0
+    while i < len(segs):
+        s, e, kind = segs[i]
+        if kind == "none":
+            add(s, e, "putative_uncertain", "no_quantized_coverage")
+            i += 1
             continue
-        if rs > cursor:
-            add(cursor, rs, "putative_uncertain", "no_quantized_coverage")
-        cursor = max(cursor, re_)
-        if not is_low or (re_ - rs) < min_low:
-            add(rs, re_, "putative_core", "-")
+        if kind == "high":
+            add(s, e, "putative_core", "-")
+            i += 1
             continue
-        for a, b, is_gap in subtract_gaps(rs, re_, gaps):
-            if is_gap:
-                add(a, b, "putative_uncertain", "gap_spanning")
+        j = i
+        while (
+            j + 2 < len(segs)
+            and segs[j + 1][2] == "high"
+            and segs[j + 1][1] - segs[j + 1][0] <= max_bridge
+            and segs[j + 2][2] == "low"
+        ):
+            j += 2
+        block = segs[i : j + 1]
+        bs, be = block[0][0], block[-1][1]
+        supported = any(abs(p - bs) <= anchor for p in plus_starts) or any(
+            abs(q - be) <= anchor for q in minus_ends
+        )
+        for ss, se, skind in block:
+            if skind == "high" and not supported:
+                add(ss, se, "putative_core", "-")
                 continue
-            supported = any(abs(p - a) <= anchor for p in plus_starts) or any(
-                abs(q - b) <= anchor for q in minus_ends
-            )
-            if supported:
-                add(a, b, "putative_GRS", "quantized_delfies_anchored")
-            elif covered_bp(a, b, red) / (b - a) > max_rep:
-                add(a, b, "putative_uncertain", "repeat_masked")
-            else:
-                add(a, b, "putative_uncertain", "no_delfies_support")
-    if cursor < length:
-        add(cursor, length, "putative_uncertain", "no_quantized_coverage")
+            for a, b, is_gap in subtract_gaps(ss, se, gaps):
+                if is_gap:
+                    add(a, b, "putative_uncertain", "gap_spanning")
+                elif supported:
+                    subtype = "quantized_bridged" if skind == "high" else "quantized_delfies_anchored"
+                    add(a, b, "putative_GRS", subtype)
+                elif covered_bp(a, b, red) / (b - a) > max_rep:
+                    add(a, b, "putative_uncertain", "repeat_masked")
+                else:
+                    add(a, b, "putative_uncertain", "no_delfies_support")
+        i = j + 1
     return merge_pieces(pieces)
 
 

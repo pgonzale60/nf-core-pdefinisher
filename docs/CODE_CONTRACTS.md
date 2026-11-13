@@ -667,15 +667,16 @@
 | `read_windows` | `function` | `L139-L152` | `def read_windows(path)` | Mosdepth windows per chromosome: {chrom: [(s, e, depth)]}, sorted. |
 | `median_depth` | `function` | `L155-L158` | `def median_depth(windows, chrom, s, e)` | Median depth of mosdepth windows overlapping [s, e); 0.0 when none overlap. |
 | `subtract_gaps` | `function` | `L161-L177` | `def subtract_gaps(lo, hi, gaps)` | Split [lo, hi) into (start, end, is_gap) pieces around sorted gap intervals. |
-| `call_chromosome` | `function` | `L180-L220` | `def call_chromosome(chrom, length, runs, gaps, red, bps, policy)` | Tile [0, length) with (start, end, label, subtype) pieces from quantized runs. |
-| `merge_pieces` | `function` | `L223-L231` | `def merge_pieces(pieces)` | Join adjacent pieces that share label and subtype. |
-| `check_tiling` | `function` | `L234-L242` | `def check_tiling(chrom, pieces, length)` | Raise unless pieces are contiguous from 0 to length. |
-| `read_summary` | `function` | `L245-L256` | `def read_summary(path)` | Return (metadata lines, data rows) of an identify grs_summary.tsv. |
-| `parse_chromosomes` | `function` | `L259-L263` | `def parse_chromosomes(value)` | Comma- or whitespace-separated chromosome list; empty when unset. |
-| `build_segments` | `function` | `L266-L294` | `def build_segments(rows, quant, gaps, red, bps, windows, policy, chromosomes)` | Ordered (chrom, start, end, label, median, subtype) rows for the final summary. |
-| `elimination_line` | `function` | `L297-L319` | `def elimination_line(segments, canonical)` | Summarise bp per class; canonical and unplaced are counted separately. |
-| `parse_args` | `function` | `L322-L337` | `def parse_args(argv)` | — |
-| `main` | `function` | `L340-L363` | `def main(argv=None)` | — |
+| `classify_segments` | `function` | `L180-L205` | `def classify_segments(length, runs, min_low)` | Tile [0, length) with (start, end, kind) where kind is low, high or none. |
+| `call_chromosome` | `function` | `L208-L270` | `def call_chromosome(chrom, length, runs, gaps, red, bps, policy)` | Tile [0, length) with (start, end, label, subtype) pieces from quantized runs. |
+| `merge_pieces` | `function` | `L273-L281` | `def merge_pieces(pieces)` | Join adjacent pieces that share label and subtype. |
+| `check_tiling` | `function` | `L284-L292` | `def check_tiling(chrom, pieces, length)` | Raise unless pieces are contiguous from 0 to length. |
+| `read_summary` | `function` | `L295-L306` | `def read_summary(path)` | Return (metadata lines, data rows) of an identify grs_summary.tsv. |
+| `parse_chromosomes` | `function` | `L309-L313` | `def parse_chromosomes(value)` | Comma- or whitespace-separated chromosome list; empty when unset. |
+| `build_segments` | `function` | `L316-L344` | `def build_segments(rows, quant, gaps, red, bps, windows, policy, chromosomes)` | Ordered (chrom, start, end, label, median, subtype) rows for the final summary. |
+| `elimination_line` | `function` | `L347-L369` | `def elimination_line(segments, canonical)` | Summarise bp per class; canonical and unplaced are counted separately. |
+| `parse_args` | `function` | `L372-L387` | `def parse_args(argv)` | — |
+| `main` | `function` | `L390-L413` | `def main(argv=None)` | — |
 
 ### `modules/local/softclipends/resources/usr/bin/pde_terminal_softclips.py`
 

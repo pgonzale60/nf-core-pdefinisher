@@ -22,6 +22,7 @@ from pde_segment_quantized import (
 POLICY = {
     "anchor_proximity_bp": 2000,
     "quantized_min_low_run_bp": 1,
+    "quantized_max_bridge_bp": 5000,
     "quantized_masked_repeat_fraction": 0.9,
     "chromosomal_min_bp": 1000000,
 }
@@ -73,7 +74,51 @@ class TestQuantizedCall(unittest.TestCase):
         self.assertEqual(pieces[1:4], [
             (100000, 120000, "putative_GRS", "quantized_delfies_anchored"),
             (120000, 121000, "putative_uncertain", "gap_spanning"),
-            (121000, 150000, "putative_uncertain", "no_delfies_support"),
+            (121000, 150000, "putative_GRS", "quantized_delfies_anchored"),
+        ])
+
+    def test_short_high_bridge_carries_anchor_to_next_low_run(self):
+        runs = [run(0, 100000, False), run(100000, 150000, True),
+                run(150000, 152000, False), run(152000, 160000, True),
+                run(160000, LENGTH, False)]
+        pieces = call(runs, bps=[bp(100500, "+")])
+        self.assertEqual(pieces[1:4], [
+            (100000, 150000, "putative_GRS", "quantized_delfies_anchored"),
+            (150000, 152000, "putative_GRS", "quantized_bridged"),
+            (152000, 160000, "putative_GRS", "quantized_delfies_anchored"),
+        ])
+
+    def test_long_high_bridge_breaks_block(self):
+        runs = [run(0, 100000, False), run(100000, 150000, True),
+                run(150000, 160000, False), run(160000, 170000, True),
+                run(170000, LENGTH, False)]
+        pieces = call(runs, bps=[bp(100500, "+")])
+        self.assertEqual(pieces[1:4], [
+            (100000, 150000, "putative_GRS", "quantized_delfies_anchored"),
+            (150000, 160000, "putative_core", "-"),
+            (160000, 170000, "putative_uncertain", "no_delfies_support"),
+        ])
+
+    def test_unanchored_block_keeps_bridge_as_core(self):
+        runs = [run(0, 100000, False), run(100000, 150000, True),
+                run(150000, 152000, False), run(152000, 160000, True),
+                run(160000, LENGTH, False)]
+        pieces = call(runs)
+        self.assertEqual(pieces[1:4], [
+            (100000, 150000, "putative_uncertain", "no_delfies_support"),
+            (150000, 152000, "putative_core", "-"),
+            (152000, 160000, "putative_uncertain", "no_delfies_support"),
+        ])
+
+    def test_minus_breakpoint_at_block_end_anchors_whole_block(self):
+        runs = [run(0, 100000, False), run(100000, 150000, True),
+                run(150000, 152000, False), run(152000, 160000, True),
+                run(160000, LENGTH, False)]
+        pieces = call(runs, bps=[bp(0, "-", end=159500)])
+        self.assertEqual(pieces[1:4], [
+            (100000, 150000, "putative_GRS", "quantized_delfies_anchored"),
+            (150000, 152000, "putative_GRS", "quantized_bridged"),
+            (152000, 160000, "putative_GRS", "quantized_delfies_anchored"),
         ])
 
     def test_fully_repeat_low_run_is_uncertain_without_breakpoint_and_grs_with(self):
