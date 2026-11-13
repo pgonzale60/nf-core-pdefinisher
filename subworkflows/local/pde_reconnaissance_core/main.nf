@@ -137,6 +137,7 @@ workflow PDE_RECONNAISSANCE_CORE {
 
     emit:
     red_bed                    = RED.out.bed
+    gaps_bed                   = GFASTATSGAPS.out.gaps_bed
     delfies_bed                = DELFIES.out.bed
     delfies_foci_s2g           = DELFIES.out.foci_s2g
     mosdepth_summary           = MOSDEPTH.out.summary_txt

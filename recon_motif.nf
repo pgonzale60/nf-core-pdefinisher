@@ -34,6 +34,7 @@ workflow {
     grs_summary_tsv            = RECON_MOTIF_PIPELINE.out.grs_summary_tsv
     pde_segments_bed           = RECON_MOTIF_PIPELINE.out.pde_segments_bed
     red_bed                    = RECON_MOTIF_PIPELINE.out.red_bed
+    gaps_bed                   = RECON_MOTIF_PIPELINE.out.gaps_bed
     delfies_bed                = RECON_MOTIF_PIPELINE.out.delfies_bed
     delfies_foci_s2g           = RECON_MOTIF_PIPELINE.out.delfies_foci_s2g
     mosdepth_summary           = RECON_MOTIF_PIPELINE.out.mosdepth_summary
@@ -60,6 +61,10 @@ output {
         mode params.publish_dir_mode
     }
     pde_segments_bed {
+        path { meta, _file -> PdePublish.pathFor(params, meta, "pde_reconnaissance") }
+        mode params.publish_dir_mode
+    }
+    gaps_bed {
         path { meta, _file -> PdePublish.pathFor(params, meta, "pde_reconnaissance") }
         mode params.publish_dir_mode
     }
