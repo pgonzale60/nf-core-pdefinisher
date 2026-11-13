@@ -48,6 +48,7 @@ workflow RECON_MOTIF_PIPELINE {
     grs_quantized_bed          = PDE_RECONNAISSANCE_CORE.out.grs_quantized_bed
     class_regions_bed          = PDE_RECONNAISSANCE_CORE.out.class_regions_bed
     class_regions_csi          = PDE_RECONNAISSANCE_CORE.out.class_regions_csi
+    break_windows_fasta        = PDE_MOTIF_DISCOVERY.out.break_windows_fasta
     best_core_motif            = PDE_MOTIF_DISCOVERY.out.best_core_motif
     core_motif_metrics_json    = PDE_MOTIF_DISCOVERY.out.core_motif_metrics_json
     grid_summary_tsv           = PDE_MOTIF_DISCOVERY.out.grid_summary_tsv
