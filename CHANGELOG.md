@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Per-species publishing now writes to `<species>/analysis/<assembly_name>/pdefinisher/<dir>`; new optional samplesheet column `assembly_name`, required when `per_species_outdir` is set (#35).
 - `recon_motif.nf` is the standalone recon + motif entry (assembly + BAM in; mosdepth outputs, CBM motifs and DELFIES S2G out); the reconnaissance core now runs `MOSDEPTHCLASS` and no longer runs `SOFTCLIPENDS`, and mosdepth outputs are published (#70).
 
+### `Fixed`
+
+- Workflow outputs now honour `--outdir` instead of landing in `./results` (#72).
+
 ## v1.0.0 - [unreleased<!-- TODO nf-core: replace with date on release -->]
 
 Initial release of nf-core/pdefinisher, created with the [nf-core](https://nf-co.re/) template.
