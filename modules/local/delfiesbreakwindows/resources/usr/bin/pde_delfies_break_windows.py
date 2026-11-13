@@ -6,8 +6,8 @@ Inputs
                     num_supporting_reads__forward, num_supporting_reads__reverse).
                     Duplicate (contig, start) rows are summed.
   --pde-segments-bed  pde_segments.bed (contig, start, end, label). Core/GRS
-                    borders are contiguous segment pairs where one label is GRS
-                    (or eliminated) and the other is core; the border sits at the
+                    borders are contiguous putative_core / putative_GRS pairs only
+                    (putative_uncertain never forms a border); the border sits at the
                     shared coordinate, as in pde_extract_borders.py.
 
 Rules
@@ -84,11 +84,11 @@ def load_segments(segments_bed):
 
 
 def _is_grs(label):
-    return "GRS" in label or "eliminated" in label.lower()
+    return label == "putative_GRS"
 
 
 def _is_core(label):
-    return "core" in label.lower()
+    return label == "putative_core"
 
 
 def find_borders(segs):

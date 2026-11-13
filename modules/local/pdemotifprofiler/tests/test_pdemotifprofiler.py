@@ -4,6 +4,7 @@
 import os
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 import sys
 
@@ -39,6 +40,28 @@ class TestPdeMotifProfiler(unittest.TestCase):
             self.assertIn("chr1", segs)
             self.assertEqual(len(segs["chr1"]), 2)
             self.assertEqual(segs["chr1"][1]["label"], "putative_core")
+
+    def test_hit_in_uncertain_segment_is_not_core(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            seg_bed = os.path.join(tmpdir, "segments.bed")
+            with open(seg_bed, "w") as f:
+                f.write("chr1\t0\t1000\tputative_core\n")
+                f.write("chr1\t1000\t2000\tputative_uncertain\n")
+            bp_bed = os.path.join(tmpdir, "breakpoints.bed")
+            open(bp_bed, "w").close()
+            fimo = os.path.join(tmpdir, "fimo.tsv")
+            with open(fimo, "w") as f:
+                f.write("motif_id\tmotif_alt_id\tsequence_name\tstart\tstop\tstrand\tscore\tp-value\tq-value\tmatched_sequence\n")
+                f.write("M1\t\tchr1\t1200\t1210\t+\t10.0\t1e-5\t\tACGT\n")
+            outdir = os.path.join(tmpdir, "out")
+            argv = ["prog", "--fimo-tsv", fimo, "--breakpoints-bed", bp_bed,
+                    "--pde-segments-bed", seg_bed, "--prefix", "t", "--outdir", outdir]
+            with mock.patch.object(sys, "argv", argv):
+                pde_motif_profiler.main()
+            with open(os.path.join(outdir, "t.motif_distribution_summary.tsv")) as f:
+                metrics = dict(line.rstrip("\n").split("\t") for line in f.readlines()[1:])
+            self.assertEqual(metrics["significant_hits_in_core"], "0")
+            self.assertEqual(metrics["significant_hits_in_uncertain"], "1")
 
 
 if __name__ == "__main__":

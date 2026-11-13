@@ -40,6 +40,14 @@ class TestBorders(unittest.TestCase):
         self.assertTrue(mod.near_border(borders, "c", 1100))
         self.assertFalse(mod.near_border(borders, "c", 1101))
 
+    def test_core_uncertain_edge_is_not_border(self):
+        segs = {"c": [(0, 1000, "putative_core"), (1000, 2000, "putative_uncertain")]}
+        self.assertEqual(mod.find_borders(segs)["c"], [])
+
+    def test_uncertain_grs_edge_is_not_border(self):
+        segs = {"c": [(0, 1000, "putative_uncertain"), (1000, 2000, "putative_GRS")]}
+        self.assertEqual(mod.find_borders(segs)["c"], [])
+
 
 class TestCallSites(unittest.TestCase):
     def test_floor_is_half_median_of_top_three(self):

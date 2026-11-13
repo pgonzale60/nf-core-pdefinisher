@@ -629,7 +629,7 @@
 | :--- | :--- | :--- | :--- | :--- |
 | `parse_breakpoints` | `function` | `L24-L48` | `def parse_breakpoints(bed_path, flank_tolerance=500)` | Load breakpoints and build tolerance intervals. |
 | `parse_segments` | `function` | `L51-L67` | `def parse_segments(bed_path)` | Load PDE core vs GRS segmentation. |
-| `main` | `function` | `L70-L278` | `def main()` | — |
+| `main` | `function` | `L70-L284` | `def main()` | — |
 
 ### `modules/local/rdnacassetteresolver/resources/usr/bin/pde_rdna_cassette_resolver.py`
 
