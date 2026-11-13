@@ -145,10 +145,26 @@ class TestIdentifyPutativeGRS(unittest.TestCase):
         drops_all = [(0, 50_000)]
         # mostly repeat: < 1 kb unique sequence -> uncertain, whatever the coverage
         self.assertEqual(classify_unplaced("u1", 50_000, drops_all, {"u1": [(0, 49_500)]}, RULES)[0],
-                         "putative_GRS")
+                         "putative_uncertain")
         # enough unique sequence: deterministic on drop fraction
-        self.assertEqual(classify_unplaced("u1", 50_000, drops_all, {}, RULES)[0], "putative_GRS")
+        self.assertEqual(classify_unplaced("u1", 50_000, drops_all, {}, RULES)[0], "putative_uncertain")
         self.assertEqual(classify_unplaced("u1", 50_000, [(0, 10_000)], {}, RULES)[0], "putative_core")
+
+    def test_write_breakpoints_tsv_rows(self):
+        import tempfile
+        from pde_identify_grs import write_breakpoints_tsv
+        clustered = {
+            "chr2": [(500, "-", 6.0, {"end": 498})],
+            "chr1": [(100, "+", 8.0, {"end": 104}), (50, "-", 5.0, {"end": 50})],
+            "chr3": [],
+        }
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "bp.tsv")
+            write_breakpoints_tsv(path, clustered)
+            with open(path) as f:
+                lines = f.read().splitlines()
+        self.assertEqual(lines[0], "chrom\tpos\tend\tstrand\tsupport")
+        self.assertEqual(lines[1:], ["chr1\t50\t50\t-\t5.0", "chr1\t100\t104\t+\t8.0", "chr2\t500\t500\t-\t6.0"])
 
     def test_fit_em_2comp_unimodal_rejection(self):
         # Unimodal normal-like distribution around 65x (e.g. 50x to 80x)
@@ -223,7 +239,7 @@ class TestIdentifyPutativeGRS(unittest.TestCase):
             self.assertTrue(any(r[0] == "chrB" and r[3] == "putative_GRS" for r in rows))
             # u1 (2 Mb) was recognized as unplaced despite being >= 1 Mb, folded into putative_GRS
             u1_rows = [r for r in rows if r[0] == "u1"]
-            self.assertEqual(u1_rows[0][3], "putative_GRS")
+            self.assertEqual(u1_rows[0][3], "putative_uncertain")
 
 if __name__ == "__main__":
     unittest.main()

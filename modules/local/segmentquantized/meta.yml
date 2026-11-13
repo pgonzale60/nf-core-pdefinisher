@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/sanger-tol/nf-core-modules/main/modules/meta-schema.json
-name: "carvecoreislands"
-description: Carve high-confidence core islands out of long putative_GRS intervals using base-resolution quantized coverage and assembly gaps. Rows are rewritten; no other rows are added or removed.
+name: "segmentquantized"
+description: Final three-class segmentation (putative_core, putative_GRS, putative_uncertain) of canonical chromosomes from base-resolution quantized depth, anchored by clustered DELFIES breakpoints; non-canonical scaffolds keep the IDENTIFYPUTATIVEGRS call.
 keywords:
   - pde
   - grs
@@ -9,7 +9,7 @@ keywords:
   - mosdepth
 tools:
   - python:
-      description: Python interpreter running pde_carve_core_islands.py
+      description: Python interpreter running pde_segment_quantized.py
       homepage: https://www.python.org/
       licence:
         - "PSF-2.0"
@@ -46,10 +46,17 @@ input:
   - - meta5:
         type: map
         description: Groovy Map containing sample information
-    - core_coverage_tsv:
+    - regions_bed:
         type: file
-        description: Core coverage table from IDENTIFYPUTATIVEGRS (baseline depth)
-        pattern: "*.tsv"
+        description: Mosdepth windows used by IDENTIFYPUTATIVEGRS (median depth)
+        pattern: "*.bed.gz"
+  - - meta6:
+        type: map
+        description: Groovy Map containing sample information
+    - breakpoints_tsv:
+        type: file
+        description: Clustered DELFIES breakpoints from IDENTIFYPUTATIVEGRS
+        pattern: "*.delfies_breakpoints.tsv"
 output:
   - bed:
       - meta:
@@ -57,7 +64,7 @@ output:
           description: Groovy Map containing sample information
       - "*.pde_segments.bed":
           type: file
-          description: Segments after core-island carving, 4 columns
+          description: Final three-class segments, 4 columns
           pattern: "*.pde_segments.bed"
   - summary:
       - meta:
@@ -65,7 +72,7 @@ output:
           description: Groovy Map containing sample information
       - "*.grs_summary.tsv":
           type: file
-          description: Summary table after carving, with a CORE_ISLANDS comment line
+          description: Summary table with ELIMINATION_RANGE including canon_uncertain_bp
           pattern: "*.grs_summary.tsv"
   - versions_python:
       - - ${task.process}:

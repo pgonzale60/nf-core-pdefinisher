@@ -139,7 +139,7 @@
   - `MOSDEPTHQUANTIZE` from `../../../modules/local/mosdepthquantize/main`
   - `MOSDEPTHCLASS` from `../../../modules/local/mosdepthclass/main`
   - `GFASTATSGAPS` from `../../../modules/local/gfastatsgaps/main`
-  - `CARVECOREISLANDS` from `../../../modules/local/carvecoreislands/main`
+  - `SEGMENTQUANTIZED` from `../../../modules/local/segmentquantized/main`
   - `EXTRACTGAPEVIDENCE` from `../../../modules/local/extractgapevidence/main`
   - `TELOCLIP_EXTRACT` from `../../../modules/local/teloclip/extract/main`
 - **Workflow `PDE_RECONNAISSANCE`:**
@@ -155,7 +155,7 @@
   - `MOSDEPTHQUANTIZE` from `../../../modules/local/mosdepthquantize/main`
   - `MOSDEPTHCLASS` from `../../../modules/local/mosdepthclass/main`
   - `GFASTATSGAPS` from `../../../modules/local/gfastatsgaps/main`
-  - `CARVECOREISLANDS` from `../../../modules/local/carvecoreislands/main`
+  - `SEGMENTQUANTIZED` from `../../../modules/local/segmentquantized/main`
 - **Workflow `PDE_RECONNAISSANCE_CORE`:**
   - `take:` *(none)*
   - `emit:` *(none)*
@@ -181,7 +181,6 @@
 | `BARRNAP` | `modules/local/barrnap/main.nf` | `tuple val(meta), path(fasta), val(dbname)` | `tuple val(meta), path("*.gff"), emit: gff`<br>`tuple val("${task.process}"), val('barrnap'), val('0.9'), emit: versions_barrnap, topic: versions` |
 | `BGZIPFASTA` | `modules/local/bgzipfasta/main.nf` | `tuple val(meta), path(fasta)` | `tuple val(meta), path("*.fa.gz"), emit: fasta`<br>`tuple val(meta), path("*.fa.gz.gzi"), emit: gzi`<br>`tuple val(meta), path("*.fa.gz.fai"), emit: fai`<br>`tuple val("${task.process}"), val('bgzip'), eval("bgzip --version \| sed '1!d;s/.* //'"), topic: versions, emit: versions_bgzip`<br>`tuple val("${task.process}"), val('samtools'), eval("samtools version \| sed '1!d;s/.* //'"), topic: versions, emit: versions_samtools` |
 | `BIPARTITEPROFILER` | `modules/local/bipartiteprofiler/main.nf` | `tuple val(meta), path(break_windows_fasta), path(best_core_motif), path(census_json), path(core_metrics_json), path(best_background)` | `tuple val(meta), path("*.best_auxiliary_motif.meme") , emit: best_auxiliary_motif`<br>`tuple val(meta), path("*.bipartite_spacing_summary.tsv") , emit: bipartite_spacing_tsv`<br>`tuple val(meta), path("*.cbm_discovery_report.md") , emit: discovery_report_md`<br>`tuple val(meta), path("*.core_masked.fasta") , emit: masked_fasta`<br>`tuple val("${task.process}"), val('python'), eval("python3 --version \| sed 's/Python //'"), topic: versions, emit: versions_python`<br>`tuple val("${task.process}"), val('meme') , eval("meme -version"), topic: versions, emit: versions_meme` |
-| `CARVECOREISLANDS` | `modules/local/carvecoreislands/main.nf` | `tuple val(meta), path(summary_tsv)`<br>`tuple val(meta2), path(quantized_bed)`<br>`tuple val(meta3), path(gaps_bed)`<br>`tuple val(meta4), path(red_bed)`<br>`tuple val(meta5), path(core_coverage_tsv)` | `tuple val(meta), path("*.pde_segments.bed"), emit: bed`<br>`tuple val(meta), path("*.grs_summary.tsv"), emit: summary`<br>`tuple val("${task.process}"), val('python'), eval("python3 --version \| sed 's/Python //'"), topic: versions, emit: versions_python` |
 | `CURATIONAGPGENERATOR` | `modules/local/curationagpgenerator/main.nf` | `tuple( val(meta), path(blueprint_json), path(ref_fasta), path(gap_patches), path(gap_manifest), path(walker_patches), path(walker_manifest), path(rdna_cassettes), path(rdna_manifest), path(trans_manifest), path(pde_segments), path(red_bed) )` | `tuple val(meta), path("*.curated.agp"), emit: agp`<br>`tuple val(meta), path("*.components.fasta"), emit: components_fasta`<br>`tuple val(meta), path("*.curated.fasta"), emit: curated_fasta`<br>`tuple val(meta), path("*.haplotigs.fasta"), path("*.purged_rdna.fasta"), optional: true, emit: segregated_fastas`<br>`tuple val(meta), path("*.curation_audit.tsv"), emit: audit`<br>`tuple val(meta), path("*.curated.pde_segments.bed"), optional: true, emit: curated_pde_segments`<br>`tuple val(meta), path("*.curated.repeats.bed"), optional: true, emit: curated_repeats`<br>`tuple val("${task.process}"), val('python'), val('3.10.4'), emit: versions_agp, topic: versions` |
 | `CURATIONEVALUATOR` | `modules/local/curationevaluator/main.nf` | `tuple val(meta), path(pre_ref), path(post_ref), path(blueprint_json), path(curated_agp), path(curation_audit), path(gap_manifest), path(walker_manifest), path(rdna_manifest), path(terminal_summary), path(trans_manifest), path(red_bed), path(gap_evidence_json)`<br>`val chromosomes` | `tuple val(meta), path("*.curation_scorecard.json"), emit: scorecard_json`<br>`tuple val(meta), path("*.curation_report.md"), emit: report_md`<br>`tuple val("${task.process}"), val('python'), val('3.10.4'), emit: versions_evaluator, topic: versions` |
 | `CURATIONSUMMARY` | `modules/local/curationsummary/main.nf` | `tuple val(meta), path(scorecards), path(validations)` | `tuple val(meta), path("*.curation_summary.md"), emit: summary_md`<br>`tuple val(meta), path("*.curation_summary.tsv"), emit: summary_tsv`<br>`tuple val(meta), path("*.curation_summary.json"), emit: summary_json`<br>`tuple val("${task.process}"), val('python'), val('3.10.4'), emit: versions_summary, topic: versions` |
@@ -196,7 +195,7 @@
 | `FIMO` | `modules/local/fimo/main.nf` | `tuple val(meta), path(motif_meme), path(assembly)`<br>`val pvalue_thresh` | `tuple val(meta), path("*.fimo_genome_hits.tsv"), emit: tsv`<br>`tuple val(meta), path("*_fimo_out") , emit: outdir`<br>`tuple val("${task.process}"), val('fimo'), eval("fimo -version 2>&1 \| head -n 1 \| sed 's/.*version //'"), topic: versions, emit: versions_fimo` |
 | `GFASTATSGAPS` | `modules/local/gfastatsgaps/main.nf` | `tuple val(meta), path(assembly)` | `tuple val(meta), path("*.gaps.bed"), emit: gaps_bed`<br>`tuple val("${task.process}"), val('gfastats'), eval("gfastats --version 2>&1 \| sed '1!d;s/.* //'"), topic: versions, emit: versions_gfastats` |
 | `HIFIASM` | `modules/local/hifiasm/main.nf` | `tuple val(meta) , path(long_reads, arity: '1..*'), path(ul_reads, arity: '0..*')`<br>`tuple val(meta2), path(hic_cram, arity: '0..*')`<br>`tuple val(meta3), path(paternal_kmer_dump), path(maternal_kmer_dump)`<br>`tuple val(meta4), path(bin_files)`<br>`tuple val(meta5), path(previous_log, stageAs: "log/*")` | `tuple val(meta), path("*.bin") , emit: bin_files , optional: true`<br>`tuple val(meta), path("*.gfa.gz") , emit: assembly_graphs , optional: true`<br>`tuple val(meta), path("*.fa") , emit: assembly_fasta , optional: true`<br>`tuple val(meta), path("*.ec.fa.gz") , emit: corrected_reads , optional: true`<br>`tuple val(meta), path("*.ovlp.paf.gz"), emit: read_overlaps , optional: true`<br>`tuple val(meta), path("*.bed.gz") , emit: bed , optional: true`<br>`tuple val(meta), path("*.log") , emit: log`<br>`tuple val("${task.process}"), val('hifiasm'), eval("hifiasm --version"), emit: versions_hifiasm, topic: versions`<br>`tuple val("${task.process}"), val('samtools'), eval('samtools --version \| head -1 \| sed -e "s/samtools //"'), emit: versions_samtools, topic: versions` |
-| `IDENTIFYPUTATIVEGRS` | `modules/local/identifyputativegrs/main.nf` | `tuple val(meta), path(assembly)`<br>`tuple val(meta2), path(breakpoint_foci)`<br>`tuple val(meta3), path(regions_bed)`<br>`tuple val(meta4), path(red_bed)`<br>`val chromosomes` | `tuple val(meta), path("*.pde_segments.bed") , emit: bed`<br>`tuple val(meta), path("*.grs_summary.tsv") , emit: summary`<br>`tuple val(meta), path("*.core_coverage.tsv") , emit: core_coverage_tsv`<br>`tuple val(meta), path("*.core_coverage.txt") , emit: core_coverage`<br>`tuple val("${task.process}"), val('python'), val('3.10'), emit: versions_identifyputativegrs, topic: versions` |
+| `IDENTIFYPUTATIVEGRS` | `modules/local/identifyputativegrs/main.nf` | `tuple val(meta), path(assembly)`<br>`tuple val(meta2), path(breakpoint_foci)`<br>`tuple val(meta3), path(regions_bed)`<br>`tuple val(meta4), path(red_bed)`<br>`val chromosomes` | `tuple val(meta), path("*.pde_segments.bed") , emit: bed`<br>`tuple val(meta), path("*.grs_summary.tsv") , emit: summary`<br>`tuple val(meta), path("*.core_coverage.tsv") , emit: core_coverage_tsv`<br>`tuple val(meta), path("*.core_coverage.txt") , emit: core_coverage`<br>`tuple val(meta), path("*.delfies_breakpoints.tsv") , emit: breakpoints_tsv`<br>`tuple val("${task.process}"), val('python'), val('3.10'), emit: versions_identifyputativegrs, topic: versions` |
 | `MEMECOREGRID` | `modules/local/memecoregrid/main.nf` | `tuple val(meta), path(break_windows_fasta)` | `tuple val(meta), path("*.best_core_motif.meme") , emit: best_core_motif`<br>`tuple val(meta), path("*.core_grid_summary.tsv") , emit: grid_summary_tsv`<br>`tuple val(meta), path("*.core_motif_metrics.json"), emit: motif_metrics_json`<br>`tuple val(meta), path("*.best_background.bfile") , emit: best_background`<br>`tuple val("${task.process}"), val('python'), eval("python3 --version \| sed 's/Python //'"), topic: versions, emit: versions_python`<br>`tuple val("${task.process}"), val('meme') , eval("meme -version"), topic: versions, emit: versions_meme` |
 | `MINIMAP2_ALIGN` | `modules/local/minimap2/align/main.nf` | `tuple val(meta), path(reads)`<br>`tuple val(meta2), path(reference)`<br>`val bam_format`<br>`val bam_index_extension`<br>`val cigar_paf_format`<br>`val cigar_bam`<br>`val bed_bool` | `tuple val(meta), path("*.paf") , optional: true, emit: paf`<br>`tuple val(meta), path("*.bam") , optional: true, emit: bam`<br>`tuple val(meta), path("*.bed") , optional: true, emit: bed`<br>`tuple val(meta), path("*.bam.${bam_index_extension}"), optional: true, emit: index`<br>`tuple val("${task.process}"), val("minimap2"), eval("minimap2 --version"), topic: versions, emit: versions_minimap2` |
 | `MODDOTPLOT` | `modules/local/moddotplot/main.nf` | `tuple val(meta), path(fasta)` | `tuple val(meta), path("*_moddotplot"), emit: plots`<br>`tuple val("${task.process}"), val('moddotplot'), eval("moddotplot --version 2>&1 \| head -n 1 \| sed 's/moddotplot //'"), topic: versions, emit: versions_moddotplot` |
@@ -212,6 +211,7 @@
 | `RAGTAG_AGPCHECK` | `modules/local/ragtag/agpcheck/main.nf` | `tuple val(meta), path(agp)` | `tuple val(meta), path(agp), emit: agp`<br>`tuple val("${task.process}"), val('ragtag'), eval("ragtag.py --version \| sed 's/RagTag //'"), topic: versions, emit: versions_ragtag` |
 | `RDNACASSETTERESOLVER` | `modules/local/rdnacassetteresolver/main.nf` | `tuple val(meta), path(blueprint_json), path(ref_fasta), path(flye_fasta, stageAs: "rdna_asm/*"), path(flye_info), path(flye_paf), path(telomeric_unitigs, stageAs: "telo_utg/*"), path(rdna_gfa)` | `tuple val(meta), path("*_rdna_cassettes"), path("*_rdna_manifest.tsv"), emit: manifest`<br>`tuple val("${task.process}"), val('python'), val('3.10.4'), emit: versions_resolver, topic: versions` |
 | `RED` | `modules/local/red/main.nf` | `tuple val(meta), path(fasta)` | `tuple val(meta), path("*.bed"), emit: bed`<br>`tuple val("${task.process}"), val('red'), val('2018.09.10'), emit: versions_red, topic: versions` |
+| `SEGMENTQUANTIZED` | `modules/local/segmentquantized/main.nf` | `tuple val(meta), path(summary_tsv)`<br>`tuple val(meta2), path(quantized_bed)`<br>`tuple val(meta3), path(gaps_bed)`<br>`tuple val(meta4), path(red_bed)`<br>`tuple val(meta5), path(regions_bed)`<br>`tuple val(meta6), path(breakpoints_tsv)`<br>`val chromosomes` | `tuple val(meta), path("*.pde_segments.bed"), emit: bed`<br>`tuple val(meta), path("*.grs_summary.tsv"), emit: summary`<br>`tuple val("${task.process}"), val('python'), val('3.10'), emit: versions_segmentquantized, topic: versions` |
 | `SNIFFLES` | `modules/local/sniffles/main.nf` | `tuple val(meta), path(input), path(index)`<br>`tuple val(meta2), path(fasta)`<br>`tuple val(meta3), path(tandem_file)`<br>`val(vcf_output)`<br>`val(snf_output)` | `tuple val(meta), path("*.vcf.gz") , emit: vcf, optional: true`<br>`tuple val(meta), path("*.vcf.gz.tbi"), emit: tbi, optional: true`<br>`tuple val(meta), path("*.snf") , emit: snf, optional: true`<br>`tuple val("${task.process}"), val('sniffles'), val('2.8.0'), emit: versions_sniffles, topic: versions` |
 | `SOFTCLIPENDS` | `modules/local/softclipends/main.nf` | `tuple val(meta), path(assembly), path(bam), path(bai)`<br>`val telomere_repeat` | `tuple val(meta), path("*.terminal_softclips.tsv") , emit: softclips`<br>`tuple val(meta), path("*.terminal_ends_summary.tsv") , emit: summary`<br>`tuple val("${task.process}"), val('python'), eval("python3 --version \| sed 's/Python //'"), topic: versions, emit: versions_python`<br>`tuple val("${task.process}"), val('pysam'), val('0.23.3'), topic: versions, emit: versions_pysam` |
 | `TARGETEDGAPASSEMBLY` | `modules/local/targetedgapassembly/main.nf` | `tuple val(meta), path(blueprint_json), path(bam), path(bai), path(ref_fasta), path(ref_gzi), path(policy_json)` | `tuple val(meta), path("*_gap_patches"), path("*_patches_manifest.tsv"), emit: manifest`<br>`tuple val("${task.process}"), val('hifiasm'), val('0.24.0'), emit: versions_assembly, topic: versions`<br>`tuple val("${task.process}"), val('abpoa'), val('1.5.7'), emit: versions_consensus, topic: versions`<br>`tuple val("${task.process}"), val('mindthegap'), val('2.3.0'), emit: versions_mindthegap, topic: versions` |
@@ -241,7 +241,8 @@
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `terminal_softclips.tsv` | `SOFTCLIPENDS` | `CURATIONSYNTHESIS` | `read_id`, `chrom`, `side`, `align_start`, `align_end`, `clip_len`, `overhang_bp`, `telo_count`, `mapq`, `collinear_spanning_reads` | — | — |
 | `terminal_softclips_summary.tsv` | `SOFTCLIPENDS` | `CURATIONSYNTHESIS`, `CURATIONEVALUATOR` | `chrom_end`, `chrom_length`, `n_softclipped_reads`, `n_telomeric_reads`, `max_telo_count`, `proposed_status`, `terminal_tract_bp` | `EXTEND_AND_CAP`, `ALREADY_CAPPED`, `TELOMERE_IN_OVERHANG`, `UNCAPPED_EXTENDABLE`, `NO_CLIPS` | — |
-| `grs_summary.tsv` | `CARVECOREISLANDS` | `CURATIONSYNTHESIS`, `PDEMOTIFPROFILER` | `chromosome`, `start`, `end`, `length`, `classification`, `median_depth` | `putative_core`, `putative_GRS`, `putative_GRS_uncertain` | — |
+| `grs_summary.tsv` | `SEGMENTQUANTIZED` | `CURATIONSYNTHESIS`, `PDEMOTIFPROFILER` | `chromosome`, `start`, `end`, `length`, `classification`, `median_depth` | `putative_core`, `putative_GRS`, `putative_uncertain` | — |
+| `delfies_breakpoints.tsv` | `IDENTIFYPUTATIVEGRS` | `SEGMENTQUANTIZED` | `chrom`, `pos`, `end`, `strand`, `support` | — | — |
 | `telomeric_junctions.tsv` | `TELOMERICJUNCTIONPROFILER` | `CURATIONSYNTHESIS` | `cluster_id`, `classification`, `subtype`, `read_count`, `mean_telomere_bp`, `dominant_motif`, `target_chrom`, `target_arm`, `target_pos`, `is_somatic`, `consensus_flank_60bp` | `GERMLINE_JUNCTION`, `SOMATIC_DIMINUTION_JUNCTION`, `UNANCHORED_JUNCTION` | — |
 | `telomere_extension_manifest.tsv` | `TELOMEREWALKER` | `CURATIONAGPGENERATOR`, `CURATIONEVALUATOR` | `chrom`, `terminus`, `status`, `initial_evidence`, `added_bp`, `canonical_telo_bp`, `non_telo_added_bp`, `extension_fasta`, `notes` | `RESOLVED_BY_UNITIG`, `EXTENDED_BY_UNPLACED_CONTIG`, `RESOLVED_BY_SATELLITE_SCAFFOLD`, `EXTEND_TELOMERE_TRACT`, `RESOLVED_BY_READ`, `EXTEND_TO_TELOMERE` | `EXTENDED_SUBTELOMERE_ONLY`, `ALREADY_CAPPED`, `ALREADY_CAPPED_retained`, `RETAIN_AS_IS`, `TERMINUS_RDNA_ARRAY`, `DEFERRED_TO_RDNA_RESOLVER`, `POLYVALENT_REPEAT_BRANCH`, `STATIONARY_REPEAT_ARRAY`, `LOW_ANCHOR_MAPQ`, `HORIZON_LIMIT_REACHED`, `ZERO_EXTENDING_READS`, `UNRESOLVED_WALK`, `UNRESOLVED_SOMA_BOUNDARY`, `UNRESOLVED_UNCAPPED` |
 | `targeted_gap_manifest.tsv` | `TARGETEDGAPASSEMBLY` | `CURATIONAGPGENERATOR`, `CURATIONEVALUATOR` | `gap_id`, `chrom`, `gap_start`, `gap_end`, `gap_len`, `outcome`, `left_anchor_len`, `right_anchor_len`, `patch_len`, `excised_gap_len`, `unitig_id`, `patch_fasta`, `notes` | `PATCH_GAP_INSERTION`, `EXCISE_OVERLAP_ARTIFACT`, `EXCISE_DUMMY_GAP` | `UNRESOLVED_GAP`, `REPEAT_BOUNDARY_VETO` |
@@ -310,27 +311,6 @@
 | Symbol | Kind | Lines | Signature | Summary |
 | :--- | :--- | :--- | :--- | :--- |
 | `load_ssot_params` | `function` | `L42-L52` | `def load_ssot_params() -> dict` | Load canonical parameters from conf/cbm_params.json if accessible, else synced SSOT. |
-
-### `modules/local/carvecoreislands/resources/usr/bin/pde_carve_core_islands.py`
-
-| Symbol | Kind | Lines | Signature | Summary |
-| :--- | :--- | :--- | :--- | :--- |
-| `find_curation_policy` | `function` | `L25-L39` | `def find_curation_policy(policy_path=None)` | Locate assets/curation_policy.json, the Single Source of Truth. |
-| `load_curation_policy` | `function` | `L42-L51` | `def load_curation_policy(policy_path=None)` | Load curation policy parameters strictly from assets/curation_policy.json. |
-| `read_lines` | `function` | `L54-L59` | `def read_lines(path)` | Return lines of an optional input; a missing or empty file is no evidence. |
-| `read_red` | `function` | `L62-L83` | `def read_red(path)` | RED repeat intervals per chromosome, merged: {chrom: (starts, intervals)}. |
-| `covered_bp` | `function` | `L86-L99` | `def covered_bp(s, e, red)` | Bases of [s, e) covered by merged, sorted RED intervals (starts, intervals). |
-| `read_quantized` | `function` | `L102-L120` | `def read_quantized(path)` | Quantized depth runs per chromosome: {chrom: (starts, [(s, e, is_low)])}. |
-| `read_gaps` | `function` | `L123-L132` | `def read_gaps(path)` | Assembly gap intervals per chromosome, sorted: {chrom: [(s, e)]}. |
-| `read_baseline` | `function` | `L135-L140` | `def read_baseline(path)` | Somatic core baseline depth: column 2 of row 2 in core_coverage.tsv. |
-| `subtract_gaps` | `function` | `L143-L159` | `def subtract_gaps(lo, hi, gaps)` | Split [lo, hi) around sorted gap intervals; returns the non-gap sub-intervals. |
-| `build_observations` | `function` | `L162-L183` | `def build_observations(s, e, quant, gaps, red, repeat_fraction)` | Ordered, non-overlapping observations over [s, e). |
-| `viterbi` | `function` | `L186-L228` | `def viterbi(obs, switch_penalty)` | Two-state path over observations; returns a state per observation. |
-| `find_islands` | `function` | `L231-L247` | `def find_islands(obs, path, gaps_clip)` | Maximal HIGH stretches [a, b) whose span touches an assembly gap. |
-| `carve_row` | `function` | `L250-L284` | `def carve_row(row, quant, gaps, red, baseline, policy)` | Return (pieces, n_islands, carved_bp) for one summary row. |
-| `read_summary` | `function` | `L287-L298` | `def read_summary(path)` | Return (metadata lines, data rows) of a grs_summary.tsv. |
-| `parse_args` | `function` | `L301-L314` | `def parse_args(argv)` | — |
-| `main` | `function` | `L317-L344` | `def main(argv=None)` | — |
 
 ### `modules/local/curationagpgenerator/resources/usr/bin/pde_generate_agp.py`
 
@@ -590,8 +570,9 @@
 | `drop_overlap_bp` | `function` | `L402-L410` | `def drop_overlap_bp(drops, start, end)` | — |
 | `delfies_bounded_grs` | `function` | `L413-L500` | `def delfies_bounded_grs(length, clustered_bps, raw_drops, merged_drops, rules)` | GRS intervals on a chromosomal scaffold. Every interval is anchored by >= 1 DELFIES breakpoint. |
 | `build_chromosomal_segments` | `function` | `L503-L518` | `def build_chromosomal_segments(chrom, length, grs_intervals, cov_windows)` | Tile a chromosomal scaffold: DELFIES-anchored GRS intervals, everything else putative_core. |
-| `classify_unplaced` | `function` | `L521-L530` | `def classify_unplaced(chrom, length, raw_drops, repeats, rules)` | Non-chromosomal scaffold: repeat-aware call; fully repetitive scaffolds fold into putative_GRS. |
-| `main` | `function` | `L533-L734` | `def main()` | — |
+| `write_breakpoints_tsv` | `function` | `L521-L529` | `def write_breakpoints_tsv(path, clustered_by_chr)` | Clustered DELFIES breakpoints, one row each, for the quantized-depth segmenter. |
+| `classify_unplaced` | `function` | `L532-L541` | `def classify_unplaced(chrom, length, raw_drops, repeats, rules)` | Non-chromosomal scaffold: repeat-aware call; uncertain when fully repetitive or coverage-dropped. |
+| `main` | `function` | `L544-L746` | `def main()` | — |
 
 ### `modules/local/memecoregrid/resources/usr/bin/cbm_meme_core_grid.py`
 
@@ -669,6 +650,33 @@
 | `find_distal_telomeric_unitig` | `function` | `L366-L484` | `def find_distal_telomeric_unitig(telo_unitigs, query_seq, min_telo_repeats=15, min_k=25, motifs=('TTAGGC', 'GCCTAA'), used_unitigs=None, orphan_fallback=False)` | Identifies candidate distal telomeric cap unitigs that contain: |
 | `phase_monomer_to_distal_unitig` | `function` | `L487-L511` | `def phase_monomer_to_distal_unitig(monomer_seq, distal_unitig_seq, k=25)` | Finds where the 5' prefix of the distal unitig aligns within the circular monomer. |
 | `main` | `function` | `L514-L855` | `def main()` | — |
+
+### `modules/local/segmentquantized/resources/usr/bin/pde_segment_quantized.py`
+
+| Symbol | Kind | Lines | Signature | Summary |
+| :--- | :--- | :--- | :--- | :--- |
+| `find_curation_policy` | `function` | `L24-L38` | `def find_curation_policy(policy_path=None)` | Locate assets/curation_policy.json, the Single Source of Truth. |
+| `load_curation_policy` | `function` | `L41-L50` | `def load_curation_policy(policy_path=None)` | Load curation policy parameters strictly from assets/curation_policy.json. |
+| `read_lines` | `function` | `L53-L59` | `def read_lines(path)` | Return lines of an optional input; a missing or empty file is no evidence. |
+| `merge_intervals` | `function` | `L62-L71` | `def merge_intervals(ivs)` | Sort and merge (start, end) intervals. |
+| `read_red` | `function` | `L74-L84` | `def read_red(path)` | RED repeat intervals per chromosome, merged: {chrom: [(s, e)]}. |
+| `covered_bp` | `function` | `L87-L96` | `def covered_bp(s, e, red_ivs)` | Bases of [s, e) covered by merged, sorted RED intervals. |
+| `read_quantized` | `function` | `L99-L113` | `def read_quantized(path)` | Quantized depth runs per chromosome: {chrom: [(s, e, is_low)]}, sorted. |
+| `read_gaps` | `function` | `L116-L125` | `def read_gaps(path)` | Assembly gap intervals per chromosome, sorted: {chrom: [(s, e)]}. |
+| `read_breakpoints` | `function` | `L128-L136` | `def read_breakpoints(path)` | Clustered DELFIES breakpoints per chromosome: {chrom: [(pos, strand, end)]}. |
+| `read_windows` | `function` | `L139-L152` | `def read_windows(path)` | Mosdepth windows per chromosome: {chrom: [(s, e, depth)]}, sorted. |
+| `median_depth` | `function` | `L155-L158` | `def median_depth(windows, chrom, s, e)` | Median depth of mosdepth windows overlapping [s, e); 0.0 when none overlap. |
+| `subtract_gaps` | `function` | `L161-L177` | `def subtract_gaps(lo, hi, gaps)` | Split [lo, hi) into (start, end, is_gap) pieces around sorted gap intervals. |
+| `classify_segments` | `function` | `L180-L205` | `def classify_segments(length, runs, min_low)` | Tile [0, length) with (start, end, kind) where kind is low, high or none. |
+| `call_chromosome` | `function` | `L208-L270` | `def call_chromosome(chrom, length, runs, gaps, red, bps, policy)` | Tile [0, length) with (start, end, label, subtype) pieces from quantized runs. |
+| `merge_pieces` | `function` | `L273-L281` | `def merge_pieces(pieces)` | Join adjacent pieces that share label and subtype. |
+| `check_tiling` | `function` | `L284-L292` | `def check_tiling(chrom, pieces, length)` | Raise unless pieces are contiguous from 0 to length. |
+| `read_summary` | `function` | `L295-L306` | `def read_summary(path)` | Return (metadata lines, data rows) of an identify grs_summary.tsv. |
+| `parse_chromosomes` | `function` | `L309-L313` | `def parse_chromosomes(value)` | Comma- or whitespace-separated chromosome list; empty when unset. |
+| `build_segments` | `function` | `L316-L344` | `def build_segments(rows, quant, gaps, red, bps, windows, policy, chromosomes)` | Ordered (chrom, start, end, label, median, subtype) rows for the final summary. |
+| `elimination_line` | `function` | `L347-L369` | `def elimination_line(segments, canonical)` | Summarise bp per class; canonical and unplaced are counted separately. |
+| `parse_args` | `function` | `L372-L387` | `def parse_args(argv)` | — |
+| `main` | `function` | `L390-L413` | `def main(argv=None)` | — |
 
 ### `modules/local/softclipends/resources/usr/bin/pde_terminal_softclips.py`
 
