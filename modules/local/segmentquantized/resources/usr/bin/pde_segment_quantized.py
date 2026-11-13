@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Final three-class segmentation from base-resolution quantized depth.
 
-Canonical chromosomes are tiled from mosdepth --quantize runs: HIGH runs are putative_core;
-LOW runs are putative_GRS when a clustered DELFIES breakpoint sits at a border (within
-anchor_proximity_bp), otherwise putative_uncertain. Assembly gaps and repeat-dominated LOW
-stretches without breakpoint support are putative_uncertain. Non-canonical scaffolds keep the
-call from pde_identify_grs.py. Every base of a canonical chromosome gets exactly one label.
+Every sequence (canonical chromosomes and unplaced scaffolds) is tiled from mosdepth --quantize
+runs: HIGH runs are putative_core; LOW runs are putative_GRS when a clustered DELFIES breakpoint
+sits at a block border (within anchor_proximity_bp) inside the gap-free span around the block,
+otherwise putative_uncertain. Assembly gaps bound blocks and anchors and inherit the class of the
+preceding piece. Repeat-dominated unsupported LOW stretches are putative_uncertain. Every base of
+every sequence gets exactly one label.
 """
 
 import argparse
@@ -16,7 +17,7 @@ import statistics
 import sys
 from pathlib import Path
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 SUMMARY_HEADER = "chromosome\tstart\tend\tlength\tclassification\tmedian_depth\tsubtype"
 
@@ -205,14 +206,14 @@ def classify_segments(length, runs, min_low):
     return merged
 
 
-def call_chromosome(chrom, length, runs, gaps, red, bps, policy):
+def call_sequence(chrom, length, runs, gaps, red, bps, policy):
     """Tile [0, length) with (start, end, label, subtype) pieces from quantized runs.
 
-    A block is a LOW run, optionally followed by HIGH bridges of at most
-    quantized_max_bridge_bp and further LOW runs. A block is anchored when a
-    '+' breakpoint lies within anchor_proximity_bp of its left edge or a '-'
-    breakpoint lies within it of its right edge. Anchored blocks are GRS
-    (bridges included, gaps uncertain); unanchored blocks use per-run rules.
+    Assembly gaps are units of their own: they never join a LOW block or a bridge, so a
+    block is gap-free. A block is anchored when a '+' breakpoint lies within
+    anchor_proximity_bp of its left edge, or a '-' breakpoint within it of its right edge,
+    and that breakpoint lies in the gap-free span around the block (between the
+    neighbouring gaps). Gap bases take the class of the preceding piece.
     """
     anchor = policy["anchor_proximity_bp"]
     max_rep = policy["quantized_masked_repeat_fraction"]
@@ -221,16 +222,43 @@ def call_chromosome(chrom, length, runs, gaps, red, bps, policy):
     plus_starts = [pos for pos, strand, _end in bps if strand == "+"]
     minus_ends = [end for _pos, strand, end in bps if strand == "-"]
 
+    units = []
+    for s, e, kind in classify_segments(length, runs, min_low):
+        for a, b, is_gap in subtract_gaps(s, e, gaps):
+            k = "gap" if is_gap else kind
+            if k == "gap" and units and units[-1][2] == "gap" and units[-1][1] == a:
+                units[-1] = (units[-1][0], b, "gap")
+            else:
+                units.append((a, b, k))
+
+    n = len(units)
+    prev_gap_end = [0] * n
+    cur = 0
+    for idx, (_a, b, k) in enumerate(units):
+        prev_gap_end[idx] = cur
+        if k == "gap":
+            cur = b
+    next_gap_start = [length] * n
+    cur = length
+    for idx in range(n - 1, -1, -1):
+        a, _b, k = units[idx]
+        next_gap_start[idx] = cur
+        if k == "gap":
+            cur = a
+
     pieces = []
 
     def add(s, e, label, subtype):
         if e > s:
             pieces.append((s, e, label, subtype))
 
-    segs = classify_segments(length, runs, min_low)
     i = 0
-    while i < len(segs):
-        s, e, kind = segs[i]
+    while i < n:
+        s, e, kind = units[i]
+        if kind == "gap":
+            add(s, e, None, None)
+            i += 1
+            continue
         if kind == "none":
             add(s, e, "putative_uncertain", "no_quantized_coverage")
             i += 1
@@ -241,33 +269,41 @@ def call_chromosome(chrom, length, runs, gaps, red, bps, policy):
             continue
         j = i
         while (
-            j + 2 < len(segs)
-            and segs[j + 1][2] == "high"
-            and segs[j + 1][1] - segs[j + 1][0] <= max_bridge
-            and segs[j + 2][2] == "low"
+            j + 2 < n
+            and units[j + 1][2] == "high"
+            and units[j + 1][1] - units[j + 1][0] <= max_bridge
+            and units[j + 2][2] == "low"
         ):
             j += 2
-        block = segs[i : j + 1]
-        bs, be = block[0][0], block[-1][1]
-        supported = any(abs(p - bs) <= anchor for p in plus_starts) or any(
-            abs(q - be) <= anchor for q in minus_ends
+        bs, be = units[i][0], units[j][1]
+        cs, ce = prev_gap_end[i], next_gap_start[j]
+        supported = any(cs <= p <= ce and abs(p - bs) <= anchor for p in plus_starts) or any(
+            cs <= q <= ce and abs(q - be) <= anchor for q in minus_ends
         )
-        for ss, se, skind in block:
-            if skind == "high" and not supported:
-                add(ss, se, "putative_core", "-")
-                continue
-            for a, b, is_gap in subtract_gaps(ss, se, gaps):
-                if is_gap:
-                    add(a, b, "putative_uncertain", "gap_spanning")
-                elif supported:
-                    subtype = "quantized_bridged" if skind == "high" else "quantized_delfies_anchored"
-                    add(a, b, "putative_GRS", subtype)
-                elif covered_bp(a, b, red) / (b - a) > max_rep:
-                    add(a, b, "putative_uncertain", "repeat_masked")
+        for ss, se, skind in units[i : j + 1]:
+            if skind == "high":
+                if supported:
+                    add(ss, se, "putative_GRS", "quantized_bridged")
                 else:
-                    add(a, b, "putative_uncertain", "no_delfies_support")
+                    add(ss, se, "putative_core", "-")
+            elif supported:
+                add(ss, se, "putative_GRS", "quantized_delfies_anchored")
+            elif covered_bp(ss, se, red) / (se - ss) > max_rep:
+                add(ss, se, "putative_uncertain", "repeat_masked")
+            else:
+                add(ss, se, "putative_uncertain", "no_delfies_support")
         i = j + 1
-    return merge_pieces(pieces)
+
+    real = [(label, subtype) for _s, _e, label, subtype in pieces if label is not None]
+    cur_call = real[0] if real else ("putative_uncertain", "no_quantized_coverage")
+    resolved = []
+    for s, e, label, subtype in pieces:
+        if label is None:
+            label, subtype = cur_call
+        else:
+            cur_call = (label, subtype)
+        resolved.append((s, e, label, subtype))
+    return merge_pieces(resolved)
 
 
 def merge_pieces(pieces):
@@ -314,7 +350,10 @@ def parse_chromosomes(value):
 
 
 def build_segments(rows, quant, gaps, red, bps, windows, policy, chromosomes):
-    """Ordered (chrom, start, end, label, median, subtype) rows for the final summary."""
+    """Ordered (chrom, start, end, label, median, subtype) rows for the final summary.
+
+    Every sequence is tiled from quantized depth; canonical is the set of chromosomes.
+    """
     lengths = {}
     for chrom, _s, e, _lab, _med, _sub in rows:
         lengths[chrom] = max(lengths.get(chrom, 0), e)
@@ -325,23 +364,18 @@ def build_segments(rows, quant, gaps, red, bps, windows, policy, chromosomes):
         return lengths[chrom] >= policy["chromosomal_min_bp"]
 
     out = []
-    done = set()
-    for chrom, s, e, label, med, subtype in rows:
-        if not is_canonical(chrom):
-            out.append((chrom, s, e, label, med, subtype))
-            continue
-        if chrom in done:
-            continue
-        done.add(chrom)
+    order = list(dict.fromkeys(chrom for chrom, *_ in rows))
+    for chrom in order:
         length = lengths[chrom]
-        pieces = call_chromosome(
+        pieces = call_sequence(
             chrom, length, quant.get(chrom, []), gaps.get(chrom, []),
             red.get(chrom), bps.get(chrom, []), policy,
         )
         check_tiling(chrom, pieces, length)
         for ps, pe, plabel, psub in pieces:
             out.append((chrom, ps, pe, plabel, median_depth(windows, chrom, ps, pe), psub))
-    return out, done
+    canonical = {chrom for chrom in order if is_canonical(chrom)}
+    return out, canonical
 
 
 def elimination_line(segments, canonical):

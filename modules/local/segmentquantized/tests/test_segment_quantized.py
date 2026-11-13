@@ -13,7 +13,7 @@ bin_dir = Path(__file__).resolve().parent.parent / "resources" / "usr" / "bin"
 sys.path.insert(0, str(bin_dir))
 
 from pde_segment_quantized import (
-    call_chromosome,
+    call_sequence,
     check_tiling,
     elimination_line,
     main,
@@ -39,7 +39,7 @@ def bp(pos, strand, end=None):
 
 
 def call(runs, gaps=None, red=None, bps=None, length=LENGTH):
-    pieces = call_chromosome(CHROM, length, runs, gaps or [], red, bps or [], POLICY)
+    pieces = call_sequence(CHROM, length, runs, gaps or [], red, bps or [], POLICY)
     check_tiling(CHROM, pieces, length)
     return pieces
 
@@ -69,12 +69,64 @@ class TestQuantizedCall(unittest.TestCase):
         pieces = call(BASE_RUNS, bps=[bp(150100, "+")])
         self.assertIn((100000, 150000, "putative_uncertain", "no_delfies_support"), pieces)
 
-    def test_gap_inside_low_run_is_uncertain_and_split_from_grs(self):
+    def test_gap_inside_grs_anchored_at_both_edges_is_absorbed(self):
+        pieces = call(BASE_RUNS, gaps=[(120000, 121000)], bps=[bp(100000, "+"), bp(0, "-", end=150000)])
+        self.assertEqual(pieces, [
+            (0, 100000, "putative_core", "-"),
+            (100000, 150000, "putative_GRS", "quantized_delfies_anchored"),
+            (150000, LENGTH, "putative_core", "-"),
+        ])
+
+    def test_unanchored_low_after_gap_is_uncertain(self):
         pieces = call(BASE_RUNS, gaps=[(120000, 121000)], bps=[bp(100000, "+")])
+        self.assertEqual(pieces[1:3], [
+            (100000, 121000, "putative_GRS", "quantized_delfies_anchored"),
+            (121000, 150000, "putative_uncertain", "no_delfies_support"),
+        ])
+
+    def test_gap_straddling_low_high_edge_joins_left_class(self):
+        pieces = call(BASE_RUNS, gaps=[(149800, 150200)], bps=[bp(100000, "+")])
+        self.assertEqual(pieces[1:], [
+            (100000, 150200, "putative_GRS", "quantized_delfies_anchored"),
+            (150200, LENGTH, "putative_core", "-"),
+        ])
+
+    def test_gap_inside_high_stays_core(self):
+        pieces = call(BASE_RUNS, gaps=[(20000, 20500)])
+        self.assertEqual(pieces[0], (0, 100000, "putative_core", "-"))
+
+    def test_bridge_does_not_cross_a_gap(self):
+        runs = [run(0, 100000, False), run(100000, 150000, True),
+                run(150000, 152000, False), run(152000, 160000, True),
+                run(160000, LENGTH, False)]
+        pieces = call(runs, gaps=[(150500, 150600)], bps=[bp(100500, "+")])
         self.assertEqual(pieces[1:4], [
-            (100000, 120000, "putative_GRS", "quantized_delfies_anchored"),
-            (120000, 121000, "putative_uncertain", "gap_spanning"),
-            (121000, 150000, "putative_GRS", "quantized_delfies_anchored"),
+            (100000, 150000, "putative_GRS", "quantized_delfies_anchored"),
+            (150000, 152000, "putative_core", "-"),
+            (152000, 160000, "putative_uncertain", "no_delfies_support"),
+        ])
+
+    def test_breakpoint_beyond_a_gap_does_not_anchor(self):
+        pieces = call(BASE_RUNS, gaps=[(99000, 99500)], bps=[bp(98500, "+")])
+        self.assertIn((100000, 150000, "putative_uncertain", "no_delfies_support"), pieces)
+
+    def test_leading_gap_takes_following_class(self):
+        runs = [run(0, 50000, True), run(50000, LENGTH, False)]
+        pieces = call(runs, gaps=[(0, 1000)], bps=[bp(0, "-", end=50300)])
+        self.assertEqual(pieces[0], (0, 50000, "putative_GRS", "quantized_delfies_anchored"))
+
+    def test_three_subregion_case_tiles_every_gap_bounded_piece(self):
+        runs = [run(0, 100000, False), run(100000, 150000, True),
+                run(150000, 200000, False), run(200000, 250000, True),
+                run(250000, LENGTH, False)]
+        pieces = call(runs, gaps=[(149700, 149900), (200100, 200300)], bps=[bp(100000, "+")])
+        self.assertEqual(pieces, [
+            (0, 100000, "putative_core", "-"),
+            (100000, 149900, "putative_GRS", "quantized_delfies_anchored"),
+            (149900, 150000, "putative_uncertain", "no_delfies_support"),
+            (150000, 200000, "putative_core", "-"),
+            (200000, 250000, "putative_uncertain", "no_delfies_support"),
+            (250000, LENGTH, "putative_core", "-"),
         ])
 
     def test_short_high_bridge_carries_anchor_to_next_low_run(self):
@@ -132,7 +184,7 @@ class TestQuantizedCall(unittest.TestCase):
         policy = dict(POLICY, quantized_min_low_run_bp=3000)
         runs = [run(0, 100000, False), run(100000, 102000, True), run(102000, LENGTH, False)]
         bps = [bp(100000, "+")]
-        pieces = call_chromosome(CHROM, LENGTH, runs, [], None, bps, policy)
+        pieces = call_sequence(CHROM, LENGTH, runs, [], None, bps, policy)
         self.assertEqual(pieces, [(0, LENGTH, "putative_core", "-")])
 
     def test_uncovered_bases_are_uncertain_and_tiling_holds(self):
@@ -181,8 +233,10 @@ class TestMainFixture(unittest.TestCase):
                         "chr1\t0\t300000\t300000\tputative_core\t30.00\t-\n"
                         "u1\t0\t5000\t5000\tputative_uncertain\t1.00\tfully_repetitive_unplaced\n")
             quant = w("q.bed", "chr1\t0\t100000\t10:inf\t0\nchr1\t100000\t150000\t0:10\t0\n"
-                               "chr1\t150000\t300000\t10:inf\t0\n")
-            bps = w("bp.tsv", "chrom\tpos\tend\tstrand\tsupport\nchr1\t100500\t100500\t+\t8.0\n")
+                               "chr1\t150000\t300000\t10:inf\t0\nu1\t0\t2000\t0:10\t0\n"
+                               "u1\t2000\t5000\t10:inf\t0\n")
+            bps = w("bp.tsv", "chrom\tpos\tend\tstrand\tsupport\nchr1\t100500\t100500\t+\t8.0\n"
+                              "u1\t0\t2100\t-\t9.0\n")
             outdir = os.path.join(d, "out")
             os.makedirs(outdir)
             main(["--summary-tsv", summary, "--quantized-bed", quant, "--breakpoints-tsv", bps,
@@ -195,11 +249,13 @@ class TestMainFixture(unittest.TestCase):
             "chr1\t0\t100000\tputative_core",
             "chr1\t100000\t150000\tputative_GRS",
             "chr1\t150000\t300000\tputative_core",
-            "u1\t0\t5000\tputative_uncertain",
+            "u1\t0\t2000\tputative_GRS",
+            "u1\t2000\t5000\tputative_core",
         ])
         self.assertTrue(tsv[1].startswith("# ELIMINATION_RANGE\tcanon_grs_bp=50000\t"))
-        self.assertIn("unplaced_uncertain_bp=5000", tsv[1])
-        self.assertIn("min_elim_bp=50000\tmax_elim_bp=50000\test_elim_bp=50000", tsv[1])
+        self.assertIn("unplaced_grs_bp=2000", tsv[1])
+        self.assertIn("unplaced_core_bp=3000", tsv[1])
+        self.assertIn("min_elim_bp=52000\tmax_elim_bp=52000\test_elim_bp=52000", tsv[1])
 
 
 if __name__ == "__main__":
