@@ -1,0 +1,81 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/sanger-tol/nf-core-modules/main/modules/meta-schema.json
+name: "carvecoreislands"
+description: Carve high-confidence core islands out of long putative_GRS intervals using base-resolution quantized coverage and assembly gaps. Rows are rewritten; no other rows are added or removed.
+keywords:
+  - pde
+  - grs
+  - core
+  - gaps
+  - mosdepth
+tools:
+  - python:
+      description: Python interpreter running pde_carve_core_islands.py
+      homepage: https://www.python.org/
+      licence:
+        - "PSF-2.0"
+      identifier: biotools:python
+input:
+  - - meta:
+        type: map
+        description: Groovy Map containing sample information e.g. [ id:'test' ]
+    - summary_tsv:
+        type: file
+        description: grs_summary.tsv from IDENTIFYPUTATIVEGRS
+        pattern: "*.grs_summary.tsv"
+  - - meta2:
+        type: map
+        description: Groovy Map containing sample information
+    - quantized_bed:
+        type: file
+        description: Quantized mosdepth coverage runs from MOSDEPTHQUANTIZE
+        pattern: "*.quantized.red_masked.bed"
+  - - meta3:
+        type: map
+        description: Groovy Map containing sample information
+    - gaps_bed:
+        type: file
+        description: Assembly N-gap intervals from GFASTATSGAPS
+        pattern: "*.gaps.bed"
+  - - meta4:
+        type: map
+        description: Groovy Map containing sample information
+    - red_bed:
+        type: file
+        description: RED repeat intervals
+        pattern: "*.bed"
+  - - meta5:
+        type: map
+        description: Groovy Map containing sample information
+    - core_coverage_tsv:
+        type: file
+        description: Core coverage table from IDENTIFYPUTATIVEGRS (baseline depth)
+        pattern: "*.tsv"
+output:
+  - bed:
+      - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.pde_segments.bed":
+          type: file
+          description: Segments after core-island carving, 4 columns
+          pattern: "*.pde_segments.bed"
+  - summary:
+      - meta:
+          type: map
+          description: Groovy Map containing sample information
+      - "*.grs_summary.tsv":
+          type: file
+          description: Summary table after carving, with a CORE_ISLANDS comment line
+          pattern: "*.grs_summary.tsv"
+  - versions_python:
+      - - ${task.process}:
+            type: string
+            description: The process the versions were collected from
+        - python:
+            type: string
+            description: The tool name
+        - eval("python3 --version"):
+            type: string
+            description: The tool version
+authors:
+  - "@pg17"

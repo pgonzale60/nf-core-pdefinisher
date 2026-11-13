@@ -88,6 +88,9 @@
         "anchor_proximity_bp": 2000,
         "min_closed_grs_bp": 1000,
         "unplaced_min_nonrepeat_bp": 1000,
-        "unplaced_grs_drop_fraction": 0.5
+        "unplaced_grs_drop_fraction": 0.5,
+        "core_subtraction_min_grs_bp": 30000,
+        "core_subtraction_switch_penalty_bp": 5000,
+        "core_subtraction_masked_repeat_fraction": 0.9
     }
 }
