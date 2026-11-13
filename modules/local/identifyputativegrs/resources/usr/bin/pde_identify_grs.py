@@ -718,7 +718,7 @@ def main():
     # Write outputs
     prefix = args.prefix
     outdir = args.outdir
-    bed_path = os.path.join(outdir, f"{prefix}.pde_segments.bed")
+    bed_path = os.path.join(outdir, f"{prefix}.first_pass_segments.bed")
     tsv_path = os.path.join(outdir, f"{prefix}.grs_summary.tsv")
     cov_tsv_path = os.path.join(outdir, f"{prefix}.core_coverage.tsv")
     cov_txt_path = os.path.join(outdir, f"{prefix}.core_coverage.txt")

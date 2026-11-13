@@ -50,10 +50,10 @@ output:
     - - meta:
           type: map
           description: Groovy Map containing sample information
-      - "*.pde_segments.bed":
+      - "*.first_pass_segments.bed":
           type: file
           description: BED file containing segmented regions classified as putative_core or putative_GRS
-          pattern: "*.pde_segments.bed"
+          pattern: "*.first_pass_segments.bed"
   summary:
     - - meta:
           type: map
