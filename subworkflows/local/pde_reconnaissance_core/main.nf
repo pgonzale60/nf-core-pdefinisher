@@ -1,22 +1,21 @@
 //
 // SUBWORKFLOW: PDE_RECONNAISSANCE_CORE
-// Reconnaissance subset required by RECON_MOTIF: GRS classification, delfies breakpoints and softclip terminal ends
+// Reconnaissance subset required by RECON_MOTIF: GRS classification, delfies breakpoints and mosdepth coverage (MOSDEPTH, MOSDEPTHQUANTIZE, MOSDEPTHCLASS)
 //
 
 include { RED                  } from '../../../modules/local/red/main'
 include { DELFIES              } from '../../../modules/local/delfies/main'
 include { MOSDEPTH             } from '../../../modules/nf-core/mosdepth/main'
-include { SOFTCLIPENDS         } from '../../../modules/local/softclipends/main'
 include { IDENTIFYPUTATIVEGRS  } from '../../../modules/local/identifyputativegrs/main'
 include { MOSDEPTHQUANTIZE     } from '../../../modules/local/mosdepthquantize/main'
+include { MOSDEPTHCLASS        } from '../../../modules/local/mosdepthclass/main'
 
 workflow PDE_RECONNAISSANCE_CORE {
 
     take:
-    ch_assembly         // channel: [ val(meta), path(assembly) ]
-    ch_bam              // channel: [ val(meta), path(bam), path(bai) ]
-    val_telomere_repeat // string: Telomeric repeat motif string (e.g. 'TTAGGC')
-    val_chromosomes     // string or list: e.g. 'I,II,III,IV,V,X'
+    ch_assembly          // channel: [ val(meta), path(assembly) ]
+    ch_bam               // channel: [ val(meta), path(bam), path(bai) ]
+    val_chromosomes      // string or list: e.g. 'I,II,III,IV,V,X'
 
     main:
 
@@ -45,17 +44,6 @@ workflow PDE_RECONNAISSANCE_CORE {
         ch_mosdepth_input.bam,
         ch_mosdepth_input.fasta,
         []
-    )
-
-    ch_softclipends_input = ch_assembly
-        .combine(ch_bam, by: 0)
-        .map { meta, assembly, bam, bai ->
-            tuple(meta, assembly, bam, bai)
-        }
-
-    SOFTCLIPENDS (
-        ch_softclipends_input,
-        val_telomere_repeat
     )
 
     ch_identify_grs_input = ch_assembly
@@ -92,12 +80,28 @@ workflow PDE_RECONNAISSANCE_CORE {
         ch_quantize_input.cov
     )
 
+    // MODULE: MOSDEPTHCLASS — per-region depth over the final classification segments (core / GRS / uncertain)
+    ch_class_input = ch_bam
+        .join(IDENTIFYPUTATIVEGRS.out.bed, by: 0)
+        .multiMap { meta, bam, bai, segments_bed ->
+            bam:      tuple(meta, bam, bai)
+            segments: tuple(meta, segments_bed)
+        }
+
+    MOSDEPTHCLASS (
+        ch_class_input.bam,
+        ch_class_input.segments
+    )
+
     emit:
     red_bed                    = RED.out.bed
     delfies_bed                = DELFIES.out.bed
     delfies_foci_s2g           = DELFIES.out.foci_s2g
+    mosdepth_summary           = MOSDEPTH.out.summary_txt
+    mosdepth_regions           = MOSDEPTH.out.regions_bed
     grs_quantized_bed          = MOSDEPTHQUANTIZE.out.quantized_bed
+    class_regions_bed          = MOSDEPTHCLASS.out.class_regions_bed
+    class_regions_csi          = MOSDEPTHCLASS.out.class_regions_csi
     grs_summary_tsv            = IDENTIFYPUTATIVEGRS.out.summary
     pde_segments_bed           = IDENTIFYPUTATIVEGRS.out.bed
-    terminal_ends_summary      = SOFTCLIPENDS.out.summary
 }

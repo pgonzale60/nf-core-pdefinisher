@@ -5,7 +5,6 @@
 */
 include { PDE_RECONNAISSANCE_CORE } from '../subworkflows/local/pde_reconnaissance_core/main'
 include { PDE_MOTIF_DISCOVERY } from '../subworkflows/local/pde_motif_discovery/main'
-include { PIPELINE_INITIALISATION } from '../subworkflows/local/utils_nfcore_pdefinisher_pipeline'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -23,13 +22,11 @@ workflow RECON_MOTIF_PIPELINE {
     ch_assembly = ch_samplesheet.map { meta, assembly, _bam, _bai -> tuple(meta, assembly) }
     ch_bam      = ch_samplesheet.map { meta, _assembly, bam, bai  -> tuple(meta, bam, bai) }
 
-    def val_telomere_repeat = ch_samplesheet.map { meta, _assembly, _bam, _bai -> meta.telomere_repeat ?: (params.telomere_repeat ?: 'TTAGGC') }.first()
     def val_chromosomes     = ch_samplesheet.map { meta, _assembly, _bam, _bai -> meta.chromosomes ?: (params.chromosomes ?: '') }.first()
 
     PDE_RECONNAISSANCE_CORE (
         ch_assembly,
         ch_bam,
-        val_telomere_repeat,
         val_chromosomes
     )
 
@@ -45,8 +42,11 @@ workflow RECON_MOTIF_PIPELINE {
     pde_segments_bed           = PDE_RECONNAISSANCE_CORE.out.pde_segments_bed
     delfies_bed                = PDE_RECONNAISSANCE_CORE.out.delfies_bed
     delfies_foci_s2g           = PDE_RECONNAISSANCE_CORE.out.delfies_foci_s2g
+    mosdepth_summary           = PDE_RECONNAISSANCE_CORE.out.mosdepth_summary
+    mosdepth_regions           = PDE_RECONNAISSANCE_CORE.out.mosdepth_regions
     grs_quantized_bed          = PDE_RECONNAISSANCE_CORE.out.grs_quantized_bed
-    terminal_ends_summary      = PDE_RECONNAISSANCE_CORE.out.terminal_ends_summary
+    class_regions_bed          = PDE_RECONNAISSANCE_CORE.out.class_regions_bed
+    class_regions_csi          = PDE_RECONNAISSANCE_CORE.out.class_regions_csi
     best_core_motif            = PDE_MOTIF_DISCOVERY.out.best_core_motif
     core_motif_metrics_json    = PDE_MOTIF_DISCOVERY.out.core_motif_metrics_json
     grid_summary_tsv           = PDE_MOTIF_DISCOVERY.out.grid_summary_tsv
@@ -57,32 +57,6 @@ workflow RECON_MOTIF_PIPELINE {
     fimo_annotated_hits        = PDE_MOTIF_DISCOVERY.out.fimo_annotated_hits
     motif_distribution_summary = PDE_MOTIF_DISCOVERY.out.motif_distribution_summary
     motif_distribution_report  = PDE_MOTIF_DISCOVERY.out.motif_distribution_report
-}
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    DIRECT ENTRY: nextflow run workflows/recon_motif.nf --input samplesheet.csv
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-
-workflow {
-
-    main:
-    PIPELINE_INITIALISATION (
-        params.version,
-        params.validate_params,
-        params.monochrome_logs,
-        args,
-        params.outdir,
-        params.input,
-        params.help,
-        params.help_full,
-        params.show_hidden
-    )
-
-    RECON_MOTIF_PIPELINE (
-        PIPELINE_INITIALISATION.out.samplesheet
-    )
 }
 
 /*

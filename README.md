@@ -52,10 +52,10 @@ Optional parameters:
 
 ## Recon + motif only
 
-To run GRS definition, DELFIES and motif discovery without assembly surgery:
+To run mosdepth coverage, DELFIES S2G, GRS segment definition and CBM motif discovery without assembly surgery, rDNA assembly, read fishing or softclip analysis:
 
 ```bash
-nextflow run workflows/recon_motif.nf --input samplesheet.csv --outdir results
+nextflow run recon_motif.nf --input samplesheet.csv --outdir results
 ```
 
 ## Credits
