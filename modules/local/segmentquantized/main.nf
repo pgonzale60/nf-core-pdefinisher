@@ -32,7 +32,7 @@ process SEGMENTQUANTIZED {
     def chr_arg  = (chr_val && chr_val != "" && chr_val != "null") ? "--chromosomes \"${chr_val}\"" : ""
 
     """
-    # Tool: pde_segment_quantized.py | Script-SHA: 7f5d5423dbf0d154
+    # Tool: pde_segment_quantized.py | Script-SHA: 8929522dce391785
     python3 ${moduleDir}/resources/usr/bin/pde_segment_quantized.py --version
     python3 ${moduleDir}/resources/usr/bin/pde_segment_quantized.py \\
         --summary-tsv ${summary_tsv} \\

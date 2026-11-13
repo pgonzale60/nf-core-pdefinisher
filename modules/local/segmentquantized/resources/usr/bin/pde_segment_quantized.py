@@ -9,6 +9,7 @@ call from pde_identify_grs.py. Every base of a canonical chromosome gets exactly
 """
 
 import argparse
+import gzip
 import json
 import os
 import statistics
@@ -53,7 +54,8 @@ def read_lines(path):
     """Return lines of an optional input; a missing or empty file is no evidence."""
     if not path or not os.path.exists(path):
         return []
-    with open(path) as f:
+    open_fn = gzip.open if path.endswith(".gz") else open
+    with open_fn(path, "rt") as f:
         return f.read().splitlines()
 
 

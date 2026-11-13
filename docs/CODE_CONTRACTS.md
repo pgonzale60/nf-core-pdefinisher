@@ -655,27 +655,27 @@
 
 | Symbol | Kind | Lines | Signature | Summary |
 | :--- | :--- | :--- | :--- | :--- |
-| `find_curation_policy` | `function` | `L23-L37` | `def find_curation_policy(policy_path=None)` | Locate assets/curation_policy.json, the Single Source of Truth. |
-| `load_curation_policy` | `function` | `L40-L49` | `def load_curation_policy(policy_path=None)` | Load curation policy parameters strictly from assets/curation_policy.json. |
-| `read_lines` | `function` | `L52-L57` | `def read_lines(path)` | Return lines of an optional input; a missing or empty file is no evidence. |
-| `merge_intervals` | `function` | `L60-L69` | `def merge_intervals(ivs)` | Sort and merge (start, end) intervals. |
-| `read_red` | `function` | `L72-L82` | `def read_red(path)` | RED repeat intervals per chromosome, merged: {chrom: [(s, e)]}. |
-| `covered_bp` | `function` | `L85-L94` | `def covered_bp(s, e, red_ivs)` | Bases of [s, e) covered by merged, sorted RED intervals. |
-| `read_quantized` | `function` | `L97-L111` | `def read_quantized(path)` | Quantized depth runs per chromosome: {chrom: [(s, e, is_low)]}, sorted. |
-| `read_gaps` | `function` | `L114-L123` | `def read_gaps(path)` | Assembly gap intervals per chromosome, sorted: {chrom: [(s, e)]}. |
-| `read_breakpoints` | `function` | `L126-L134` | `def read_breakpoints(path)` | Clustered DELFIES breakpoints per chromosome: {chrom: [(pos, strand, end)]}. |
-| `read_windows` | `function` | `L137-L150` | `def read_windows(path)` | Mosdepth windows per chromosome: {chrom: [(s, e, depth)]}, sorted. |
-| `median_depth` | `function` | `L153-L156` | `def median_depth(windows, chrom, s, e)` | Median depth of mosdepth windows overlapping [s, e); 0.0 when none overlap. |
-| `subtract_gaps` | `function` | `L159-L175` | `def subtract_gaps(lo, hi, gaps)` | Split [lo, hi) into (start, end, is_gap) pieces around sorted gap intervals. |
-| `call_chromosome` | `function` | `L178-L218` | `def call_chromosome(chrom, length, runs, gaps, red, bps, policy)` | Tile [0, length) with (start, end, label, subtype) pieces from quantized runs. |
-| `merge_pieces` | `function` | `L221-L229` | `def merge_pieces(pieces)` | Join adjacent pieces that share label and subtype. |
-| `check_tiling` | `function` | `L232-L240` | `def check_tiling(chrom, pieces, length)` | Raise unless pieces are contiguous from 0 to length. |
-| `read_summary` | `function` | `L243-L254` | `def read_summary(path)` | Return (metadata lines, data rows) of an identify grs_summary.tsv. |
-| `parse_chromosomes` | `function` | `L257-L261` | `def parse_chromosomes(value)` | Comma- or whitespace-separated chromosome list; empty when unset. |
-| `build_segments` | `function` | `L264-L292` | `def build_segments(rows, quant, gaps, red, bps, windows, policy, chromosomes)` | Ordered (chrom, start, end, label, median, subtype) rows for the final summary. |
-| `elimination_line` | `function` | `L295-L317` | `def elimination_line(segments, canonical)` | Summarise bp per class; canonical and unplaced are counted separately. |
-| `parse_args` | `function` | `L320-L335` | `def parse_args(argv)` | — |
-| `main` | `function` | `L338-L361` | `def main(argv=None)` | — |
+| `find_curation_policy` | `function` | `L24-L38` | `def find_curation_policy(policy_path=None)` | Locate assets/curation_policy.json, the Single Source of Truth. |
+| `load_curation_policy` | `function` | `L41-L50` | `def load_curation_policy(policy_path=None)` | Load curation policy parameters strictly from assets/curation_policy.json. |
+| `read_lines` | `function` | `L53-L59` | `def read_lines(path)` | Return lines of an optional input; a missing or empty file is no evidence. |
+| `merge_intervals` | `function` | `L62-L71` | `def merge_intervals(ivs)` | Sort and merge (start, end) intervals. |
+| `read_red` | `function` | `L74-L84` | `def read_red(path)` | RED repeat intervals per chromosome, merged: {chrom: [(s, e)]}. |
+| `covered_bp` | `function` | `L87-L96` | `def covered_bp(s, e, red_ivs)` | Bases of [s, e) covered by merged, sorted RED intervals. |
+| `read_quantized` | `function` | `L99-L113` | `def read_quantized(path)` | Quantized depth runs per chromosome: {chrom: [(s, e, is_low)]}, sorted. |
+| `read_gaps` | `function` | `L116-L125` | `def read_gaps(path)` | Assembly gap intervals per chromosome, sorted: {chrom: [(s, e)]}. |
+| `read_breakpoints` | `function` | `L128-L136` | `def read_breakpoints(path)` | Clustered DELFIES breakpoints per chromosome: {chrom: [(pos, strand, end)]}. |
+| `read_windows` | `function` | `L139-L152` | `def read_windows(path)` | Mosdepth windows per chromosome: {chrom: [(s, e, depth)]}, sorted. |
+| `median_depth` | `function` | `L155-L158` | `def median_depth(windows, chrom, s, e)` | Median depth of mosdepth windows overlapping [s, e); 0.0 when none overlap. |
+| `subtract_gaps` | `function` | `L161-L177` | `def subtract_gaps(lo, hi, gaps)` | Split [lo, hi) into (start, end, is_gap) pieces around sorted gap intervals. |
+| `call_chromosome` | `function` | `L180-L220` | `def call_chromosome(chrom, length, runs, gaps, red, bps, policy)` | Tile [0, length) with (start, end, label, subtype) pieces from quantized runs. |
+| `merge_pieces` | `function` | `L223-L231` | `def merge_pieces(pieces)` | Join adjacent pieces that share label and subtype. |
+| `check_tiling` | `function` | `L234-L242` | `def check_tiling(chrom, pieces, length)` | Raise unless pieces are contiguous from 0 to length. |
+| `read_summary` | `function` | `L245-L256` | `def read_summary(path)` | Return (metadata lines, data rows) of an identify grs_summary.tsv. |
+| `parse_chromosomes` | `function` | `L259-L263` | `def parse_chromosomes(value)` | Comma- or whitespace-separated chromosome list; empty when unset. |
+| `build_segments` | `function` | `L266-L294` | `def build_segments(rows, quant, gaps, red, bps, windows, policy, chromosomes)` | Ordered (chrom, start, end, label, median, subtype) rows for the final summary. |
+| `elimination_line` | `function` | `L297-L319` | `def elimination_line(segments, canonical)` | Summarise bp per class; canonical and unplaced are counted separately. |
+| `parse_args` | `function` | `L322-L337` | `def parse_args(argv)` | — |
+| `main` | `function` | `L340-L363` | `def main(argv=None)` | — |
 
 ### `modules/local/softclipends/resources/usr/bin/pde_terminal_softclips.py`
 
