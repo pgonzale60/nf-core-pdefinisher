@@ -15,7 +15,7 @@ process IDENTIFYPUTATIVEGRS {
     val chromosomes
 
     output:
-    tuple val(meta), path("*.pde_segments.bed")         , emit: bed
+    tuple val(meta), path("*.first_pass_segments.bed")   , emit: bed
     tuple val(meta), path("*.grs_summary.tsv")          , emit: summary
     tuple val(meta), path("*.core_coverage.tsv")        , emit: core_coverage_tsv
     tuple val(meta), path("*.core_coverage.txt")        , emit: core_coverage
@@ -36,7 +36,7 @@ process IDENTIFYPUTATIVEGRS {
     def chr_arg  = (chr_val && chr_val != "" && chr_val != "null") ? "--chromosomes \"${chr_val}\"" : ""
 
     """
-    # Tool: pde_identify_grs.py | Script-SHA: 8bc05108400606a1
+    # Tool: pde_identify_grs.py | Script-SHA: ea48cb3241766183
     python3 ${moduleDir}/resources/usr/bin/pde_identify_grs.py --version
     python3 ${moduleDir}/resources/usr/bin/pde_identify_grs.py \\
         --assembly "${assembly}" \\
@@ -52,7 +52,7 @@ process IDENTIFYPUTATIVEGRS {
     stub:
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
-    touch ${prefix}.pde_segments.bed
+    touch ${prefix}.first_pass_segments.bed
     touch ${prefix}.grs_summary.tsv
     touch ${prefix}.core_coverage.tsv
     echo "0.0" > ${prefix}.core_coverage.txt

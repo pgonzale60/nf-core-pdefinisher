@@ -232,7 +232,7 @@ class TestIdentifyPutativeGRS(unittest.TestCase):
             ]
             res = subprocess.run(cmd, capture_output=True, text=True)
             self.assertEqual(res.returncode, 0, f"Error: {res.stderr}")
-            bed_out = os.path.join(tmpdir, "test.pde_segments.bed")
+            bed_out = os.path.join(tmpdir, "test.first_pass_segments.bed")
             with open(bed_out) as bf:
                 rows = [l.split("\t") for l in bf.read().strip().split("\n")]
             # chrB (500 kb) was recognized as chromosomal despite being < 1 Mb
