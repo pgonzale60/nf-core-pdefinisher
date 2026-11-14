@@ -67,7 +67,7 @@ def labels(bed):
 class TestFission(unittest.TestCase):
     """Case 2: opposing +/- sites that are close form a fission, not a GRS."""
 
-    def test_plus_minus_pair_splits_at_midpoint(self):
+    def test_plus_minus_pair_cuts_one_base_after_plus(self):
         _, bed, _, fis = run_case(
             5000, lambda c, s: 100,
             sites=["chr1\t1000\t1000\t+\t100", "chr1\t1003\t1003\t-\t80"],
@@ -77,13 +77,13 @@ class TestFission(unittest.TestCase):
         self.assertEqual([x[2] for x in segs], ["putative_core", "putative_core"])
         self.assertEqual(segs[0][1], 1001)
 
-    def test_minus_before_plus_splits_at_midpoint(self):
+    def test_minus_before_plus_cuts_one_base_before_plus(self):
         _, bed, _, fis = run_case(
             5000, lambda c, s: 100,
             sites=["chr1\t1000\t1000\t+\t100", "chr1\t997\t997\t-\t80"],
         )
-        # Cut follows (plus + minus) // 2 = 998. The plan's worked example says 999; flagged.
-        self.assertIn("chr1\t1000\t997\t-3\t998", fis)
+        # Cut = plus - 1 when the minus site is upstream of the plus site.
+        self.assertIn("chr1\t1000\t997\t-3\t999", fis)
         self.assertNotIn("putative_GRS", [x[2] for x in labels(bed)])
 
 

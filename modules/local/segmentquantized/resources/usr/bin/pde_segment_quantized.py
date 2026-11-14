@@ -330,7 +330,7 @@ def find_fissions(kinded, merge_bp):
         b = two[i + 1] if i + 1 < len(two) else None
         if b is not None and a.strand != b.strand and b.pos - a.pos <= merge_bp:
             plus, minus = (a, b) if a.strand == "+" else (b, a)
-            cut = (plus.pos + minus.pos) // 2
+            cut = plus.pos + (1 if minus.pos >= plus.pos else -1)
             fissions.append((plus.pos, minus.pos, minus.pos - plus.pos, cut))
             bounds.append((cut, "F"))
             i += 2
