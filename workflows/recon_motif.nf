@@ -41,6 +41,7 @@ workflow RECON_MOTIF_PIPELINE {
     grs_summary_tsv            = PDE_RECONNAISSANCE_CORE.out.grs_summary_tsv
     pde_segments_bed           = PDE_RECONNAISSANCE_CORE.out.pde_segments_bed
     red_bed                    = PDE_RECONNAISSANCE_CORE.out.red_bed
+    gaps_bed                   = PDE_RECONNAISSANCE_CORE.out.gaps_bed
     delfies_bed                = PDE_RECONNAISSANCE_CORE.out.delfies_bed
     delfies_foci_s2g           = PDE_RECONNAISSANCE_CORE.out.delfies_foci_s2g
     mosdepth_summary           = PDE_RECONNAISSANCE_CORE.out.mosdepth_summary
