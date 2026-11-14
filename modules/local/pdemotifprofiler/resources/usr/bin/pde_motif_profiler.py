@@ -146,7 +146,7 @@ def main():
                         if start >= s["start"] and stop <= s["end"]:
                             if s["label"] == "putative_GRS":
                                 compartment = "Eliminated Region (GRS)"
-                            elif s["label"] == "putative_uncertain":
+                            elif s["label"] == "uncertain":
                                 compartment = "Uncertain Region"
                             else:
                                 compartment = "Retained Genome (Core)"
@@ -275,7 +275,7 @@ def main():
         f.write(f"- **Significant Hits at Border:** {thresh_break_count:,}\n")
         f.write(f"- **Significant Hits in Eliminated Region (GRS):** {thresh_grs_count:,}\n")
         f.write(f"- **Significant Hits in Retained Genome (Core):** {thresh_core_count:,}\n")
-        f.write(f"- **Significant Hits in Uncertain Region (putative_uncertain):** {thresh_uncertain_count:,}\n")
+        f.write(f"- **Significant Hits in Uncertain Region (uncertain):** {thresh_uncertain_count:,}\n")
         f.write(f"- **Total Significant Hits Genome-Wide:** {len(thresh_hits):,}\n")
 
     sys.stderr.write(

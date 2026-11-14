@@ -36,7 +36,7 @@ process IDENTIFYPUTATIVEGRS {
     def chr_arg  = (chr_val && chr_val != "" && chr_val != "null") ? "--chromosomes \"${chr_val}\"" : ""
 
     """
-    # Tool: pde_identify_grs.py | Script-SHA: ea48cb3241766183
+    # Tool: pde_identify_grs.py | Script-SHA: 60f296d7418426a2
     python3 ${moduleDir}/resources/usr/bin/pde_identify_grs.py --version
     python3 ${moduleDir}/resources/usr/bin/pde_identify_grs.py \\
         --assembly "${assembly}" \\

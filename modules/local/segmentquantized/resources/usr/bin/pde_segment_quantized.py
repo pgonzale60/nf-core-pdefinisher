@@ -4,8 +4,8 @@
 Every sequence (canonical chromosomes and unplaced scaffolds) is tiled from mosdepth --quantize
 runs: HIGH runs are putative_core; LOW runs are putative_GRS when a clustered DELFIES breakpoint
 sits at a block border (within anchor_proximity_bp) inside the gap-free span around the block,
-otherwise putative_uncertain. Assembly gaps bound blocks and anchors and inherit the class of the
-preceding piece. Repeat-dominated unsupported LOW stretches are putative_uncertain. Every base of
+otherwise uncertain. Assembly gaps bound blocks and anchors and inherit the class of the
+preceding piece. Repeat-dominated unsupported LOW stretches are uncertain. Every base of
 every sequence gets exactly one label.
 """
 
@@ -260,7 +260,7 @@ def call_sequence(chrom, length, runs, gaps, red, bps, policy):
             i += 1
             continue
         if kind == "none":
-            add(s, e, "putative_uncertain", "no_quantized_coverage")
+            add(s, e, "uncertain", "no_quantized_coverage")
             i += 1
             continue
         if kind == "high":
@@ -289,13 +289,13 @@ def call_sequence(chrom, length, runs, gaps, red, bps, policy):
             elif supported:
                 add(ss, se, "putative_GRS", "quantized_delfies_anchored")
             elif covered_bp(ss, se, red) / (se - ss) > max_rep:
-                add(ss, se, "putative_uncertain", "repeat_masked")
+                add(ss, se, "uncertain", "repeat_masked")
             else:
-                add(ss, se, "putative_uncertain", "no_delfies_support")
+                add(ss, se, "uncertain", "no_delfies_support")
         i = j + 1
 
     real = [(label, subtype) for _s, _e, label, subtype in pieces if label is not None]
-    cur_call = real[0] if real else ("putative_uncertain", "no_quantized_coverage")
+    cur_call = real[0] if real else ("uncertain", "no_quantized_coverage")
     resolved = []
     for s, e, label, subtype in pieces:
         if label is None:
@@ -386,11 +386,11 @@ def elimination_line(segments, canonical):
         if chrom in canonical:
             if label == "putative_GRS":
                 canon_grs += length
-            elif label == "putative_uncertain":
+            elif label == "uncertain":
                 canon_unc += length
         elif label == "putative_GRS":
             unpl_grs += length
-        elif label == "putative_uncertain":
+        elif label == "uncertain":
             unpl_unc += length
         else:
             unpl_core += length

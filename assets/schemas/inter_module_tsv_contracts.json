@@ -73,7 +73,7 @@
             "consumer_functions": ["load_grs_summary"],
             "columns": ["chromosome", "start", "end", "length", "classification", "median_depth"],
             "status_column": "classification",
-            "allowed_statuses": ["putative_core", "putative_GRS", "putative_uncertain"],
+            "allowed_statuses": ["putative_core", "putative_GRS", "uncertain"],
             "notes": "Produced by SEGMENTQUANTIZED: every sequence is tiled from quantized depth: putative_GRS only where a clustered DELFIES breakpoint anchors a gap-free LOW block; assembly gaps bound blocks and anchors and inherit the class of the preceding piece. Contains mandatory # GRS_THRESHOLD=<float> and # ELIMINATION_RANGE metadata header comments; ELIMINATION_RANGE ends with canon_uncertain_bp."
         },
         "delfies_breakpoints.tsv": {
