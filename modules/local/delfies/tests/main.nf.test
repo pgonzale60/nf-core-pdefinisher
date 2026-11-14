@@ -16,7 +16,7 @@ nextflow_process {
 
         when {
             params {
-                delfies_args = '--telomere-repeat TTAGGC'
+                delfies_args = '--telo_forward_seq TTAGGC --min_supporting_reads 0'
             }
             process {
                 """

@@ -92,7 +92,7 @@
                 },
                 "delfies_args": {
                     "type": "string",
-                    "default": "--telo_forward_seq TTAGGC",
+                    "default": "--telo_forward_seq TTAGGC --min_supporting_reads 0",
                     "description": "Extra arguments passed to DELFIES neo-telomere breakpoint detection.",
                     "hidden": true
                 },
