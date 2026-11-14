@@ -60,7 +60,7 @@ nextflow run recon_motif.nf --input samplesheet.csv --outdir results
 
 ## Credits
 
-`nf-core/pdefinisher` was originally written by **Pablo M. Gonzalez de la Rosa** (Wellcome Sanger Institute).
+`nf-core/pdefinisher` was originally written by **Pablo M. Gonzalez de la Rosa**.
 
 ## Citations
 

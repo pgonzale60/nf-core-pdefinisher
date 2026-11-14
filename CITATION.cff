@@ -7,7 +7,6 @@ date-released: "2026-10-17"
 authors:
   - family-names: "Gonzalez de la Rosa"
     given-names: "Pablo M."
-    affiliation: "Wellcome Sanger Institute"
 repository-code: "https://github.com/nf-core/pdefinisher"
 url: "https://nf-co.re/pdefinisher"
 license: MIT
