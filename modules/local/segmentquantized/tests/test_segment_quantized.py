@@ -55,7 +55,7 @@ def run_case(length, depth_fn, sites=(), gaps=(), chromosomes="chr1", barrnap=()
     ]
     subprocess.run(cmd, check=True, capture_output=True, text=True)
     bed = [l.split("\t") for l in (tmp / "t.pde_segments.bed").read_text().splitlines() if l]
-    tsv = (tmp / "t.grs_summary.tsv").read_text().splitlines()
+    tsv = (tmp / "t.final.grs_summary.tsv").read_text().splitlines()
     fis = (tmp / "t.fissions.tsv").read_text().splitlines()
     return tmp, bed, tsv, fis
 

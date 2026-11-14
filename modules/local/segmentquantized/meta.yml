@@ -21,7 +21,7 @@ input:
     - summary_tsv:
         type: file
         description: grs_summary.tsv from IDENTIFYPUTATIVEGRS
-        pattern: "*.grs_summary.tsv"
+        pattern: "*.final.grs_summary.tsv"
   - - meta2:
         type: map
         description: Groovy Map containing sample information
@@ -70,10 +70,10 @@ output:
       - meta:
           type: map
           description: Groovy Map containing sample information
-      - "*.grs_summary.tsv":
+      - "*.final.grs_summary.tsv":
           type: file
           description: Summary table with ELIMINATION_RANGE including canon_uncertain_bp
-          pattern: "*.grs_summary.tsv"
+          pattern: "*.final.grs_summary.tsv"
   - versions_python:
       - - ${task.process}:
             type: string

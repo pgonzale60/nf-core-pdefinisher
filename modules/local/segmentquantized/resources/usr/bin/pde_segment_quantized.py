@@ -818,7 +818,7 @@ def main(argv=None):
 
     fission_path = os.path.join(args.outdir, f"{args.prefix}.fissions.tsv")
     bed_path = os.path.join(args.outdir, f"{args.prefix}.pde_segments.bed")
-    tsv_path = os.path.join(args.outdir, f"{args.prefix}.grs_summary.tsv")
+    tsv_path = os.path.join(args.outdir, f"{args.prefix}.final.grs_summary.tsv")
     with open(fission_path, "w") as out_fis:
         out_fis.write(FISSION_HEADER + "\n")
         for chrom in order:
