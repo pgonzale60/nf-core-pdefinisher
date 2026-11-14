@@ -242,7 +242,7 @@
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `terminal_softclips.tsv` | `SOFTCLIPENDS` | `CURATIONSYNTHESIS` | `read_id`, `chrom`, `side`, `align_start`, `align_end`, `clip_len`, `overhang_bp`, `telo_count`, `mapq`, `collinear_spanning_reads` | — | — |
 | `terminal_softclips_summary.tsv` | `SOFTCLIPENDS` | `CURATIONSYNTHESIS`, `CURATIONEVALUATOR` | `chrom_end`, `chrom_length`, `n_softclipped_reads`, `n_telomeric_reads`, `max_telo_count`, `proposed_status`, `terminal_tract_bp` | `EXTEND_AND_CAP`, `ALREADY_CAPPED`, `TELOMERE_IN_OVERHANG`, `UNCAPPED_EXTENDABLE`, `NO_CLIPS` | — |
-| `grs_summary.tsv` | `SEGMENTQUANTIZED` | `CURATIONSYNTHESIS`, `PDEMOTIFPROFILER` | `chromosome`, `start`, `end`, `length`, `classification`, `median_depth` | `putative_core`, `putative_GRS`, `putative_variable`, `uncertain`, `unplaced_eliminated`, `unplaced_rdna` | — |
+| `grs_summary.tsv` | `SEGMENTQUANTIZED` | `CURATIONSYNTHESIS`, `PDEMOTIFPROFILER` | `chromosome`, `start`, `end`, `length`, `classification`, `median_depth` | `putative_core`, `putative_GRS`, `uncertain`, `unplaced_eliminated`, `unplaced_rdna` | — |
 | `delfies_breakpoints.tsv` | `IDENTIFYPUTATIVEGRS` | `SEGMENTQUANTIZED` | `chrom`, `pos`, `end`, `strand`, `support` | — | — |
 | `telomeric_junctions.tsv` | `TELOMERICJUNCTIONPROFILER` | `CURATIONSYNTHESIS` | `cluster_id`, `classification`, `subtype`, `read_count`, `mean_telomere_bp`, `dominant_motif`, `target_chrom`, `target_arm`, `target_pos`, `is_somatic`, `consensus_flank_60bp` | `GERMLINE_JUNCTION`, `SOMATIC_DIMINUTION_JUNCTION`, `UNANCHORED_JUNCTION` | — |
 | `telomere_extension_manifest.tsv` | `TELOMEREWALKER` | `CURATIONAGPGENERATOR`, `CURATIONEVALUATOR` | `chrom`, `terminus`, `status`, `initial_evidence`, `added_bp`, `canonical_telo_bp`, `non_telo_added_bp`, `extension_fasta`, `notes` | `RESOLVED_BY_UNITIG`, `EXTENDED_BY_UNPLACED_CONTIG`, `RESOLVED_BY_SATELLITE_SCAFFOLD`, `EXTEND_TELOMERE_TRACT`, `RESOLVED_BY_READ`, `EXTEND_TO_TELOMERE` | `EXTENDED_SUBTELOMERE_ONLY`, `ALREADY_CAPPED`, `ALREADY_CAPPED_retained`, `RETAIN_AS_IS`, `TERMINUS_RDNA_ARRAY`, `DEFERRED_TO_RDNA_RESOLVER`, `POLYVALENT_REPEAT_BRANCH`, `STATIONARY_REPEAT_ARRAY`, `LOW_ANCHOR_MAPQ`, `HORIZON_LIMIT_REACHED`, `ZERO_EXTENDING_READS`, `UNRESOLVED_WALK`, `UNRESOLVED_SOMA_BOUNDARY`, `UNRESOLVED_UNCAPPED` |
@@ -573,7 +573,7 @@
 | `build_chromosomal_segments` | `function` | `L503-L518` | `def build_chromosomal_segments(chrom, length, grs_intervals, cov_windows)` | Tile a chromosomal scaffold: DELFIES-anchored GRS intervals, everything else putative_core. |
 | `write_breakpoints_tsv` | `function` | `L521-L529` | `def write_breakpoints_tsv(path, clustered_by_chr)` | Clustered DELFIES breakpoints, one row each, for the quantized-depth segmenter. |
 | `classify_unplaced` | `function` | `L532-L541` | `def classify_unplaced(chrom, length, raw_drops, repeats, rules)` | Non-chromosomal scaffold: repeat-aware call; uncertain when fully repetitive or coverage-dropped. |
-| `main` | `function` | `L544-L746` | `def main()` | — |
+| `main` | `function` | `L544-L751` | `def main()` | — |
 
 ### `modules/local/memecoregrid/resources/usr/bin/cbm_meme_core_grid.py`
 
@@ -656,61 +656,62 @@
 
 | Symbol | Kind | Lines | Signature | Summary |
 | :--- | :--- | :--- | :--- | :--- |
-| `find_curation_policy` | `function` | `L41-L55` | `def find_curation_policy(policy_path=None)` | Locate assets/curation_policy.json, the Single Source of Truth. |
-| `load_curation_policy` | `function` | `L58-L67` | `def load_curation_policy(policy_path=None)` | Load curation policy parameters strictly from assets/curation_policy.json. |
-| `read_lines` | `function` | `L70-L76` | `def read_lines(path)` | Return lines of an optional input; a missing or empty file is no evidence. |
-| `merge_intervals` | `function` | `L79-L88` | `def merge_intervals(ivs)` | Sort and merge (start, end) intervals. |
-| `read_red` | `function` | `L91-L101` | `def read_red(path)` | RED repeat intervals per chromosome, merged: {chrom: [(s, e)]}. |
-| `covered_bp` | `function` | `L104-L113` | `def covered_bp(s, e, red_ivs)` | Bases of [s, e) covered by merged, sorted intervals. |
-| `Intervals` | `class` | `L116-L127` | `class Intervals` | Merged, sorted intervals with O(log n) coverage queries. |
-| `Intervals.__init__` | `method` | `L119-L122` | `def Intervals.__init__(self, ivs)` | — |
-| `Intervals.covered` | `method` | `L124-L127` | `def Intervals.covered(self, s, e)` | — |
-| `read_gaps` | `function` | `L130-L139` | `def read_gaps(path)` | Assembly gap intervals per chromosome, sorted: {chrom: [(s, e)]}. |
-| `read_site_rows` | `function` | `L142-L150` | `def read_site_rows(path)` | Clustered DELFIES breakpoints: {chrom: [(pos, end, strand, support)]}. |
-| `read_windows` | `function` | `L153-L166` | `def read_windows(path)` | Mosdepth windows per chromosome: {chrom: [(s, e, depth)]}, sorted. |
-| `WindowSet` | `class` | `L169-L193` | `class WindowSet` | Mosdepth windows with midpoint-based interval lookup. |
-| `WindowSet.__init__` | `method` | `L172-L175` | `def WindowSet.__init__(self, wins)` | — |
-| `WindowSet.in_interval` | `method` | `L177-L189` | `def WindowSet.in_interval(self, chrom, s, e)` | Windows whose midpoint lies in [s, e). |
-| `WindowSet.usable` | `method` | `L191-L193` | `def WindowSet.usable(self, chrom, s, e, mask)` | Windows with midpoint in [s, e) that do not overlap the rDNA mask. |
-| `read_summary` | `function` | `L196-L207` | `def read_summary(path)` | Return (metadata lines, data rows) of an identify grs_summary.tsv. |
-| `parse_chromosomes` | `function` | `L210-L214` | `def parse_chromosomes(value)` | Comma- or whitespace-separated chromosome list; empty when unset. |
-| `subtract_gaps` | `function` | `L217-L233` | `def subtract_gaps(lo, hi, gaps)` | Split [lo, hi) into (start, end, is_gap) pieces around sorted gap intervals. |
-| `format_subranges` | `function` | `L236-L238` | `def format_subranges(subranges)` | Render subtype subranges as '<subtype>:<bp>,<subtype>:<bp>'. |
-| `check_tiling` | `function` | `L241-L249` | `def check_tiling(chrom, pieces, length)` | Raise unless pieces are contiguous from 0 to length. |
-| `read_sites` | `function` | `L254-L275` | `def read_sites(rows, policy)` | Merged break sites per chromosome: {chrom: [Site]} sorted by pos (R2). |
-| `top_support` | `function` | `L278-L281` | `def top_support(sites, n)` | Median of the n largest merged site supports across all sequences. |
-| `site_kind` | `function` | `L284-L292` | `def site_kind(reads, partner, floor, balance)` | R3 classification of one merged site against its opposite-strand partner. |
-| `classify_sites` | `function` | `L295-L310` | `def classify_sites(sites, policy)` | {chrom: [(Site, kind)]} with R3 kinds. |
-| `cut_coord` | `function` | `L313-L315` | `def cut_coord(site)` | Cut coordinate of a non-fission site: pos for '+', end for '-'. |
-| `find_fissions` | `function` | `L318-L340` | `def find_fissions(kinded, merge_bp)` | Pair consecutive opposite-strand two_strand sites into fissions (R4). |
-| `span_state` | `function` | `L343-L353` | `def span_state(bounds, x)` | Span state at x from sorted (coord, kind) bounds, as collect_evidence.span_state. |
-| `make_units` | `function` | `L358-L385` | `def make_units(length, coords, gap_ivs)` | Gap-free pieces and gap units tiling [0, length) with their border kinds. |
-| `Seq` | `class` | `L388-L402` | `class Seq` | Per-sequence evidence used by the labelling rules. |
-| `Seq.__init__` | `method` | `L391-L402` | `def Seq.__init__(self, chrom, length, canonical, bounds, gaps, red, mask, annotated, windows, policy)` | — |
-| `state_of` | `function` | `L405-L408` | `def state_of(seq, x)` | Span state at x; no break sites read as outside_span (R2/R7). |
-| `window_mode` | `function` | `L411-L416` | `def window_mode(rel, policy)` | — |
-| `measure` | `function` | `L419-L427` | `def measure(seq, s, e)` | (mode, median) of [s, e) against the sequence baseline; (None, 0.0) if unmeasurable. |
-| `mode_runs` | `function` | `L430-L439` | `def mode_runs(seq, s, e)` | Maximal contiguous runs [mode, start, end] over usable windows of [s, e). |
-| `depth_boundary_cuts` | `function` | `L442-L452` | `def depth_boundary_cuts(seq, s, e)` | R8: cut coordinates where a sustained E run meets a sustained R run. |
-| `table_label` | `function` | `L457-L507` | `def table_label(state, lb, rb, mode)` | R7 table: (label, subtype) for a gap-free piece with span state, borders and mode. |
-| `labelled` | `function` | `L510-L514` | `def labelled(unit, label, subtype)` | — |
-| `table_piece` | `function` | `L517-L520` | `def table_piece(seq, unit)` | — |
-| `depth_only_label` | `function` | `L523-L531` | `def depth_only_label(mode)` | Label of an R8 sub-piece from its own median mode. |
-| `split_piece` | `function` | `L534-L543` | `def split_piece(seq, unit, cuts)` | R8: split an undetermined piece at qualifying cuts; relabel each sub-piece by depth. |
-| `label_unplaced` | `function` | `L546-L566` | `def label_unplaced(seq, units)` | R10: non-canonical sequence without break sites. |
-| `label_sequence` | `function` | `L569-L584` | `def label_sequence(seq, units)` | Labelled units (pieces and gap units) tiling the sequence. |
-| `add_run` | `function` | `L589-L593` | `def add_run(runs, subtype, bp)` | — |
-| `assemble` | `function` | `L596-L620` | `def assemble(items)` | Attach gap units to neighbours, then merge same-label pieces without a cut between them. |
-| `median_of` | `function` | `L623-L625` | `def median_of(seq, s, e)` | — |
-| `core_depths` | `function` | `L628-L640` | `def core_depths(seq)` | Depths of windows that are outside spans, unmasked, gap-free and not repeat-dominated. |
-| `read_45s_hits` | `function` | `L645-L660` | `def read_45s_hits(path)` | 45S rRNA hits per chromosome: {chrom: [(start, end, strand)]}, 0-based half-open. |
-| `group_regions` | `function` | `L663-L677` | `def group_regions(hits, max_sep)` | Same-strand 45S hits within max_sep of each other form regions: [(start, end)]. |
-| `group_loci` | `function` | `L680-L689` | `def group_loci(regions, merge_bp)` | Regions within merge_bp form loci: [{start, end, size}] where size is the 45S bp. |
-| `read_45s_loci` | `function` | `L692-L699` | `def read_45s_loci(path, policy)` | {chrom: [locus]} from BARRNAP GFF3. |
-| `rdna_masks` | `function` | `L702-L718` | `def rdna_masks(loci, lengths, canonical, policy)` | mask and annotated spans per chromosome (R11). |
-| `elimination_line` | `function` | `L723-L754` | `def elimination_line(segments, canonical)` | bp per label, counted explicitly; canonical and unplaced are separate. |
-| `parse_args` | `function` | `L757-L772` | `def parse_args(argv)` | — |
-| `main` | `function` | `L775-L851` | `def main(argv=None)` | — |
+| `find_curation_policy` | `function` | `L40-L54` | `def find_curation_policy(policy_path=None)` | Locate assets/curation_policy.json, the Single Source of Truth. |
+| `load_curation_policy` | `function` | `L57-L66` | `def load_curation_policy(policy_path=None)` | Load curation policy parameters strictly from assets/curation_policy.json. |
+| `read_lines` | `function` | `L69-L75` | `def read_lines(path)` | Return lines of an optional input; a missing or empty file is no evidence. |
+| `merge_intervals` | `function` | `L78-L87` | `def merge_intervals(ivs)` | Sort and merge (start, end) intervals. |
+| `read_red` | `function` | `L90-L100` | `def read_red(path)` | RED repeat intervals per chromosome, merged: {chrom: [(s, e)]}. |
+| `covered_bp` | `function` | `L103-L112` | `def covered_bp(s, e, red_ivs)` | Bases of [s, e) covered by merged, sorted intervals. |
+| `Intervals` | `class` | `L115-L126` | `class Intervals` | Merged, sorted intervals with O(log n) coverage queries. |
+| `Intervals.__init__` | `method` | `L118-L121` | `def Intervals.__init__(self, ivs)` | — |
+| `Intervals.covered` | `method` | `L123-L126` | `def Intervals.covered(self, s, e)` | — |
+| `read_gaps` | `function` | `L129-L138` | `def read_gaps(path)` | Assembly gap intervals per chromosome, sorted: {chrom: [(s, e)]}. |
+| `read_site_rows` | `function` | `L141-L149` | `def read_site_rows(path)` | Clustered DELFIES breakpoints: {chrom: [(pos, end, strand, support)]}. |
+| `read_windows` | `function` | `L152-L165` | `def read_windows(path)` | Mosdepth windows per chromosome: {chrom: [(s, e, depth)]}, sorted. |
+| `WindowSet` | `class` | `L168-L192` | `class WindowSet` | Mosdepth windows with midpoint-based interval lookup. |
+| `WindowSet.__init__` | `method` | `L171-L174` | `def WindowSet.__init__(self, wins)` | — |
+| `WindowSet.in_interval` | `method` | `L176-L188` | `def WindowSet.in_interval(self, chrom, s, e)` | Windows whose midpoint lies in [s, e). |
+| `WindowSet.usable` | `method` | `L190-L192` | `def WindowSet.usable(self, chrom, s, e, mask)` | Windows with midpoint in [s, e) that do not overlap the rDNA mask. |
+| `read_summary` | `function` | `L195-L206` | `def read_summary(path)` | Return (metadata lines, data rows) of an identify grs_summary.tsv. |
+| `parse_chromosomes` | `function` | `L209-L213` | `def parse_chromosomes(value)` | Comma- or whitespace-separated chromosome list; empty when unset. |
+| `subtract_gaps` | `function` | `L216-L232` | `def subtract_gaps(lo, hi, gaps)` | Split [lo, hi) into (start, end, is_gap) pieces around sorted gap intervals. |
+| `format_subranges` | `function` | `L235-L237` | `def format_subranges(subranges)` | Render subtype subranges as '<subtype>:<bp>,<subtype>:<bp>'. |
+| `check_tiling` | `function` | `L240-L248` | `def check_tiling(chrom, pieces, length)` | Raise unless pieces are contiguous from 0 to length. |
+| `read_sites` | `function` | `L253-L274` | `def read_sites(rows, policy)` | Merged break sites per chromosome: {chrom: [Site]} sorted by pos (R2). |
+| `partner_support` | `function` | `L277-L282` | `def partner_support(ss, s, merge_bp)` | Max reads of opposite-strand sites in ss within merge_bp of s.pos; 0 if none. |
+| `top_support` | `function` | `L285-L292` | `def top_support(sites, n, merge_bp, balance)` | Median of the n largest echo-filtered site supports across all sequences (R2). |
+| `site_kind` | `function` | `L295-L303` | `def site_kind(reads, partner, floor, balance)` | R3 classification of one merged site against its opposite-strand partner. |
+| `classify_sites` | `function` | `L306-L318` | `def classify_sites(sites, policy)` | {chrom: [(Site, kind)]} with R3 kinds. |
+| `cut_coord` | `function` | `L321-L323` | `def cut_coord(site)` | Cut coordinate of a non-fission site: pos for '+', end for '-'. |
+| `find_fissions` | `function` | `L326-L348` | `def find_fissions(kinded, merge_bp)` | Pair consecutive opposite-strand two_strand sites into fissions (R4). |
+| `span_state` | `function` | `L351-L361` | `def span_state(bounds, x)` | Span state at x from sorted (coord, kind) bounds, as collect_evidence.span_state. |
+| `make_units` | `function` | `L366-L399` | `def make_units(length, bounds, gap_ivs)` | Gap-free pieces and gap units tiling [0, length) with their border kinds. |
+| `Seq` | `class` | `L402-L416` | `class Seq` | Per-sequence evidence used by the labelling rules. |
+| `Seq.__init__` | `method` | `L405-L416` | `def Seq.__init__(self, chrom, length, canonical, bounds, gaps, red, mask, annotated, windows, policy)` | — |
+| `state_of` | `function` | `L419-L422` | `def state_of(seq, x)` | Span state at x; no break sites read as outside_span (R2/R7). |
+| `window_mode` | `function` | `L425-L430` | `def window_mode(rel, policy)` | — |
+| `measure` | `function` | `L433-L441` | `def measure(seq, s, e)` | (mode, median) of [s, e) against the sequence baseline; (None, 0.0) if unmeasurable. |
+| `mode_runs` | `function` | `L444-L453` | `def mode_runs(seq, s, e)` | Maximal contiguous runs [mode, start, end] over usable windows of [s, e). |
+| `depth_boundary_cuts` | `function` | `L456-L466` | `def depth_boundary_cuts(seq, s, e)` | R8: cut coordinates where a sustained E run meets a sustained R run. |
+| `table_label` | `function` | `L471-L532` | `def table_label(state, lb, rb, mode, fission_adjacent=False)` | R7 table: (label, subtype) for a gap-free piece with span state, borders and mode. |
+| `labelled` | `function` | `L535-L539` | `def labelled(unit, label, subtype)` | — |
+| `table_piece` | `function` | `L542-L546` | `def table_piece(seq, unit)` | — |
+| `depth_only_label` | `function` | `L549-L557` | `def depth_only_label(mode)` | Label of an R8 sub-piece from its own median mode. |
+| `split_piece` | `function` | `L560-L569` | `def split_piece(seq, unit, cuts)` | R8: split an undetermined piece at qualifying cuts; relabel each sub-piece by depth. |
+| `label_unplaced` | `function` | `L572-L592` | `def label_unplaced(seq, units)` | R10: non-canonical sequence without break sites. |
+| `label_sequence` | `function` | `L595-L610` | `def label_sequence(seq, units)` | Labelled units (pieces and gap units) tiling the sequence. |
+| `add_run` | `function` | `L615-L619` | `def add_run(runs, subtype, bp)` | — |
+| `assemble` | `function` | `L622-L646` | `def assemble(items)` | Attach gap units to neighbours, then merge same-label pieces without a cut between them. |
+| `median_of` | `function` | `L649-L651` | `def median_of(seq, s, e)` | — |
+| `core_depths` | `function` | `L654-L666` | `def core_depths(seq)` | Depths of windows that are outside spans, unmasked, gap-free and not repeat-dominated. |
+| `read_45s_hits` | `function` | `L671-L686` | `def read_45s_hits(path)` | 45S rRNA hits per chromosome: {chrom: [(start, end, strand)]}, 0-based half-open. |
+| `group_regions` | `function` | `L689-L703` | `def group_regions(hits, max_sep)` | Same-strand 45S hits within max_sep of each other form regions: [(start, end)]. |
+| `group_loci` | `function` | `L706-L715` | `def group_loci(regions, merge_bp)` | Regions within merge_bp form loci: [{start, end, size}] where size is the 45S bp. |
+| `read_45s_loci` | `function` | `L718-L731` | `def read_45s_loci(path, policy)` | {chrom: [locus]} from BARRNAP GFF3; loci shorter than rdna_min_locus_bp are dropped. |
+| `rdna_masks` | `function` | `L734-L750` | `def rdna_masks(loci, lengths, canonical, policy)` | mask and annotated spans per chromosome (R11). |
+| `elimination_line` | `function` | `L755-L783` | `def elimination_line(segments, canonical)` | bp per label, counted explicitly; canonical and unplaced are separate. |
+| `parse_args` | `function` | `L786-L801` | `def parse_args(argv)` | — |
+| `main` | `function` | `L804-L884` | `def main(argv=None)` | — |
 
 ### `modules/local/softclipends/resources/usr/bin/pde_terminal_softclips.py`
 
