@@ -155,6 +155,7 @@
   - `MOSDEPTHQUANTIZE` from `../../../modules/local/mosdepthquantize/main`
   - `MOSDEPTHCLASS` from `../../../modules/local/mosdepthclass/main`
   - `GFASTATSGAPS` from `../../../modules/local/gfastatsgaps/main`
+  - `BARRNAP` from `../../../modules/local/barrnap/main`
   - `SEGMENTQUANTIZED` from `../../../modules/local/segmentquantized/main`
 - **Workflow `PDE_RECONNAISSANCE_CORE`:**
   - `take:` *(none)*
@@ -211,7 +212,7 @@
 | `RAGTAG_AGPCHECK` | `modules/local/ragtag/agpcheck/main.nf` | `tuple val(meta), path(agp)` | `tuple val(meta), path(agp), emit: agp`<br>`tuple val("${task.process}"), val('ragtag'), eval("ragtag.py --version \| sed 's/RagTag //'"), topic: versions, emit: versions_ragtag` |
 | `RDNACASSETTERESOLVER` | `modules/local/rdnacassetteresolver/main.nf` | `tuple val(meta), path(blueprint_json), path(ref_fasta), path(flye_fasta, stageAs: "rdna_asm/*"), path(flye_info), path(flye_paf), path(telomeric_unitigs, stageAs: "telo_utg/*"), path(rdna_gfa)` | `tuple val(meta), path("*_rdna_cassettes"), path("*_rdna_manifest.tsv"), emit: manifest`<br>`tuple val("${task.process}"), val('python'), val('3.10.4'), emit: versions_resolver, topic: versions` |
 | `RED` | `modules/local/red/main.nf` | `tuple val(meta), path(fasta)` | `tuple val(meta), path("*.bed"), emit: bed`<br>`tuple val("${task.process}"), val('red'), val('2018.09.10'), emit: versions_red, topic: versions` |
-| `SEGMENTQUANTIZED` | `modules/local/segmentquantized/main.nf` | `tuple val(meta), path(summary_tsv)`<br>`tuple val(meta2), path(quantized_bed)`<br>`tuple val(meta3), path(gaps_bed)`<br>`tuple val(meta4), path(red_bed)`<br>`tuple val(meta5), path(regions_bed)`<br>`tuple val(meta6), path(breakpoints_tsv)`<br>`val chromosomes` | `tuple val(meta), path("*.pde_segments.bed"), emit: bed`<br>`tuple val(meta), path("*.grs_summary.tsv"), emit: summary`<br>`tuple val("${task.process}"), val('python'), val('3.10'), emit: versions_segmentquantized, topic: versions` |
+| `SEGMENTQUANTIZED` | `modules/local/segmentquantized/main.nf` | `tuple val(meta), path(summary_tsv)`<br>`tuple val(meta2), path(barrnap_gff)`<br>`tuple val(meta3), path(gaps_bed)`<br>`tuple val(meta4), path(red_bed)`<br>`tuple val(meta5), path(regions_bed)`<br>`tuple val(meta6), path(breakpoints_tsv)`<br>`val chromosomes` | `tuple val(meta), path("*.pde_segments.bed"), emit: bed`<br>`tuple val(meta), path("*.grs_summary.tsv"), emit: summary`<br>`tuple val(meta), path("*.fissions.tsv"), emit: fissions`<br>`tuple val("${task.process}"), val('python'), val('3.10'), emit: versions_segmentquantized, topic: versions` |
 | `SNIFFLES` | `modules/local/sniffles/main.nf` | `tuple val(meta), path(input), path(index)`<br>`tuple val(meta2), path(fasta)`<br>`tuple val(meta3), path(tandem_file)`<br>`val(vcf_output)`<br>`val(snf_output)` | `tuple val(meta), path("*.vcf.gz") , emit: vcf, optional: true`<br>`tuple val(meta), path("*.vcf.gz.tbi"), emit: tbi, optional: true`<br>`tuple val(meta), path("*.snf") , emit: snf, optional: true`<br>`tuple val("${task.process}"), val('sniffles'), val('2.8.0'), emit: versions_sniffles, topic: versions` |
 | `SOFTCLIPENDS` | `modules/local/softclipends/main.nf` | `tuple val(meta), path(assembly), path(bam), path(bai)`<br>`val telomere_repeat` | `tuple val(meta), path("*.terminal_softclips.tsv") , emit: softclips`<br>`tuple val(meta), path("*.terminal_ends_summary.tsv") , emit: summary`<br>`tuple val("${task.process}"), val('python'), eval("python3 --version \| sed 's/Python //'"), topic: versions, emit: versions_python`<br>`tuple val("${task.process}"), val('pysam'), val('0.23.3'), topic: versions, emit: versions_pysam` |
 | `TARGETEDGAPASSEMBLY` | `modules/local/targetedgapassembly/main.nf` | `tuple val(meta), path(blueprint_json), path(bam), path(bai), path(ref_fasta), path(ref_gzi), path(policy_json)` | `tuple val(meta), path("*_gap_patches"), path("*_patches_manifest.tsv"), emit: manifest`<br>`tuple val("${task.process}"), val('hifiasm'), val('0.24.0'), emit: versions_assembly, topic: versions`<br>`tuple val("${task.process}"), val('abpoa'), val('1.5.7'), emit: versions_consensus, topic: versions`<br>`tuple val("${task.process}"), val('mindthegap'), val('2.3.0'), emit: versions_mindthegap, topic: versions` |
@@ -241,7 +242,7 @@
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `terminal_softclips.tsv` | `SOFTCLIPENDS` | `CURATIONSYNTHESIS` | `read_id`, `chrom`, `side`, `align_start`, `align_end`, `clip_len`, `overhang_bp`, `telo_count`, `mapq`, `collinear_spanning_reads` | — | — |
 | `terminal_softclips_summary.tsv` | `SOFTCLIPENDS` | `CURATIONSYNTHESIS`, `CURATIONEVALUATOR` | `chrom_end`, `chrom_length`, `n_softclipped_reads`, `n_telomeric_reads`, `max_telo_count`, `proposed_status`, `terminal_tract_bp` | `EXTEND_AND_CAP`, `ALREADY_CAPPED`, `TELOMERE_IN_OVERHANG`, `UNCAPPED_EXTENDABLE`, `NO_CLIPS` | — |
-| `grs_summary.tsv` | `SEGMENTQUANTIZED` | `CURATIONSYNTHESIS`, `PDEMOTIFPROFILER` | `chromosome`, `start`, `end`, `length`, `classification`, `median_depth` | `putative_core`, `putative_GRS`, `uncertain` | — |
+| `grs_summary.tsv` | `SEGMENTQUANTIZED` | `CURATIONSYNTHESIS`, `PDEMOTIFPROFILER` | `chromosome`, `start`, `end`, `length`, `classification`, `median_depth` | `putative_core`, `putative_GRS`, `putative_variable`, `uncertain`, `unplaced_eliminated`, `unplaced_rdna` | — |
 | `delfies_breakpoints.tsv` | `IDENTIFYPUTATIVEGRS` | `SEGMENTQUANTIZED` | `chrom`, `pos`, `end`, `strand`, `support` | — | — |
 | `telomeric_junctions.tsv` | `TELOMERICJUNCTIONPROFILER` | `CURATIONSYNTHESIS` | `cluster_id`, `classification`, `subtype`, `read_count`, `mean_telomere_bp`, `dominant_motif`, `target_chrom`, `target_arm`, `target_pos`, `is_somatic`, `consensus_flank_60bp` | `GERMLINE_JUNCTION`, `SOMATIC_DIMINUTION_JUNCTION`, `UNANCHORED_JUNCTION` | — |
 | `telomere_extension_manifest.tsv` | `TELOMEREWALKER` | `CURATIONAGPGENERATOR`, `CURATIONEVALUATOR` | `chrom`, `terminus`, `status`, `initial_evidence`, `added_bp`, `canonical_telo_bp`, `non_telo_added_bp`, `extension_fasta`, `notes` | `RESOLVED_BY_UNITIG`, `EXTENDED_BY_UNPLACED_CONTIG`, `RESOLVED_BY_SATELLITE_SCAFFOLD`, `EXTEND_TELOMERE_TRACT`, `RESOLVED_BY_READ`, `EXTEND_TO_TELOMERE` | `EXTENDED_SUBTELOMERE_ONLY`, `ALREADY_CAPPED`, `ALREADY_CAPPED_retained`, `RETAIN_AS_IS`, `TERMINUS_RDNA_ARRAY`, `DEFERRED_TO_RDNA_RESOLVER`, `POLYVALENT_REPEAT_BRANCH`, `STATIONARY_REPEAT_ARRAY`, `LOW_ANCHOR_MAPQ`, `HORIZON_LIMIT_REACHED`, `ZERO_EXTENDING_READS`, `UNRESOLVED_WALK`, `UNRESOLVED_SOMA_BOUNDARY`, `UNRESOLVED_UNCAPPED` |
@@ -655,28 +656,61 @@
 
 | Symbol | Kind | Lines | Signature | Summary |
 | :--- | :--- | :--- | :--- | :--- |
-| `find_curation_policy` | `function` | `L25-L39` | `def find_curation_policy(policy_path=None)` | Locate assets/curation_policy.json, the Single Source of Truth. |
-| `load_curation_policy` | `function` | `L42-L51` | `def load_curation_policy(policy_path=None)` | Load curation policy parameters strictly from assets/curation_policy.json. |
-| `read_lines` | `function` | `L54-L60` | `def read_lines(path)` | Return lines of an optional input; a missing or empty file is no evidence. |
-| `merge_intervals` | `function` | `L63-L72` | `def merge_intervals(ivs)` | Sort and merge (start, end) intervals. |
-| `read_red` | `function` | `L75-L85` | `def read_red(path)` | RED repeat intervals per chromosome, merged: {chrom: [(s, e)]}. |
-| `covered_bp` | `function` | `L88-L97` | `def covered_bp(s, e, red_ivs)` | Bases of [s, e) covered by merged, sorted RED intervals. |
-| `read_quantized` | `function` | `L100-L114` | `def read_quantized(path)` | Quantized depth runs per chromosome: {chrom: [(s, e, is_low)]}, sorted. |
-| `read_gaps` | `function` | `L117-L126` | `def read_gaps(path)` | Assembly gap intervals per chromosome, sorted: {chrom: [(s, e)]}. |
-| `read_breakpoints` | `function` | `L129-L137` | `def read_breakpoints(path)` | Clustered DELFIES breakpoints per chromosome: {chrom: [(pos, strand, end)]}. |
-| `read_windows` | `function` | `L140-L153` | `def read_windows(path)` | Mosdepth windows per chromosome: {chrom: [(s, e, depth)]}, sorted. |
-| `median_depth` | `function` | `L156-L159` | `def median_depth(windows, chrom, s, e)` | Median depth of mosdepth windows overlapping [s, e); 0.0 when none overlap. |
-| `subtract_gaps` | `function` | `L162-L178` | `def subtract_gaps(lo, hi, gaps)` | Split [lo, hi) into (start, end, is_gap) pieces around sorted gap intervals. |
-| `classify_segments` | `function` | `L181-L206` | `def classify_segments(length, runs, min_low)` | Tile [0, length) with (start, end, kind) where kind is low, high or none. |
-| `call_sequence` | `function` | `L209-L306` | `def call_sequence(chrom, length, runs, gaps, red, bps, policy)` | Tile [0, length) with (start, end, label, subtype) pieces from quantized runs. |
-| `merge_pieces` | `function` | `L309-L317` | `def merge_pieces(pieces)` | Join adjacent pieces that share label and subtype. |
-| `check_tiling` | `function` | `L320-L328` | `def check_tiling(chrom, pieces, length)` | Raise unless pieces are contiguous from 0 to length. |
-| `read_summary` | `function` | `L331-L342` | `def read_summary(path)` | Return (metadata lines, data rows) of an identify grs_summary.tsv. |
-| `parse_chromosomes` | `function` | `L345-L349` | `def parse_chromosomes(value)` | Comma- or whitespace-separated chromosome list; empty when unset. |
-| `build_segments` | `function` | `L352-L378` | `def build_segments(rows, quant, gaps, red, bps, windows, policy, chromosomes)` | Ordered (chrom, start, end, label, median, subtype) rows for the final summary. |
-| `elimination_line` | `function` | `L381-L403` | `def elimination_line(segments, canonical)` | Summarise bp per class; canonical and unplaced are counted separately. |
-| `parse_args` | `function` | `L406-L421` | `def parse_args(argv)` | — |
-| `main` | `function` | `L424-L447` | `def main(argv=None)` | — |
+| `find_curation_policy` | `function` | `L41-L55` | `def find_curation_policy(policy_path=None)` | Locate assets/curation_policy.json, the Single Source of Truth. |
+| `load_curation_policy` | `function` | `L58-L67` | `def load_curation_policy(policy_path=None)` | Load curation policy parameters strictly from assets/curation_policy.json. |
+| `read_lines` | `function` | `L70-L76` | `def read_lines(path)` | Return lines of an optional input; a missing or empty file is no evidence. |
+| `merge_intervals` | `function` | `L79-L88` | `def merge_intervals(ivs)` | Sort and merge (start, end) intervals. |
+| `read_red` | `function` | `L91-L101` | `def read_red(path)` | RED repeat intervals per chromosome, merged: {chrom: [(s, e)]}. |
+| `covered_bp` | `function` | `L104-L113` | `def covered_bp(s, e, red_ivs)` | Bases of [s, e) covered by merged, sorted intervals. |
+| `Intervals` | `class` | `L116-L127` | `class Intervals` | Merged, sorted intervals with O(log n) coverage queries. |
+| `Intervals.__init__` | `method` | `L119-L122` | `def Intervals.__init__(self, ivs)` | — |
+| `Intervals.covered` | `method` | `L124-L127` | `def Intervals.covered(self, s, e)` | — |
+| `read_gaps` | `function` | `L130-L139` | `def read_gaps(path)` | Assembly gap intervals per chromosome, sorted: {chrom: [(s, e)]}. |
+| `read_site_rows` | `function` | `L142-L150` | `def read_site_rows(path)` | Clustered DELFIES breakpoints: {chrom: [(pos, end, strand, support)]}. |
+| `read_windows` | `function` | `L153-L166` | `def read_windows(path)` | Mosdepth windows per chromosome: {chrom: [(s, e, depth)]}, sorted. |
+| `WindowSet` | `class` | `L169-L193` | `class WindowSet` | Mosdepth windows with midpoint-based interval lookup. |
+| `WindowSet.__init__` | `method` | `L172-L175` | `def WindowSet.__init__(self, wins)` | — |
+| `WindowSet.in_interval` | `method` | `L177-L189` | `def WindowSet.in_interval(self, chrom, s, e)` | Windows whose midpoint lies in [s, e). |
+| `WindowSet.usable` | `method` | `L191-L193` | `def WindowSet.usable(self, chrom, s, e, mask)` | Windows with midpoint in [s, e) that do not overlap the rDNA mask. |
+| `read_summary` | `function` | `L196-L207` | `def read_summary(path)` | Return (metadata lines, data rows) of an identify grs_summary.tsv. |
+| `parse_chromosomes` | `function` | `L210-L214` | `def parse_chromosomes(value)` | Comma- or whitespace-separated chromosome list; empty when unset. |
+| `subtract_gaps` | `function` | `L217-L233` | `def subtract_gaps(lo, hi, gaps)` | Split [lo, hi) into (start, end, is_gap) pieces around sorted gap intervals. |
+| `format_subranges` | `function` | `L236-L238` | `def format_subranges(subranges)` | Render subtype subranges as '<subtype>:<bp>,<subtype>:<bp>'. |
+| `check_tiling` | `function` | `L241-L249` | `def check_tiling(chrom, pieces, length)` | Raise unless pieces are contiguous from 0 to length. |
+| `read_sites` | `function` | `L254-L275` | `def read_sites(rows, policy)` | Merged break sites per chromosome: {chrom: [Site]} sorted by pos (R2). |
+| `top_support` | `function` | `L278-L281` | `def top_support(sites, n)` | Median of the n largest merged site supports across all sequences. |
+| `site_kind` | `function` | `L284-L292` | `def site_kind(reads, partner, floor, balance)` | R3 classification of one merged site against its opposite-strand partner. |
+| `classify_sites` | `function` | `L295-L310` | `def classify_sites(sites, policy)` | {chrom: [(Site, kind)]} with R3 kinds. |
+| `cut_coord` | `function` | `L313-L315` | `def cut_coord(site)` | Cut coordinate of a non-fission site: pos for '+', end for '-'. |
+| `find_fissions` | `function` | `L318-L340` | `def find_fissions(kinded, merge_bp)` | Pair consecutive opposite-strand two_strand sites into fissions (R4). |
+| `span_state` | `function` | `L343-L353` | `def span_state(bounds, x)` | Span state at x from sorted (coord, kind) bounds, as collect_evidence.span_state. |
+| `make_units` | `function` | `L358-L385` | `def make_units(length, coords, gap_ivs)` | Gap-free pieces and gap units tiling [0, length) with their border kinds. |
+| `Seq` | `class` | `L388-L402` | `class Seq` | Per-sequence evidence used by the labelling rules. |
+| `Seq.__init__` | `method` | `L391-L402` | `def Seq.__init__(self, chrom, length, canonical, bounds, gaps, red, mask, annotated, windows, policy)` | — |
+| `state_of` | `function` | `L405-L408` | `def state_of(seq, x)` | Span state at x; no break sites read as outside_span (R2/R7). |
+| `window_mode` | `function` | `L411-L416` | `def window_mode(rel, policy)` | — |
+| `measure` | `function` | `L419-L427` | `def measure(seq, s, e)` | (mode, median) of [s, e) against the sequence baseline; (None, 0.0) if unmeasurable. |
+| `mode_runs` | `function` | `L430-L439` | `def mode_runs(seq, s, e)` | Maximal contiguous runs [mode, start, end] over usable windows of [s, e). |
+| `depth_boundary_cuts` | `function` | `L442-L452` | `def depth_boundary_cuts(seq, s, e)` | R8: cut coordinates where a sustained E run meets a sustained R run. |
+| `table_label` | `function` | `L457-L507` | `def table_label(state, lb, rb, mode)` | R7 table: (label, subtype) for a gap-free piece with span state, borders and mode. |
+| `labelled` | `function` | `L510-L514` | `def labelled(unit, label, subtype)` | — |
+| `table_piece` | `function` | `L517-L520` | `def table_piece(seq, unit)` | — |
+| `depth_only_label` | `function` | `L523-L531` | `def depth_only_label(mode)` | Label of an R8 sub-piece from its own median mode. |
+| `split_piece` | `function` | `L534-L543` | `def split_piece(seq, unit, cuts)` | R8: split an undetermined piece at qualifying cuts; relabel each sub-piece by depth. |
+| `label_unplaced` | `function` | `L546-L566` | `def label_unplaced(seq, units)` | R10: non-canonical sequence without break sites. |
+| `label_sequence` | `function` | `L569-L584` | `def label_sequence(seq, units)` | Labelled units (pieces and gap units) tiling the sequence. |
+| `add_run` | `function` | `L589-L593` | `def add_run(runs, subtype, bp)` | — |
+| `assemble` | `function` | `L596-L620` | `def assemble(items)` | Attach gap units to neighbours, then merge same-label pieces without a cut between them. |
+| `median_of` | `function` | `L623-L625` | `def median_of(seq, s, e)` | — |
+| `core_depths` | `function` | `L628-L640` | `def core_depths(seq)` | Depths of windows that are outside spans, unmasked, gap-free and not repeat-dominated. |
+| `read_45s_hits` | `function` | `L645-L660` | `def read_45s_hits(path)` | 45S rRNA hits per chromosome: {chrom: [(start, end, strand)]}, 0-based half-open. |
+| `group_regions` | `function` | `L663-L677` | `def group_regions(hits, max_sep)` | Same-strand 45S hits within max_sep of each other form regions: [(start, end)]. |
+| `group_loci` | `function` | `L680-L689` | `def group_loci(regions, merge_bp)` | Regions within merge_bp form loci: [{start, end, size}] where size is the 45S bp. |
+| `read_45s_loci` | `function` | `L692-L699` | `def read_45s_loci(path, policy)` | {chrom: [locus]} from BARRNAP GFF3. |
+| `rdna_masks` | `function` | `L702-L718` | `def rdna_masks(loci, lengths, canonical, policy)` | mask and annotated spans per chromosome (R11). |
+| `elimination_line` | `function` | `L723-L754` | `def elimination_line(segments, canonical)` | bp per label, counted explicitly; canonical and unplaced are separate. |
+| `parse_args` | `function` | `L757-L772` | `def parse_args(argv)` | — |
+| `main` | `function` | `L775-L851` | `def main(argv=None)` | — |
 
 ### `modules/local/softclipends/resources/usr/bin/pde_terminal_softclips.py`
 

@@ -9,7 +9,7 @@ process SEGMENTQUANTIZED {
 
     input:
     tuple val(meta), path(summary_tsv)
-    tuple val(meta2), path(quantized_bed)
+    tuple val(meta2), path(barrnap_gff)
     tuple val(meta3), path(gaps_bed)
     tuple val(meta4), path(red_bed)
     tuple val(meta5), path(regions_bed)
@@ -19,6 +19,7 @@ process SEGMENTQUANTIZED {
     output:
     tuple val(meta), path("*.pde_segments.bed"), emit: bed
     tuple val(meta), path("*.grs_summary.tsv"),  emit: summary
+    tuple val(meta), path("*.fissions.tsv"),     emit: fissions
     tuple val("${task.process}"), val('python'), val('3.10'), emit: versions_segmentquantized, topic: versions
 
     when:
@@ -32,11 +33,11 @@ process SEGMENTQUANTIZED {
     def chr_arg  = (chr_val && chr_val != "" && chr_val != "null") ? "--chromosomes \"${chr_val}\"" : ""
 
     """
-    # Tool: pde_segment_quantized.py | Script-SHA: 26c70ab735f12ac0
+    # Tool: pde_segment_quantized.py | Script-SHA: 22f7336f1b1d735c
     python3 ${moduleDir}/resources/usr/bin/pde_segment_quantized.py --version
     python3 ${moduleDir}/resources/usr/bin/pde_segment_quantized.py \\
         --summary-tsv ${summary_tsv} \\
-        --quantized-bed ${quantized_bed} \\
+        --barrnap-gff ${barrnap_gff} \\
         --gaps-bed ${gaps_bed} \\
         ${red_arg} \\
         --regions-bed ${regions_bed} \\
@@ -52,5 +53,6 @@ process SEGMENTQUANTIZED {
     """
     touch ${prefix}.pde_segments.bed
     touch ${prefix}.grs_summary.tsv
+    touch ${prefix}.fissions.tsv
     """
 }

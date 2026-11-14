@@ -1,261 +1,153 @@
-"""Unit tests for pde_segment_quantized: final three-class call from quantized depth.
+"""Tests for pde_segment_quantized (v2.0.0): R1-R11 segmentation via the CLI.
 
-British spelling standard enforced across all documentation and comments.
+Synthetic fixtures use 500 bp mosdepth windows. Expected values follow the
+R1-R11 plan (Verification section).
 """
 
-from pathlib import Path
-import os
+import subprocess
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 bin_dir = Path(__file__).resolve().parent.parent / "resources" / "usr" / "bin"
-sys.path.insert(0, str(bin_dir))
-
-from pde_segment_quantized import (
-    call_sequence,
-    check_tiling,
-    elimination_line,
-    main,
-)
-
-POLICY = {
-    "anchor_proximity_bp": 2000,
-    "quantized_min_low_run_bp": 1,
-    "quantized_max_bridge_bp": 5000,
-    "quantized_masked_repeat_fraction": 0.9,
-    "chromosomal_min_bp": 1000000,
-}
-LENGTH = 300000
-CHROM = "chr1"
+SCRIPT = bin_dir / "pde_segment_quantized.py"
+WIN = 500
 
 
-def run(s, e, is_low):
-    return (s, e, is_low)
+def write(path, lines):
+    path.write_text("".join(line + "\n" for line in lines))
 
 
-def bp(pos, strand, end=None):
-    return (pos, strand, pos if end is None else end)
+def depth_windows(chrom, length, depth_fn):
+    """Mosdepth-format regions: chrom, start, end, depth."""
+    return [f"{chrom}\t{s}\t{s + WIN}\t{depth_fn(s):g}" for s in range(0, length, WIN)]
 
 
-def call(runs, gaps=None, red=None, bps=None, length=LENGTH):
-    pieces = call_sequence(CHROM, length, runs, gaps or [], red, bps or [], POLICY)
-    check_tiling(CHROM, pieces, length)
-    return pieces
+def run_case(length, depth_fn, sites=(), gaps=(), chromosomes="chr1", barrnap=(), summary_chroms=None):
+    """Run the CLI on one synthetic sequence set. Returns (outdir, bed_rows, tsv_lines, fission_lines)."""
+    tmp = Path(tempfile.mkdtemp())
+    chroms = summary_chroms or {"chr1": length}
+    summary = ["# GRS_THRESHOLD=0.5", "# ELIMINATION_RANGE\tcanon_uncertain_bp=0"]
+    summary.append("chromosome\tstart\tend\tlength\tclassification\tmedian_depth\tsubtype")
+    for c, n in chroms.items():
+        summary.append(f"{c}\t0\t{n}\t{n}\tcore\t0\tx")
+    write(tmp / "summary.tsv", summary)
+    rows = ["chrom\tpos\tend\tstrand\tsupport"] + list(sites)
+    write(tmp / "breaks.tsv", rows)
+    write(tmp / "gaps.bed", list(gaps))
+    write(tmp / "red.bed", [])
+    regions = []
+    for c, n in chroms.items():
+        regions += depth_windows(c, n, lambda s, c=c: depth_fn(c, s))
+    write(tmp / "regions.bed", regions)
+    write(tmp / "barrnap.gff", list(barrnap))
+    cmd = [
+        sys.executable, str(SCRIPT),
+        "--summary-tsv", str(tmp / "summary.tsv"),
+        "--barrnap-gff", str(tmp / "barrnap.gff"),
+        "--gaps-bed", str(tmp / "gaps.bed"),
+        "--red-bed", str(tmp / "red.bed"),
+        "--regions-bed", str(tmp / "regions.bed"),
+        "--breakpoints-tsv", str(tmp / "breaks.tsv"),
+        "--chromosomes", chromosomes,
+        "--prefix", "t", "--outdir", str(tmp),
+    ]
+    subprocess.run(cmd, check=True, capture_output=True, text=True)
+    bed = [l.split("\t") for l in (tmp / "t.pde_segments.bed").read_text().splitlines() if l]
+    tsv = (tmp / "t.grs_summary.tsv").read_text().splitlines()
+    fis = (tmp / "t.fissions.tsv").read_text().splitlines()
+    return tmp, bed, tsv, fis
 
 
-BASE_RUNS = [run(0, 100000, False), run(100000, 150000, True), run(150000, LENGTH, False)]
+def labels(bed):
+    return [(int(r[1]), int(r[2]), r[3]) for r in bed]
 
 
-class TestQuantizedCall(unittest.TestCase):
-    def test_low_run_with_breakpoint_at_left_border_is_grs(self):
-        pieces = call(BASE_RUNS, bps=[bp(100500, "+")])
-        self.assertEqual(pieces, [
-            (0, 100000, "putative_core", "-"),
-            (100000, 150000, "putative_GRS", "quantized_delfies_anchored"),
-            (150000, LENGTH, "putative_core", "-"),
-        ])
+class TestFission(unittest.TestCase):
+    """Case 2: opposing +/- sites that are close form a fission, not a GRS."""
 
-    def test_low_run_without_breakpoint_is_uncertain(self):
-        pieces = call(BASE_RUNS)
-        self.assertIn((100000, 150000, "uncertain", "no_delfies_support"), pieces)
+    def test_plus_minus_pair_splits_at_midpoint(self):
+        _, bed, _, fis = run_case(
+            5000, lambda c, s: 100,
+            sites=["chr1\t1000\t1000\t+\t100", "chr1\t1003\t1003\t-\t80"],
+        )
+        self.assertIn("chr1\t1000\t1003\t3\t1001", fis)
+        segs = labels(bed)
+        self.assertEqual([x[2] for x in segs], ["putative_core", "putative_core"])
+        self.assertEqual(segs[0][1], 1001)
 
-    def test_low_run_with_minus_breakpoint_at_right_border_is_grs(self):
-        runs = [run(0, 50000, True), run(50000, LENGTH, False)]
-        pieces = call(runs, bps=[bp(0, "-", end=50300)])
-        self.assertEqual(pieces[0], (0, 50000, "putative_GRS", "quantized_delfies_anchored"))
-
-    def test_breakpoint_near_right_border_only_does_not_anchor_plus(self):
-        pieces = call(BASE_RUNS, bps=[bp(150100, "+")])
-        self.assertIn((100000, 150000, "uncertain", "no_delfies_support"), pieces)
-
-    def test_gap_inside_grs_anchored_at_both_edges_is_absorbed(self):
-        pieces = call(BASE_RUNS, gaps=[(120000, 121000)], bps=[bp(100000, "+"), bp(0, "-", end=150000)])
-        self.assertEqual(pieces, [
-            (0, 100000, "putative_core", "-"),
-            (100000, 150000, "putative_GRS", "quantized_delfies_anchored"),
-            (150000, LENGTH, "putative_core", "-"),
-        ])
-
-    def test_unanchored_low_after_gap_is_uncertain(self):
-        pieces = call(BASE_RUNS, gaps=[(120000, 121000)], bps=[bp(100000, "+")])
-        self.assertEqual(pieces[1:3], [
-            (100000, 121000, "putative_GRS", "quantized_delfies_anchored"),
-            (121000, 150000, "uncertain", "no_delfies_support"),
-        ])
-
-    def test_gap_straddling_low_high_edge_joins_left_class(self):
-        pieces = call(BASE_RUNS, gaps=[(149800, 150200)], bps=[bp(100000, "+")])
-        self.assertEqual(pieces[1:], [
-            (100000, 150200, "putative_GRS", "quantized_delfies_anchored"),
-            (150200, LENGTH, "putative_core", "-"),
-        ])
-
-    def test_gap_inside_high_stays_core(self):
-        pieces = call(BASE_RUNS, gaps=[(20000, 20500)])
-        self.assertEqual(pieces[0], (0, 100000, "putative_core", "-"))
-
-    def test_bridge_does_not_cross_a_gap(self):
-        runs = [run(0, 100000, False), run(100000, 150000, True),
-                run(150000, 152000, False), run(152000, 160000, True),
-                run(160000, LENGTH, False)]
-        pieces = call(runs, gaps=[(150500, 150600)], bps=[bp(100500, "+")])
-        self.assertEqual(pieces[1:4], [
-            (100000, 150000, "putative_GRS", "quantized_delfies_anchored"),
-            (150000, 152000, "putative_core", "-"),
-            (152000, 160000, "uncertain", "no_delfies_support"),
-        ])
-
-    def test_breakpoint_beyond_a_gap_does_not_anchor(self):
-        pieces = call(BASE_RUNS, gaps=[(99000, 99500)], bps=[bp(98500, "+")])
-        self.assertIn((100000, 150000, "uncertain", "no_delfies_support"), pieces)
-
-    def test_leading_gap_takes_following_class(self):
-        runs = [run(0, 50000, True), run(50000, LENGTH, False)]
-        pieces = call(runs, gaps=[(0, 1000)], bps=[bp(0, "-", end=50300)])
-        self.assertEqual(pieces[0], (0, 50000, "putative_GRS", "quantized_delfies_anchored"))
-
-    def test_three_subregion_case_tiles_every_gap_bounded_piece(self):
-        runs = [run(0, 100000, False), run(100000, 150000, True),
-                run(150000, 200000, False), run(200000, 250000, True),
-                run(250000, LENGTH, False)]
-        pieces = call(runs, gaps=[(149700, 149900), (200100, 200300)], bps=[bp(100000, "+")])
-        self.assertEqual(pieces, [
-            (0, 100000, "putative_core", "-"),
-            (100000, 149900, "putative_GRS", "quantized_delfies_anchored"),
-            (149900, 150000, "uncertain", "no_delfies_support"),
-            (150000, 200000, "putative_core", "-"),
-            (200000, 250000, "uncertain", "no_delfies_support"),
-            (250000, LENGTH, "putative_core", "-"),
-        ])
-
-    def test_short_high_bridge_carries_anchor_to_next_low_run(self):
-        runs = [run(0, 100000, False), run(100000, 150000, True),
-                run(150000, 152000, False), run(152000, 160000, True),
-                run(160000, LENGTH, False)]
-        pieces = call(runs, bps=[bp(100500, "+")])
-        self.assertEqual(pieces[1:4], [
-            (100000, 150000, "putative_GRS", "quantized_delfies_anchored"),
-            (150000, 152000, "putative_GRS", "quantized_bridged"),
-            (152000, 160000, "putative_GRS", "quantized_delfies_anchored"),
-        ])
-
-    def test_long_high_bridge_breaks_block(self):
-        runs = [run(0, 100000, False), run(100000, 150000, True),
-                run(150000, 160000, False), run(160000, 170000, True),
-                run(170000, LENGTH, False)]
-        pieces = call(runs, bps=[bp(100500, "+")])
-        self.assertEqual(pieces[1:4], [
-            (100000, 150000, "putative_GRS", "quantized_delfies_anchored"),
-            (150000, 160000, "putative_core", "-"),
-            (160000, 170000, "uncertain", "no_delfies_support"),
-        ])
-
-    def test_unanchored_block_keeps_bridge_as_core(self):
-        runs = [run(0, 100000, False), run(100000, 150000, True),
-                run(150000, 152000, False), run(152000, 160000, True),
-                run(160000, LENGTH, False)]
-        pieces = call(runs)
-        self.assertEqual(pieces[1:4], [
-            (100000, 150000, "uncertain", "no_delfies_support"),
-            (150000, 152000, "putative_core", "-"),
-            (152000, 160000, "uncertain", "no_delfies_support"),
-        ])
-
-    def test_minus_breakpoint_at_block_end_anchors_whole_block(self):
-        runs = [run(0, 100000, False), run(100000, 150000, True),
-                run(150000, 152000, False), run(152000, 160000, True),
-                run(160000, LENGTH, False)]
-        pieces = call(runs, bps=[bp(0, "-", end=159500)])
-        self.assertEqual(pieces[1:4], [
-            (100000, 150000, "putative_GRS", "quantized_delfies_anchored"),
-            (150000, 152000, "putative_GRS", "quantized_bridged"),
-            (152000, 160000, "putative_GRS", "quantized_delfies_anchored"),
-        ])
-
-    def test_fully_repeat_low_run_is_uncertain_without_breakpoint_and_grs_with(self):
-        red = [(100000, 150000)]
-        self.assertIn((100000, 150000, "uncertain", "repeat_masked"),
-                      call(BASE_RUNS, red=red))
-        self.assertIn((100000, 150000, "putative_GRS", "quantized_delfies_anchored"),
-                      call(BASE_RUNS, red=red, bps=[bp(100000, "+")]))
-
-    def test_low_run_below_minimum_length_is_core(self):
-        policy = dict(POLICY, quantized_min_low_run_bp=3000)
-        runs = [run(0, 100000, False), run(100000, 102000, True), run(102000, LENGTH, False)]
-        bps = [bp(100000, "+")]
-        pieces = call_sequence(CHROM, LENGTH, runs, [], None, bps, policy)
-        self.assertEqual(pieces, [(0, LENGTH, "putative_core", "-")])
-
-    def test_uncovered_bases_are_uncertain_and_tiling_holds(self):
-        runs = [run(0, 40000, False), run(50000, LENGTH, False)]
-        pieces = call(runs)
-        self.assertIn((40000, 50000, "uncertain", "no_quantized_coverage"), pieces)
-
-    def test_check_tiling_rejects_one_base_hole(self):
-        with self.assertRaises(ValueError):
-            check_tiling(CHROM, [(0, 10, "putative_core", "-"), (11, 20, "putative_core", "-")], 20)
-
-    def test_adjacent_identical_pieces_are_merged(self):
-        runs = [run(0, 100000, False), run(100000, 110000, False), run(110000, LENGTH, False)]
-        pieces = call(runs)
-        self.assertEqual(pieces, [(0, LENGTH, "putative_core", "-")])
+    def test_minus_before_plus_splits_at_midpoint(self):
+        _, bed, _, fis = run_case(
+            5000, lambda c, s: 100,
+            sites=["chr1\t1000\t1000\t+\t100", "chr1\t997\t997\t-\t80"],
+        )
+        # Cut follows (plus + minus) // 2 = 998. The plan's worked example says 999; flagged.
+        self.assertIn("chr1\t1000\t997\t-3\t998", fis)
+        self.assertNotIn("putative_GRS", [x[2] for x in labels(bed)])
 
 
-class TestEliminationLine(unittest.TestCase):
-    def test_grs_bp_and_uncertain_reported_separately(self):
-        segments = [
-            ("chr1", 0, 1000, "putative_GRS", 5.0, "quantized_delfies_anchored"),
-            ("chr1", 1000, 3000, "putative_GRS", 5.0, "quantized_delfies_anchored"),
-            ("chr1", 3000, 4000, "uncertain", 5.0, "no_delfies_support"),
-            ("u1", 0, 500, "uncertain", 1.0, "fully_repetitive_unplaced"),
-        ]
-        line = elimination_line(segments, canonical={"chr1"})
-        self.assertIn("canon_grs_bp=3000", line)
-        self.assertIn("unplaced_uncertain_bp=500", line)
-        self.assertIn("min_elim_bp=3000\tmax_elim_bp=3000\test_elim_bp=3000", line)
-        self.assertIn("canon_uncertain_bp=1000", line)
+class TestSpan(unittest.TestCase):
+    """Cases 3 and 4: a +/- span with depth inside it is eliminated, gaps change the call."""
+
+    def span_sites(self):
+        return ["chr1\t10000\t10000\t+\t100", "chr1\t30000\t30000\t-\t100"]
+
+    def test_depth_inside_span_is_grs(self):
+        _, bed, tsv, _ = run_case(
+            40000, lambda c, s: 20 if 10000 <= s < 30000 else 100, sites=self.span_sites(),
+        )
+        segs = [x for x in labels(bed) if x[2] == "putative_GRS"]
+        self.assertEqual(segs, [(10000, 30000, "putative_GRS")])
+        self.assertTrue(any("span_eliminated_depth:20000" in l for l in tsv))
+
+    def test_gap_at_span_start_with_retained_depth_is_uncertain(self):
+        _, bed, tsv, _ = run_case(
+            40000, lambda c, s: 100, sites=self.span_sites(), gaps=["chr1\t10000\t10500"],
+        )
+        self.assertIn("uncertain", [x[2] for x in labels(bed)])
+        self.assertTrue(any("retained_depth_inside_span" in l for l in tsv))
+
+    def test_gaps_at_both_span_edges_with_retained_depth_is_misjoin(self):
+        _, bed, _, _ = run_case(
+            40000, lambda c, s: 100, sites=self.span_sites(),
+            gaps=["chr1\t10000\t10500", "chr1\t29500\t30000"],
+        )
+        self.assertIn("putative_core", [x[2] for x in labels(bed)])
 
 
-class TestMainFixture(unittest.TestCase):
-    def test_cli_writes_bed_and_summary(self):
-        with tempfile.TemporaryDirectory() as d:
-            def w(name, text):
-                path = os.path.join(d, name)
-                with open(path, "w") as f:
-                    f.write(text)
-                return path
+class TestVariable(unittest.TestCase):
+    """Case 6: half-depth span is putative_variable, not GRS."""
 
-            summary = w("in.tsv",
-                        "# SOFTWARE=pde_identify_grs.py\tGRS_THRESHOLD=10.00\n"
-                        "# ELIMINATION_RANGE\tcanon_grs_bp=0\n"
-                        "chromosome\tstart\tend\tlength\tclassification\tmedian_depth\tsubtype\n"
-                        "chr1\t0\t300000\t300000\tputative_core\t30.00\t-\n"
-                        "u1\t0\t5000\t5000\tuncertain\t1.00\tfully_repetitive_unplaced\n")
-            quant = w("q.bed", "chr1\t0\t100000\t10:inf\t0\nchr1\t100000\t150000\t0:10\t0\n"
-                               "chr1\t150000\t300000\t10:inf\t0\nu1\t0\t2000\t0:10\t0\n"
-                               "u1\t2000\t5000\t10:inf\t0\n")
-            bps = w("bp.tsv", "chrom\tpos\tend\tstrand\tsupport\nchr1\t100500\t100500\t+\t8.0\n"
-                              "u1\t0\t2100\t-\t9.0\n")
-            outdir = os.path.join(d, "out")
-            os.makedirs(outdir)
-            main(["--summary-tsv", summary, "--quantized-bed", quant, "--breakpoints-tsv", bps,
-                  "--prefix", "t", "--outdir", outdir, "--chromosomes", "chr1"])
-            with open(os.path.join(outdir, "t.pde_segments.bed")) as f:
-                bed = f.read().splitlines()
-            with open(os.path.join(outdir, "t.grs_summary.tsv")) as f:
-                tsv = f.read().splitlines()
-        self.assertEqual(bed, [
-            "chr1\t0\t100000\tputative_core",
-            "chr1\t100000\t150000\tputative_GRS",
-            "chr1\t150000\t300000\tputative_core",
-            "u1\t0\t2000\tputative_GRS",
-            "u1\t2000\t5000\tputative_core",
-        ])
-        self.assertTrue(tsv[1].startswith("# ELIMINATION_RANGE\tcanon_grs_bp=50000\t"))
-        self.assertIn("unplaced_grs_bp=2000", tsv[1])
-        self.assertIn("unplaced_core_bp=3000", tsv[1])
-        self.assertIn("min_elim_bp=52000\tmax_elim_bp=52000\test_elim_bp=52000", tsv[1])
+    def test_half_depth_span_is_variable(self):
+        sites = ["chr1\t10000\t10000\t+\t100", "chr1\t20000\t20000\t+\t100", "chr1\t30000\t30000\t-\t100"]
+        _, bed, _, _ = run_case(
+            40000, lambda c, s: 50 if 10000 <= s < 20000 else 100, sites=sites,
+        )
+        self.assertIn("putative_variable", [x[2] for x in labels(bed)])
+
+
+class TestUnplaced(unittest.TestCase):
+    """Case 9: a non-canonical sequence with low depth and no sites is unplaced_eliminated."""
+
+    def test_low_depth_non_canonical_is_unplaced_eliminated(self):
+        _, bed, _, _ = run_case(
+            40000, lambda c, s: 20 if c == "chr2" else 100, chromosomes="chr1",
+            summary_chroms={"chr1": 40000, "chr2": 40000},
+        )
+        chr2 = [r[3] for r in bed if r[0] == "chr2"]
+        self.assertEqual(chr2, ["unplaced_eliminated"])
+
+
+class TestOutput(unittest.TestCase):
+    """Case 10: tiling, header and output contract."""
+
+    def test_header_and_tiling(self):
+        _, bed, tsv, _ = run_case(40000, lambda c, s: 100)
+        header = [l for l in tsv if l.startswith("chromosome\t")]
+        self.assertEqual(len(header), 1)
+        self.assertEqual(header[0].split("\t")[:6], ["chromosome", "start", "end", "length", "classification", "median_depth"])
+        self.assertEqual(sum(int(r[2]) - int(r[1]) for r in bed), 40000)
 
 
 if __name__ == "__main__":

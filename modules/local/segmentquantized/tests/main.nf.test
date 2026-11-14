@@ -22,3 +22,15 @@ nextflow_process {
                 input[4] = [ [ id:'test' ], file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/genome/bed/test.bed', checkIfExists: true) ]
                 input[5] = [ [ id:'test' ], file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/genome/bed/test.bed', checkIfExists: true) ]
                 input[6] = 'sarscov2'
+                """
+            }
+        }
+
+        then {
+            assertAll(
+                { assert process.success },
+                { assert snapshot(process.out).match() }
+            )
+        }
+    }
+}
