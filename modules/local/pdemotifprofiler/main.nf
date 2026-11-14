@@ -26,7 +26,7 @@ process PDEMOTIFPROFILER {
     def tolerance = flank_tolerance ?: 500
 
     """
-    # Tool: pde_motif_profiler.py | Script-SHA: acdcad4247ea05d1
+    # Tool: pde_motif_profiler.py | Script-SHA: dbdf3e1878a13f80
     python3 ${moduleDir}/resources/usr/bin/pde_motif_profiler.py \\
         --fimo-tsv "${fimo_tsv}" \\
         --breakpoints-bed "${breakpoints_bed}" \\

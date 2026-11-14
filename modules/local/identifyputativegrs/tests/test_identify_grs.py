@@ -145,9 +145,9 @@ class TestIdentifyPutativeGRS(unittest.TestCase):
         drops_all = [(0, 50_000)]
         # mostly repeat: < 1 kb unique sequence -> uncertain, whatever the coverage
         self.assertEqual(classify_unplaced("u1", 50_000, drops_all, {"u1": [(0, 49_500)]}, RULES)[0],
-                         "putative_uncertain")
+                         "uncertain")
         # enough unique sequence: deterministic on drop fraction
-        self.assertEqual(classify_unplaced("u1", 50_000, drops_all, {}, RULES)[0], "putative_uncertain")
+        self.assertEqual(classify_unplaced("u1", 50_000, drops_all, {}, RULES)[0], "uncertain")
         self.assertEqual(classify_unplaced("u1", 50_000, [(0, 10_000)], {}, RULES)[0], "putative_core")
 
     def test_write_breakpoints_tsv_rows(self):
@@ -239,7 +239,7 @@ class TestIdentifyPutativeGRS(unittest.TestCase):
             self.assertTrue(any(r[0] == "chrB" and r[3] == "putative_GRS" for r in rows))
             # u1 (2 Mb) was recognized as unplaced despite being >= 1 Mb, folded into putative_GRS
             u1_rows = [r for r in rows if r[0] == "u1"]
-            self.assertEqual(u1_rows[0][3], "putative_uncertain")
+            self.assertEqual(u1_rows[0][3], "uncertain")
 
 if __name__ == "__main__":
     unittest.main()

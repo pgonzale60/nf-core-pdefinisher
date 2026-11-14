@@ -46,7 +46,7 @@ class TestPdeMotifProfiler(unittest.TestCase):
             seg_bed = os.path.join(tmpdir, "segments.bed")
             with open(seg_bed, "w") as f:
                 f.write("chr1\t0\t1000\tputative_core\n")
-                f.write("chr1\t1000\t2000\tputative_uncertain\n")
+                f.write("chr1\t1000\t2000\tuncertain\n")
             bp_bed = os.path.join(tmpdir, "breakpoints.bed")
             open(bp_bed, "w").close()
             fimo = os.path.join(tmpdir, "fimo.tsv")

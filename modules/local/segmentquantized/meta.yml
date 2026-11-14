@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/sanger-tol/nf-core-modules/main/modules/meta-schema.json
 name: "segmentquantized"
-description: Final three-class segmentation (putative_core, putative_GRS, putative_uncertain) of canonical chromosomes from base-resolution quantized depth, anchored by clustered DELFIES breakpoints; non-canonical scaffolds keep the IDENTIFYPUTATIVEGRS call.
+description: Final three-class segmentation (putative_core, putative_GRS, uncertain) of canonical chromosomes from base-resolution quantized depth, anchored by clustered DELFIES breakpoints; non-canonical scaffolds keep the IDENTIFYPUTATIVEGRS call.
 keywords:
   - pde
   - grs

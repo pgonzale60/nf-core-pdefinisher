@@ -535,9 +535,9 @@ def classify_unplaced(chrom, length, raw_drops, repeats, rules):
     non_rep_bp = max(0, length - repeat_bp)
     drop_bp = sum(e - s for s, e in raw_drops)
     if non_rep_bp < rules["unplaced_min_nonrepeat_bp"]:
-        return "putative_uncertain", "fully_repetitive_unplaced"
+        return "uncertain", "fully_repetitive_unplaced"
     if drop_bp / max(1, length) >= rules["unplaced_grs_drop_fraction"]:
-        return "putative_uncertain", "unplaced_coverage_drop"
+        return "uncertain", "unplaced_coverage_drop"
     return "putative_core", "-"
 
 
@@ -704,7 +704,7 @@ def main():
             label, subtype = classify_unplaced(chrom, length, raw_drops, repeats, rules)
             med = get_median_depth(cov_windows, chrom, 0, length)
             segments.append((chrom, 0, length, label, med, subtype))
-            if label == "putative_uncertain":
+            if label == "uncertain":
                 unplaced_uncertain_bp += length
             elif label == "putative_GRS":
                 unplaced_grs_bp += length

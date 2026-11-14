@@ -41,11 +41,11 @@ class TestBorders(unittest.TestCase):
         self.assertFalse(mod.near_border(borders, "c", 1101))
 
     def test_core_uncertain_edge_is_not_border(self):
-        segs = {"c": [(0, 1000, "putative_core"), (1000, 2000, "putative_uncertain")]}
+        segs = {"c": [(0, 1000, "putative_core"), (1000, 2000, "uncertain")]}
         self.assertEqual(mod.find_borders(segs)["c"], [])
 
     def test_uncertain_grs_edge_is_not_border(self):
-        segs = {"c": [(0, 1000, "putative_uncertain"), (1000, 2000, "putative_GRS")]}
+        segs = {"c": [(0, 1000, "uncertain"), (1000, 2000, "putative_GRS")]}
         self.assertEqual(mod.find_borders(segs)["c"], [])
 
 

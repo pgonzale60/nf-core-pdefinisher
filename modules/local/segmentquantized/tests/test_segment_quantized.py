@@ -58,7 +58,7 @@ class TestQuantizedCall(unittest.TestCase):
 
     def test_low_run_without_breakpoint_is_uncertain(self):
         pieces = call(BASE_RUNS)
-        self.assertIn((100000, 150000, "putative_uncertain", "no_delfies_support"), pieces)
+        self.assertIn((100000, 150000, "uncertain", "no_delfies_support"), pieces)
 
     def test_low_run_with_minus_breakpoint_at_right_border_is_grs(self):
         runs = [run(0, 50000, True), run(50000, LENGTH, False)]
@@ -67,7 +67,7 @@ class TestQuantizedCall(unittest.TestCase):
 
     def test_breakpoint_near_right_border_only_does_not_anchor_plus(self):
         pieces = call(BASE_RUNS, bps=[bp(150100, "+")])
-        self.assertIn((100000, 150000, "putative_uncertain", "no_delfies_support"), pieces)
+        self.assertIn((100000, 150000, "uncertain", "no_delfies_support"), pieces)
 
     def test_gap_inside_grs_anchored_at_both_edges_is_absorbed(self):
         pieces = call(BASE_RUNS, gaps=[(120000, 121000)], bps=[bp(100000, "+"), bp(0, "-", end=150000)])
@@ -81,7 +81,7 @@ class TestQuantizedCall(unittest.TestCase):
         pieces = call(BASE_RUNS, gaps=[(120000, 121000)], bps=[bp(100000, "+")])
         self.assertEqual(pieces[1:3], [
             (100000, 121000, "putative_GRS", "quantized_delfies_anchored"),
-            (121000, 150000, "putative_uncertain", "no_delfies_support"),
+            (121000, 150000, "uncertain", "no_delfies_support"),
         ])
 
     def test_gap_straddling_low_high_edge_joins_left_class(self):
@@ -103,12 +103,12 @@ class TestQuantizedCall(unittest.TestCase):
         self.assertEqual(pieces[1:4], [
             (100000, 150000, "putative_GRS", "quantized_delfies_anchored"),
             (150000, 152000, "putative_core", "-"),
-            (152000, 160000, "putative_uncertain", "no_delfies_support"),
+            (152000, 160000, "uncertain", "no_delfies_support"),
         ])
 
     def test_breakpoint_beyond_a_gap_does_not_anchor(self):
         pieces = call(BASE_RUNS, gaps=[(99000, 99500)], bps=[bp(98500, "+")])
-        self.assertIn((100000, 150000, "putative_uncertain", "no_delfies_support"), pieces)
+        self.assertIn((100000, 150000, "uncertain", "no_delfies_support"), pieces)
 
     def test_leading_gap_takes_following_class(self):
         runs = [run(0, 50000, True), run(50000, LENGTH, False)]
@@ -123,9 +123,9 @@ class TestQuantizedCall(unittest.TestCase):
         self.assertEqual(pieces, [
             (0, 100000, "putative_core", "-"),
             (100000, 149900, "putative_GRS", "quantized_delfies_anchored"),
-            (149900, 150000, "putative_uncertain", "no_delfies_support"),
+            (149900, 150000, "uncertain", "no_delfies_support"),
             (150000, 200000, "putative_core", "-"),
-            (200000, 250000, "putative_uncertain", "no_delfies_support"),
+            (200000, 250000, "uncertain", "no_delfies_support"),
             (250000, LENGTH, "putative_core", "-"),
         ])
 
@@ -148,7 +148,7 @@ class TestQuantizedCall(unittest.TestCase):
         self.assertEqual(pieces[1:4], [
             (100000, 150000, "putative_GRS", "quantized_delfies_anchored"),
             (150000, 160000, "putative_core", "-"),
-            (160000, 170000, "putative_uncertain", "no_delfies_support"),
+            (160000, 170000, "uncertain", "no_delfies_support"),
         ])
 
     def test_unanchored_block_keeps_bridge_as_core(self):
@@ -157,9 +157,9 @@ class TestQuantizedCall(unittest.TestCase):
                 run(160000, LENGTH, False)]
         pieces = call(runs)
         self.assertEqual(pieces[1:4], [
-            (100000, 150000, "putative_uncertain", "no_delfies_support"),
+            (100000, 150000, "uncertain", "no_delfies_support"),
             (150000, 152000, "putative_core", "-"),
-            (152000, 160000, "putative_uncertain", "no_delfies_support"),
+            (152000, 160000, "uncertain", "no_delfies_support"),
         ])
 
     def test_minus_breakpoint_at_block_end_anchors_whole_block(self):
@@ -175,7 +175,7 @@ class TestQuantizedCall(unittest.TestCase):
 
     def test_fully_repeat_low_run_is_uncertain_without_breakpoint_and_grs_with(self):
         red = [(100000, 150000)]
-        self.assertIn((100000, 150000, "putative_uncertain", "repeat_masked"),
+        self.assertIn((100000, 150000, "uncertain", "repeat_masked"),
                       call(BASE_RUNS, red=red))
         self.assertIn((100000, 150000, "putative_GRS", "quantized_delfies_anchored"),
                       call(BASE_RUNS, red=red, bps=[bp(100000, "+")]))
@@ -190,7 +190,7 @@ class TestQuantizedCall(unittest.TestCase):
     def test_uncovered_bases_are_uncertain_and_tiling_holds(self):
         runs = [run(0, 40000, False), run(50000, LENGTH, False)]
         pieces = call(runs)
-        self.assertIn((40000, 50000, "putative_uncertain", "no_quantized_coverage"), pieces)
+        self.assertIn((40000, 50000, "uncertain", "no_quantized_coverage"), pieces)
 
     def test_check_tiling_rejects_one_base_hole(self):
         with self.assertRaises(ValueError):
@@ -207,8 +207,8 @@ class TestEliminationLine(unittest.TestCase):
         segments = [
             ("chr1", 0, 1000, "putative_GRS", 5.0, "quantized_delfies_anchored"),
             ("chr1", 1000, 3000, "putative_GRS", 5.0, "quantized_delfies_anchored"),
-            ("chr1", 3000, 4000, "putative_uncertain", 5.0, "no_delfies_support"),
-            ("u1", 0, 500, "putative_uncertain", 1.0, "fully_repetitive_unplaced"),
+            ("chr1", 3000, 4000, "uncertain", 5.0, "no_delfies_support"),
+            ("u1", 0, 500, "uncertain", 1.0, "fully_repetitive_unplaced"),
         ]
         line = elimination_line(segments, canonical={"chr1"})
         self.assertIn("canon_grs_bp=3000", line)
@@ -231,7 +231,7 @@ class TestMainFixture(unittest.TestCase):
                         "# ELIMINATION_RANGE\tcanon_grs_bp=0\n"
                         "chromosome\tstart\tend\tlength\tclassification\tmedian_depth\tsubtype\n"
                         "chr1\t0\t300000\t300000\tputative_core\t30.00\t-\n"
-                        "u1\t0\t5000\t5000\tputative_uncertain\t1.00\tfully_repetitive_unplaced\n")
+                        "u1\t0\t5000\t5000\tuncertain\t1.00\tfully_repetitive_unplaced\n")
             quant = w("q.bed", "chr1\t0\t100000\t10:inf\t0\nchr1\t100000\t150000\t0:10\t0\n"
                                "chr1\t150000\t300000\t10:inf\t0\nu1\t0\t2000\t0:10\t0\n"
                                "u1\t2000\t5000\t10:inf\t0\n")

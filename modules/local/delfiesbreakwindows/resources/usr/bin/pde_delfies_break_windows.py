@@ -7,7 +7,7 @@ Inputs
                     Duplicate (contig, start) rows are summed.
   --pde-segments-bed  pde_segments.bed (contig, start, end, label). Core/GRS
                     borders are contiguous putative_core / putative_GRS pairs only
-                    (putative_uncertain never forms a border); the border sits at the
+                    (uncertain never forms a border); the border sits at the
                     shared coordinate, as in pde_extract_borders.py.
 
 Rules

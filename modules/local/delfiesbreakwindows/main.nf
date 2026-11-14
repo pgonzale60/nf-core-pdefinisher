@@ -22,7 +22,7 @@ process DELFIESBREAKWINDOWS {
     def prefix = task.ext.prefix ?: "${meta.id}"
 
     """
-    # Tool: pde_delfies_break_windows.py | Script-SHA: f1b668f0a09c1bc0
+    # Tool: pde_delfies_break_windows.py | Script-SHA: e3151cbeef57ff38
     pde_delfies_break_windows.py \\
         --s2g-tsv "${s2g_tsv}" \\
         --pde-segments-bed "${pde_segments_bed}" \\
