@@ -18,7 +18,7 @@ process SEGMENTQUANTIZED {
 
     output:
     tuple val(meta), path("*.pde_segments.bed"), emit: bed
-    tuple val(meta), path("*.grs_summary.tsv"),  emit: summary
+    tuple val(meta), path("*.final.grs_summary.tsv"),  emit: summary
     tuple val(meta), path("*.fissions.tsv"),     emit: fissions
     tuple val("${task.process}"), val('python'), val('3.10'), emit: versions_segmentquantized, topic: versions
 
@@ -33,7 +33,7 @@ process SEGMENTQUANTIZED {
     def chr_arg  = (chr_val && chr_val != "" && chr_val != "null") ? "--chromosomes \"${chr_val}\"" : ""
 
     """
-    # Tool: pde_segment_quantized.py | Script-SHA: 0449be52ed01a428
+    # Tool: pde_segment_quantized.py | Script-SHA: 4e9ee601d25fb31f
     python3 ${moduleDir}/resources/usr/bin/pde_segment_quantized.py --version
     python3 ${moduleDir}/resources/usr/bin/pde_segment_quantized.py \\
         --summary-tsv ${summary_tsv} \\
@@ -52,7 +52,7 @@ process SEGMENTQUANTIZED {
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
     touch ${prefix}.pde_segments.bed
-    touch ${prefix}.grs_summary.tsv
+    touch ${prefix}.final.grs_summary.tsv
     touch ${prefix}.fissions.tsv
     """
 }

@@ -193,7 +193,7 @@ output:
       description: |
         TSV summary of chromosome segments with classification and median depths.
         Structure: [ val(meta), path(summary) ]
-      pattern: "*.grs_summary.tsv"
+      pattern: "*.final.grs_summary.tsv"
   - telo_junction_json:
       type: file
       description: |
