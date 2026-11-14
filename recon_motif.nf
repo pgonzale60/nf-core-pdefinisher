@@ -69,7 +69,7 @@ output {
         mode params.publish_dir_mode
     }
     red_bed {
-        path { meta, file -> "${PdePublish.pathFor(params, meta, "pde_reconnaissance")}/${file.name.replaceFirst(/\.bed$/, '.red.bed')}" }
+        path { meta, file -> "${PdePublish.pathFor(params, meta, "pde_reconnaissance")}/${file.baseName}.red.bed" }
         mode params.publish_dir_mode
     }
     delfies_bed {
