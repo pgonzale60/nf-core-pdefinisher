@@ -10,6 +10,7 @@ include { IDENTIFYPUTATIVEGRS  } from '../../../modules/local/identifyputativegr
 include { MOSDEPTHQUANTIZE     } from '../../../modules/local/mosdepthquantize/main'
 include { MOSDEPTHCLASS        } from '../../../modules/local/mosdepthclass/main'
 include { GFASTATSGAPS                   } from '../../../modules/local/gfastatsgaps/main'
+include { BARRNAP                        } from '../../../modules/local/barrnap/main'
 include { SEGMENTQUANTIZED               } from '../../../modules/local/segmentquantized/main'
 
 workflow PDE_RECONNAISSANCE_CORE {
@@ -87,16 +88,24 @@ workflow PDE_RECONNAISSANCE_CORE {
         ch_assembly
     )
 
-    // MODULE: SEGMENTQUANTIZED — final three-class call from quantized depth, anchored by DELFIES breakpoints
+    // MODULE: BARRNAP — rRNA annotation, input to SEGMENTQUANTIZED rDNA rules (R11)
+    ch_barrnap_input = ch_assembly
+        .map { meta, fasta -> tuple(meta, fasta, 'euk') }
+
+    BARRNAP (
+        ch_barrnap_input
+    )
+
+    // MODULE: SEGMENTQUANTIZED — R1-R11 segmentation from break sites, depth, span and rDNA
     ch_segment_input = IDENTIFYPUTATIVEGRS.out.summary
-        .join(MOSDEPTHQUANTIZE.out.quantized_bed, by: 0)
+        .join(BARRNAP.out.gff, by: 0)
         .join(GFASTATSGAPS.out.gaps_bed, by: 0)
         .join(RED.out.bed, by: 0)
         .join(MOSDEPTH.out.regions_bed, by: 0)
         .join(IDENTIFYPUTATIVEGRS.out.breakpoints_tsv, by: 0)
-        .multiMap { meta, summary, quantized, gaps, red_bed, regions, breakpoints ->
+        .multiMap { meta, summary, barrnap, gaps, red_bed, regions, breakpoints ->
             summary:     tuple(meta, summary)
-            quantized:   tuple(meta, quantized)
+            barrnap:     tuple(meta, barrnap)
             gaps:        tuple(meta, gaps)
             red:         tuple(meta, red_bed)
             regions:     tuple(meta, regions)
@@ -105,7 +114,7 @@ workflow PDE_RECONNAISSANCE_CORE {
 
     SEGMENTQUANTIZED (
         ch_segment_input.summary,
-        ch_segment_input.quantized,
+        ch_segment_input.barrnap,
         ch_segment_input.gaps,
         ch_segment_input.red,
         ch_segment_input.regions,
@@ -137,4 +146,5 @@ workflow PDE_RECONNAISSANCE_CORE {
     class_regions_csi          = MOSDEPTHCLASS.out.class_regions_csi
     grs_summary_tsv            = SEGMENTQUANTIZED.out.summary
     pde_segments_bed           = SEGMENTQUANTIZED.out.bed
+    fissions_tsv               = SEGMENTQUANTIZED.out.fissions
 }
