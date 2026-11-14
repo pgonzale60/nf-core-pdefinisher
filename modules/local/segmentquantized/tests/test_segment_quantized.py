@@ -72,7 +72,7 @@ class TestFission(unittest.TestCase):
             5000, lambda c, s: 100,
             sites=["chr1\t1000\t1000\t+\t100", "chr1\t1003\t1003\t-\t80"],
         )
-        self.assertIn("chr1\t1000\t1003\t3\t1001", fis)
+        self.assertIn("chr1\t1000\t1003\t3\t1000\t1003\t1001", fis)
         segs = labels(bed)
         self.assertEqual([x[2] for x in segs], ["putative_core", "putative_core"])
         self.assertEqual(segs[0][1], 1001)
@@ -83,8 +83,23 @@ class TestFission(unittest.TestCase):
             sites=["chr1\t1000\t1000\t+\t100", "chr1\t997\t997\t-\t80"],
         )
         # Cut = plus - 1 when the minus site is upstream of the plus site.
-        self.assertIn("chr1\t1000\t997\t-3\t999", fis)
+        self.assertIn("chr1\t997\t1000\t3\t1000\t997\t999", fis)
         self.assertNotIn("putative_GRS", [x[2] for x in labels(bed)])
+
+    def test_coincident_fission_is_one_bp(self):
+        _, _, _, fis = run_case(
+            5000, lambda c, s: 100,
+            sites=["chr1\t1000\t1000\t+\t100", "chr1\t1000\t1000\t-\t90"],
+        )
+        self.assertIn("chr1\t1000\t1001\t1\t1000\t1000\t1001", fis)
+
+    def test_fission_flank_eliminated_depth_is_not_grs(self):
+        _, bed, _, _ = run_case(
+            40000, lambda c, s: 20 if 20000 <= s < 30000 else 100,
+            sites=["chr1\t10000\t10000\t+\t100", "chr1\t20000\t20000\t+\t100", "chr1\t20002\t20002\t-\t90"],
+        )
+        grs_starts = [s for s, _, lab in labels(bed) if lab == "putative_GRS"]
+        self.assertFalse([s for s in grs_starts if s >= 20000])
 
 
 class TestSpan(unittest.TestCase):
@@ -115,16 +130,39 @@ class TestSpan(unittest.TestCase):
         )
         self.assertIn("putative_core", [x[2] for x in labels(bed)])
 
-
-class TestVariable(unittest.TestCase):
-    """Case 6: half-depth span is putative_variable, not GRS."""
-
-    def test_half_depth_span_is_variable(self):
-        sites = ["chr1\t10000\t10000\t+\t100", "chr1\t20000\t20000\t+\t100", "chr1\t30000\t30000\t-\t100"]
+    def test_gaps_both_edges_eliminated_depth_is_uncertain(self):
         _, bed, _, _ = run_case(
+            40000, lambda c, s: 20 if 10500 <= s < 29500 else 100, sites=self.span_sites(),
+            gaps=["chr1\t10000\t10500", "chr1\t29500\t30000"],
+        )
+        self.assertNotIn("putative_GRS", [x[2] for x in labels(bed)])
+        self.assertIn("uncertain", [x[2] for x in labels(bed)])
+
+
+class TestUndetermined(unittest.TestCase):
+    """Case 6: half-depth undetermined span is core (undetermined_intermediate_depth), never variable."""
+
+    def test_half_depth_undetermined_is_core(self):
+        sites = ["chr1\t10000\t10000\t+\t100", "chr1\t20000\t20000\t+\t100", "chr1\t30000\t30000\t-\t100"]
+        _, bed, tsv, _ = run_case(
             40000, lambda c, s: 50 if 10000 <= s < 20000 else 100, sites=sites,
         )
-        self.assertIn("putative_variable", [x[2] for x in labels(bed)])
+        self.assertNotIn("putative_variable", [x[2] for x in labels(bed)])
+        self.assertIn((10000, 20000, "putative_core"), labels(bed))
+        self.assertTrue(any("undetermined_intermediate_depth:10000" in l for l in tsv))
+
+    def test_low_support_site_below_floor_bounds_nothing(self):
+        sites = ["chr1\t10000\t10000\t+\t100", "chr1\t20000\t20000\t+\t3", "chr1\t30000\t30000\t-\t100"]
+        _, bed, _, _ = run_case(
+            40000, lambda c, s: 20 if 10000 <= s < 30000 else 100, sites=sites,
+        )
+        self.assertEqual([x for x in labels(bed) if x[2] == "putative_GRS"], [(10000, 30000, "putative_GRS")])
+
+    def test_short_rdna_hit_not_masked(self):
+        barrnap = ["chr1\tbarrnap\trRNA\t2001\t3109\t.\t+\t.\tName=28S_rRNA;product=28S ribosomal RNA"]
+        _, _, tsv, _ = run_case(5000, lambda c, s: 100, barrnap=barrnap)
+        rows = [l.split("\t") for l in tsv if l and not l.startswith(("#", "chromosome"))]
+        self.assertEqual(rows[0][8], "0")
 
 
 class TestUnplaced(unittest.TestCase):

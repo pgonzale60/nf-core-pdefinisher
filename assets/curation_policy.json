@@ -90,7 +90,7 @@
         "unplaced_min_nonrepeat_bp": 1000,
         "unplaced_grs_drop_fraction": 0.5,
         "site_merge_bp": 20,
-        "site_min_reads": 5,
+        "site_min_reads": 1,
         "site_top_n": 3,
         "site_floor_fraction": 0.2,
         "site_balance": 0.5,
@@ -100,6 +100,7 @@
         "depth_boundary_min_run_bp": 10000,
         "core_depth_max_repeat_fraction": 0.5,
         "rdna_45s_max_separation_bp": 3000,
+        "rdna_min_locus_bp": 10000,
         "rdna_locus_merge_bp": 25000,
         "rdna_internal_min_dist_bp": 50000,
         "rdna_all_array_fraction": 0.9

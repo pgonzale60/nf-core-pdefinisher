@@ -600,10 +600,15 @@ def main():
 
     # 3. Cluster breakpoints by strand within 3 bp
     clustered_bps_by_chr = {}
+    unfiltered_bps_by_chr = {}
     for chrom in chr_lens:
         raw_bps = breakpoints.get(chrom, [])
         clustered_bps_by_chr[chrom] = cluster_breakpoints_by_strand(
             raw_bps, max_dist=3, min_support=args.min_support
+        )
+        # The segmenter applies its own relative support floor, so the TSV keeps every cluster.
+        unfiltered_bps_by_chr[chrom] = cluster_breakpoints_by_strand(
+            raw_bps, max_dist=3, min_support=0.0
         )
 
     # 4. Check whether coverage distribution is bimodal (e.g. APS4 with massive >60% GRS)
@@ -743,7 +748,7 @@ def main():
         for chrom, s, e, label, med, subtype in segments:
             out_bed.write(f"{chrom}\t{s}\t{e}\t{label}\n")
             out_tsv.write(f"{chrom}\t{s}\t{e}\t{e-s}\t{label}\t{med:.2f}\t{subtype}\n")
-    write_breakpoints_tsv(os.path.join(outdir, f"{prefix}.delfies_breakpoints.tsv"), clustered_bps_by_chr)
+    write_breakpoints_tsv(os.path.join(outdir, f"{prefix}.delfies_breakpoints.tsv"), unfiltered_bps_by_chr)
 
 
 if __name__ == "__main__":

@@ -241,5 +241,10 @@ class TestIdentifyPutativeGRS(unittest.TestCase):
             u1_rows = [r for r in rows if r[0] == "u1"]
             self.assertEqual(u1_rows[0][3], "uncertain")
 
+    def test_two_read_cluster_kept_at_zero_threshold_only(self):
+        raw = [(100, "+", 1.0, {"end": 101}), (101, "+", 1.0, {"end": 102})]
+        self.assertEqual(len(cluster_breakpoints_by_strand(raw, 3, 0.0)), 1)
+        self.assertEqual(cluster_breakpoints_by_strand(raw, 3, 5.0), [])
+
 if __name__ == "__main__":
     unittest.main()

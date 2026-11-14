@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Segmentation of a sequence into putative GRS, core, variable and uncertain segments.
+"""Segmentation of a sequence into putative GRS, core and uncertain segments.
 
 Implements R1-R11 of PDE_origin docs/segmentation_definition.md:
 break sites are classified from DELFIES breakpoints (echo/weak/site/two_strand);
@@ -26,11 +26,10 @@ __version__ = "2.0.0"
 SUMMARY_HEADER = (
     "chromosome\tstart\tend\tlength\tclassification\tmedian_depth\tsubtype\trepeat_bp\trdna_bp"
 )
-FISSION_HEADER = "chromosome\tplus_pos\tminus_pos\tdistance_bp\tcut_pos"
+FISSION_HEADER = "chromosome\tstart\tend\tlength\tplus_pos\tminus_pos\tcut_pos"
 
 GRS = "putative_GRS"
 CORE = "putative_core"
-VARIABLE = "putative_variable"
 UNCERTAIN = "uncertain"
 UNPLACED_ELIM = "unplaced_eliminated"
 UNPLACED_RDNA = "unplaced_rdna"
@@ -275,9 +274,21 @@ def read_sites(rows, policy):
     return sites
 
 
-def top_support(sites, n):
-    """Median of the n largest merged site supports across all sequences."""
-    vals = sorted((s.reads for ss in sites.values() for s in ss), reverse=True)[:n]
+def partner_support(ss, s, merge_bp):
+    """Max reads of opposite-strand sites in ss within merge_bp of s.pos; 0 if none."""
+    return max(
+        (o.reads for o in ss if o.strand != s.strand and abs(o.pos - s.pos) <= merge_bp),
+        default=0,
+    )
+
+
+def top_support(sites, n, merge_bp, balance):
+    """Median of the n largest echo-filtered site supports across all sequences (R2)."""
+    vals = sorted(
+        (s.reads for ss in sites.values() for s in ss
+         if s.reads >= balance * partner_support(ss, s, merge_bp)),
+        reverse=True,
+    )[:n]
     return statistics.median(vals) if vals else 0.0
 
 
@@ -296,15 +307,12 @@ def classify_sites(sites, policy):
     """{chrom: [(Site, kind)]} with R3 kinds."""
     merge_bp = policy["site_merge_bp"]
     balance = policy["site_balance"]
-    floor = policy["site_floor_fraction"] * top_support(sites, policy["site_top_n"])
+    floor = policy["site_floor_fraction"] * top_support(sites, policy["site_top_n"], merge_bp, balance)
     out = {}
     for chrom, ss in sites.items():
         kinded = []
         for s in ss:
-            partner = max(
-                (o.reads for o in ss if o.strand != s.strand and abs(o.pos - s.pos) <= merge_bp),
-                default=0,
-            )
+            partner = partner_support(ss, s, merge_bp)
             kinded.append((s, site_kind(s.reads, partner, floor, balance)))
         out[chrom] = kinded
     return out
@@ -355,13 +363,16 @@ def span_state(bounds, x):
 
 # --- R5/R6: pieces and depth -------------------------------------------------------------------
 
-def make_units(length, coords, gap_ivs):
+def make_units(length, bounds, gap_ivs):
     """Gap-free pieces and gap units tiling [0, length) with their border kinds.
 
-    Each piece dict: gap False, start, end, lb, rb in {site, gap, end}, left_cut.
+    Each piece dict: gap False, start, end, lb, rb in {site, gap, end}, left_cut,
+    fission_adjacent (a site border sits on a fission cut).
     Cuts strictly inside a gap never occur because pieces are split only inside
     non-gap segments.
     """
+    coords = [c for c, _ in bounds]
+    fission_coords = {c for c, k in bounds if k == "F"}
     units = []
     for s, e, is_gap in subtract_gaps(0, length, gap_ivs.ivs):
         if is_gap:
@@ -382,6 +393,9 @@ def make_units(length, coords, gap_ivs):
             else:
                 u[side] = "site"
         u["left_cut"] = u["lb"] == "site"
+        u["fission_adjacent"] = (u["lb"] == "site" and u["start"] in fission_coords) or (
+            u["rb"] == "site" and u["end"] in fission_coords
+        )
     return units
 
 
@@ -454,12 +468,18 @@ def depth_boundary_cuts(seq, s, e):
 
 # --- R7 table, R8 and R10 labelling ------------------------------------------------------------
 
-def table_label(state, lb, rb, mode):
-    """R7 table: (label, subtype) for a gap-free piece with span state, borders and mode."""
+def table_label(state, lb, rb, mode, fission_adjacent=False):
+    """R7 table: (label, subtype) for a gap-free piece with span state, borders and mode.
+
+    A piece whose site border is a fission cut is read as outside_span with fission_adjacent:
+    neither side of a fission is GRS, so only eliminated depth can be uncertain.
+    """
     gap = lb == "gap" or rb == "gap"
     gaps_both = lb == "gap" and rb == "gap"
     one_end = gap and not gaps_both
     if mode is None:
+        if fission_adjacent:
+            return CORE, "fission_anchored"
         if gap:
             return UNCERTAIN, "no_usable_depth"
         if state == "inside_span":
@@ -475,11 +495,16 @@ def table_label(state, lb, rb, mode):
                 "I": (GRS, "span_intermediate_depth"),
                 "R": (UNCERTAIN, "retained_depth_inside_span"),
             }[mode]
+        if gaps_both:
+            return {
+                "E": (UNCERTAIN, "eliminated_depth_no_break_site"),
+                "I": (UNCERTAIN, "intermediate_depth"),
+                "R": (CORE, "span_misjoin_suspected"),
+            }[mode]
         return {
             "E": (GRS, "span_eliminated_depth"),
             "I": (UNCERTAIN, "intermediate_depth"),
-            "R": (CORE, "span_misjoin_suspected") if gaps_both
-            else (UNCERTAIN, "retained_depth_inside_span"),
+            "R": (UNCERTAIN, "retained_depth_inside_span"),
         }[mode]
     if state == "outside_span":
         if not gap:
@@ -490,19 +515,19 @@ def table_label(state, lb, rb, mode):
             }[mode]
         return {
             "E": (UNCERTAIN, elim_gap),
-            "I": (UNCERTAIN, "intermediate_depth"),
+            "I": (CORE, "retained_between_sites"),
             "R": (CORE, "retained_depth"),
         }[mode]
     # undetermined
     if not gap:
         return {
             "E": (GRS, "undetermined_eliminated_depth"),
-            "I": (VARIABLE, "undetermined_intermediate_depth"),
+            "I": (CORE, "undetermined_intermediate_depth"),
             "R": (CORE, "undetermined_retained_depth"),
         }[mode]
     return {
         "E": (UNCERTAIN, elim_gap),
-        "I": (UNCERTAIN, "intermediate_depth"),
+        "I": (CORE, "retained_between_sites"),
         "R": (CORE, "retained_depth"),
     }[mode]
 
@@ -515,9 +540,10 @@ def labelled(unit, label, subtype):
 
 
 def table_piece(seq, unit):
-    state = state_of(seq, unit["start"])
+    fission_adjacent = unit["fission_adjacent"]
+    state = "outside_span" if fission_adjacent else state_of(seq, unit["start"])
     mode, _ = measure(seq, unit["start"], unit["end"])
-    return labelled(unit, *table_label(state, unit["lb"], unit["rb"], mode))
+    return labelled(unit, *table_label(state, unit["lb"], unit["rb"], mode, fission_adjacent))
 
 
 def depth_only_label(mode):
@@ -575,7 +601,7 @@ def label_sequence(seq, units):
         if u["gap"]:
             out.append(u)
             continue
-        if state_of(seq, u["start"]) == "undetermined":
+        if not u["fission_adjacent"] and state_of(seq, u["start"]) == "undetermined":
             cuts = depth_boundary_cuts(seq, u["start"], u["end"])
             if cuts:
                 out.extend(split_piece(seq, u, cuts))
@@ -690,13 +716,19 @@ def group_loci(regions, merge_bp):
 
 
 def read_45s_loci(path, policy):
-    """{chrom: [locus]} from BARRNAP GFF3."""
+    """{chrom: [locus]} from BARRNAP GFF3; loci shorter than rdna_min_locus_bp are dropped."""
     hits = read_45s_hits(path)
-    return {
-        chrom: group_loci(group_regions(hs, policy["rdna_45s_max_separation_bp"]),
-                          policy["rdna_locus_merge_bp"])
-        for chrom, hs in hits.items()
-    }
+    min_bp = policy["rdna_min_locus_bp"]
+    loci = {}
+    for chrom, hs in hits.items():
+        kept = [
+            l for l in group_loci(group_regions(hs, policy["rdna_45s_max_separation_bp"]),
+                                  policy["rdna_locus_merge_bp"])
+            if l["end"] - l["start"] >= min_bp
+        ]
+        if kept:
+            loci[chrom] = kept
+    return loci
 
 
 def rdna_masks(loci, lengths, canonical, policy):
@@ -723,16 +755,15 @@ def rdna_masks(loci, lengths, canonical, policy):
 def elimination_line(segments, canonical):
     """bp per label, counted explicitly; canonical and unplaced are separate."""
     keys = [
-        "canon_grs_bp", "canon_uncertain_bp", "canon_variable_bp",
-        "unplaced_grs_bp", "unplaced_uncertain_bp", "unplaced_core_bp", "unplaced_variable_bp",
+        "canon_grs_bp", "canon_uncertain_bp",
+        "unplaced_grs_bp", "unplaced_uncertain_bp", "unplaced_core_bp",
         "unplaced_eliminated_bp", "unplaced_rdna_bp",
     ]
     tot = dict.fromkeys(keys, 0)
-    canon_map = {GRS: "canon_grs_bp", UNCERTAIN: "canon_uncertain_bp", VARIABLE: "canon_variable_bp"}
+    canon_map = {GRS: "canon_grs_bp", UNCERTAIN: "canon_uncertain_bp"}
     unpl_map = {
         GRS: "unplaced_grs_bp", UNCERTAIN: "unplaced_uncertain_bp", CORE: "unplaced_core_bp",
-        VARIABLE: "unplaced_variable_bp", UNPLACED_ELIM: "unplaced_eliminated_bp",
-        UNPLACED_RDNA: "unplaced_rdna_bp",
+        UNPLACED_ELIM: "unplaced_eliminated_bp", UNPLACED_RDNA: "unplaced_rdna_bp",
     }
     for seg in segments:
         chrom, s, e, label = seg[0], seg[1], seg[2], seg[3]
@@ -747,8 +778,6 @@ def elimination_line(segments, canonical):
         f"\tunplaced_core_bp={tot['unplaced_core_bp']}"
         f"\tmin_elim_bp={min_elim}\tmax_elim_bp={min_elim}\test_elim_bp={min_elim}"
         f"\tcanon_uncertain_bp={tot['canon_uncertain_bp']}"
-        f"\tcanon_variable_bp={tot['canon_variable_bp']}"
-        f"\tunplaced_variable_bp={tot['unplaced_variable_bp']}"
         f"\tunplaced_eliminated_bp={tot['unplaced_eliminated_bp']}"
         f"\tunplaced_rdna_bp={tot['unplaced_rdna_bp']}\n"
     )
@@ -756,7 +785,7 @@ def elimination_line(segments, canonical):
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(
-        description="Segmentation of sequences into putative GRS, core, variable and uncertain"
+        description="Segmentation of sequences into putative GRS, core and uncertain"
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--summary-tsv", required=True)
@@ -822,13 +851,17 @@ def main(argv=None):
     with open(fission_path, "w") as out_fis:
         out_fis.write(FISSION_HEADER + "\n")
         for chrom in order:
-            for plus, minus, dist, cut in fissions[chrom]:
-                out_fis.write(f"{chrom}\t{plus}\t{minus}\t{dist}\t{cut}\n")
+            for plus, minus, _dist, cut in fissions[chrom]:
+                # A fission is a boundary, not a segment: span the two addition points, at least 1 bp.
+                start, end = min(plus, minus), max(plus, minus)
+                if end == start:
+                    end = start + 1
+                out_fis.write(f"{chrom}\t{start}\t{end}\t{end - start}\t{plus}\t{minus}\t{cut}\n")
 
     segments = []
     for chrom in order:
         seq = seqs[chrom]
-        units = make_units(seq.length, [c for c, _ in seq.bounds], seq.gaps)
+        units = make_units(seq.length, seq.bounds, seq.gaps)
         segs = assemble(label_sequence(seq, units))
         check_tiling(chrom, [(g["start"], g["end"], g["label"], None) for g in segs], seq.length)
         for g in segs:

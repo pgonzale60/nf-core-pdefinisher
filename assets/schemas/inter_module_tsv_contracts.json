@@ -73,14 +73,7 @@
             "consumer_functions": ["load_grs_summary"],
             "columns": ["chromosome", "start", "end", "length", "classification", "median_depth"],
             "status_column": "classification",
-            "allowed_statuses": [
-                "putative_core",
-                "putative_GRS",
-                "putative_variable",
-                "uncertain",
-                "unplaced_eliminated",
-                "unplaced_rdna"
-            ],
+            "allowed_statuses": ["putative_core", "putative_GRS", "uncertain", "unplaced_eliminated", "unplaced_rdna"],
             "notes": "Produced by SEGMENTQUANTIZED: every sequence is tiled into pieces. Break sites (from DELFIES breakpoints) end a segment; assembly gaps never do. Pieces are labelled from the depth table and 45S rDNA loci (BARRNAP). Contains mandatory # GRS_THRESHOLD=<float> and # ELIMINATION_RANGE metadata header comments; ELIMINATION_RANGE ends with canon_uncertain_bp. Fissions are written to the sidecar <prefix>.fissions.tsv."
         },
         "delfies_breakpoints.tsv": {
