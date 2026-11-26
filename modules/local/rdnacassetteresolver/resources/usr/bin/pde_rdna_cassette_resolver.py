@@ -518,7 +518,7 @@ def main():
     if args.self_test:
         run_self_test()
 
-    if not (args.blueprint and args.ref and args.flye_fasta and args.flye_paf and args.outdir and args.manifest):
+    if not (args.blueprint and args.ref and args.outdir and args.manifest):
         sys.stderr.write("ERROR: Missing required arguments when not running --self-test.\n")
         sys.exit(1)
 
@@ -602,9 +602,19 @@ def main():
         card_start = card.get("start")
         card_end = card.get("end")
 
-        if not is_clean:
+        anchor_candidates = [
+            (name, aln)
+            for name, alignments in flye_paf.items()
+            if name in flye_seqs
+            for aln in alignments
+            if aln["tname"] == chrom and aln["mapq"] >= mapq_anchor
+        ]
+        if not is_clean or not anchor_candidates:
             action = "DEFER_COMPLEX_RDNA_LOCUS"
-            status = "DEFERRED_COMPLEX_GRAPH" if contigs_info else "DEFERRED_NO_ASSEMBLY_EVIDENCE"
+            status, reason = "DEFERRED_COMPLEX_GRAPH", gatekeeper_reason
+            if not anchor_candidates:
+                status = "DEFERRED_NO_ASSEMBLY_EVIDENCE"
+                reason = f"No rDNA assembly contig has a high-confidence alignment to {chrom}"
             manifest_rows.append({
                 "sample": args.sample, "card_id": card_id, "chrom": chrom,
                 "locus_type": locus_type, "action": action, "status": status,
@@ -613,7 +623,7 @@ def main():
                 "monomer_copies": 0, "distal_cap_id": "NONE", "distal_cap_len": 0,
                 "distal_telo_status": "NONE",
                 "cassette_total_len": 0, "cassette_fasta": "NONE",
-                "notes": f"Gatekeeper aborted: {gatekeeper_reason}. Baseline preserved intact."
+                "notes": f"Gatekeeper deferred: {reason}. Baseline preserved intact."
             })
             continue
 
@@ -621,12 +631,6 @@ def main():
         anchor_id = None
         anchor_seq = ""
         anchor_aln = None
-
-        anchor_candidates = []
-        for cname, aln_list in flye_paf.items():
-            for aln in aln_list:
-                if aln["tname"] == chrom and aln["mapq"] >= mapq_anchor:
-                    anchor_candidates.append((cname, aln))
 
         if anchor_candidates:
             if locus_type == "TERMINUS":

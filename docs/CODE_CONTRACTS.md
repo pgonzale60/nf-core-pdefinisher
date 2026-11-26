@@ -650,7 +650,7 @@
 | `count_telomeric_repeats` | `function` | `L362-L365` | `def count_telomeric_repeats(seq, motifs=('TTAGGC', 'GCCTAA'))` | Count maximum occurrences of forward or reverse telomeric motifs. |
 | `find_distal_telomeric_unitig` | `function` | `L368-L486` | `def find_distal_telomeric_unitig(telo_unitigs, query_seq, min_telo_repeats=15, min_k=25, motifs=('TTAGGC', 'GCCTAA'), used_unitigs=None, orphan_fallback=False)` | Identifies candidate distal telomeric cap unitigs that contain: |
 | `phase_monomer_to_distal_unitig` | `function` | `L489-L513` | `def phase_monomer_to_distal_unitig(monomer_seq, distal_unitig_seq, k=25)` | Finds where the 5' prefix of the distal unitig aligns within the circular monomer. |
-| `main` | `function` | `L516-L857` | `def main()` | — |
+| `main` | `function` | `L516-L861` | `def main()` | — |
 
 ### `modules/local/segmentquantized/resources/usr/bin/pde_segment_quantized.py`
 
