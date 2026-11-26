@@ -10,7 +10,7 @@
 // Module 5: Post-Surgery Evaluation & Impact Scorecard
 //
 
-include { PDE_RECONNAISSANCE   } from '../pde_reconnaissance/main'
+include { PDE_RECONNAISSANCE; primaryUnitig } from '../pde_reconnaissance/main'
 include { BGZIPFASTA          } from '../../../modules/local/bgzipfasta/main'
 include { CURATIONSYNTHESIS   } from '../../../modules/local/curationsynthesis/main'
 include { CURATION_RESOLUTION  } from '../curation_resolution/main'
@@ -133,11 +133,17 @@ workflow AUTOMATED_PDE_CURATION {
     // the summary over as one is how a unitig cap came to report an entire unitig as its extension.
     // A unitig's interval now travels on the Module 2 card as evidence.unitig_extension_region.
 
-    ch_telo_unitigs = optionalEvidence(ch_assembly, PDE_RECONNAISSANCE.out.telo_unitigs)
+    ch_telo_primary = PDE_RECONNAISSANCE.out.telo_unitigs
+        .map { meta, files -> tuple(meta, primaryUnitig(files, '.p_utg.fa')) }
+        .filter { _meta, fasta -> fasta && (fasta.size() > 0 || workflow.stubRun) }
+    ch_telo_unitigs = optionalEvidence(ch_assembly, ch_telo_primary)
 
     ch_rdna_fasta = optionalEvidence(ch_assembly, PDE_RECONNAISSANCE.out.rdna_assembly_fasta)
     ch_rdna_paf = optionalEvidence(ch_assembly, PDE_RECONNAISSANCE.out.rdna_assembly_paf)
-    ch_rdna_gfa = optionalEvidence(ch_assembly, PDE_RECONNAISSANCE.out.rdna_assembly_gfa)
+    ch_rdna_primary_gfa = PDE_RECONNAISSANCE.out.rdna_assembly_gfa
+        .map { meta, files -> tuple(meta, primaryUnitig(files, '.p_utg.gfa.gz')) }
+        .filter { _meta, gfa -> gfa != null }
+    ch_rdna_gfa = optionalEvidence(ch_assembly, ch_rdna_primary_gfa)
     ch_rdna_evidence = ch_rdna_fasta
         .join(ch_rdna_paf, by: 0)
         .join(ch_rdna_gfa, by: 0)

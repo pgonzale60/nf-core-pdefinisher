@@ -57,7 +57,7 @@
 
 #### `subworkflows/local/automated_pde_curation/main.nf`
 - **Includes:**
-  - `PDE_RECONNAISSANCE` from `../pde_reconnaissance/main`
+  - `PDE_RECONNAISSANCE, primaryUnitig` from `../pde_reconnaissance/main`
   - `BGZIPFASTA` from `../../../modules/local/bgzipfasta/main`
   - `CURATIONSYNTHESIS` from `../../../modules/local/curationsynthesis/main`
   - `CURATION_RESOLUTION` from `../curation_resolution/main`

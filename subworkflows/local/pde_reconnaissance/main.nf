@@ -390,10 +390,6 @@ workflow PDE_RECONNAISSANCE {
         .map { meta, files -> tuple(meta, primaryUnitig(files, '.p_utg.fa')) }
         .filter { _meta, fasta -> fasta && (fasta.size() > 0 || workflow.stubRun) }
 
-    ch_rdna_assembly_gfa = HIFIASM_RDNA.out.assembly_graphs
-        .map { meta, files -> tuple(meta, primaryUnitig(files, '.p_utg.gfa.gz')) }
-        .filter { _meta, gfa -> gfa != null }
-
     //
     // MODULE: MINIMAP2_ALIGN (ALIGN_RDNA_TO_ASSEMBLY) — Map the rDNA assembly back onto
     // the baseline assembly. A terminal rDNA locus is resolved as
@@ -434,7 +430,7 @@ workflow PDE_RECONNAISSANCE {
     rdna_reads                 = EXTRACTRDNAREADS.out.reads
     rdna_regions_bed           = EXTRACTRDNAREADS.out.bed
     rdna_assembly_fasta        = ch_rdna_assembly_reads
-    rdna_assembly_gfa          = ch_rdna_assembly_gfa
+    rdna_assembly_gfa          = HIFIASM_RDNA.out.assembly_graphs
     rdna_assembly_info         = HIFIASM_RDNA.out.log
     rdna_assembly_paf          = ALIGN_RDNA_TO_ASSEMBLY.out.paf
 
@@ -447,7 +443,7 @@ workflow PDE_RECONNAISSANCE {
     terminal_softclips         = SOFTCLIPENDS.out.softclips
     terminal_ends_summary      = SOFTCLIPENDS.out.summary
     teloclip_overhangs         = TELOCLIP_EXTRACT.out.overhangs
-    telo_unitigs               = ch_telo_unitigs
+    telo_unitigs               = HIFIASM.out.assembly_fasta
     telo_paf                   = MINIMAP2_ALIGN.out.paf
     telo_junction_json         = TELOMERICJUNCTIONPROFILER.out.json
     telo_junction_tsv          = TELOMERICJUNCTIONPROFILER.out.tsv
