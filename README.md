@@ -58,6 +58,15 @@ To run mosdepth coverage, DELFIES S2G, GRS segment definition and CBM motif disc
 nextflow run recon_motif.nf --input samplesheet.csv --outdir results
 ```
 
+## Package a reviewed assembly
+
+Run `python3 scripts/package_reviewed_assembly.py --help` to package an accepted
+FASTA without editing it. The package contains the original FASTA, AGP, component
+FASTA, an end inventory, unresolved join coordinates, and checksums. The script
+verifies that the AGP and components reconstruct the input sequence. Components
+are slices of the reviewed FASTA. An optional reviewed recipe can preserve source
+graph and read evidence if its expected FASTA checksum matches.
+
 ## Credits
 
 `nf-core/pdefinisher` was originally written by **Pablo M. Gonzalez de la Rosa**.

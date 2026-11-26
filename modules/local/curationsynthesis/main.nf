@@ -40,6 +40,9 @@ process CURATIONSYNTHESIS {
     script:
     def args       = task.ext.args ?: ''
     def prefix     = task.ext.prefix ?: "${meta.id}"
+    def flye_arg   = flye_info ? "--flye-info \"${flye_info}\"" : ""
+    def unplaced_arg = unplaced_paf ? '--unplaced-paf unplaced.paf' : ''
+    def telo_arg   = telo_paf ? '--telo-paf telo.paf' : ''
     def gap_arg    = gap_evidence_json ? "--gap-evidence-json \"${gap_evidence_json}\"" : ""
     def junc_arg   = telo_junction_json ? "--telo-junctions \"${telo_junction_json}\"" : ""
     def eff_chroms = meta.chromosomes ?: chromosomes
@@ -47,7 +50,7 @@ process CURATIONSYNTHESIS {
     def pol_arg    = policy_file ? "--policy \"${policy_file}\"" : ""
     def eff_telo   = meta.telomere_repeat ?: telo_motif
     """
-    # Tool: pde_curation_synthesis.py | Script-SHA: 49d0f0a64a54bb98
+    # Tool: pde_curation_synthesis.py | Script-SHA: 0d6be446070043b1
     pde_curation_synthesis.py --version
     pde_curation_synthesis.py \\
         --sample "${prefix}" \\
@@ -59,10 +62,10 @@ process CURATIONSYNTHESIS {
         --delfies-bed "${delfies_bed}" \\
         --rdna-bed "${rdna_regions_bed}" \\
         --barrnap-gff "${barrnap_gff}" \\
-        --flye-info "${flye_info}" \\
-        --unplaced-paf "unplaced.paf" \\
+        ${flye_arg} \\
+        ${unplaced_arg} \\
         --red-bed "${red_bed}" \\
-        --telo-paf "telo.paf" \\
+        ${telo_arg} \\
         ${gap_arg} \\
         ${junc_arg} \\
         ${chr_arg} \\

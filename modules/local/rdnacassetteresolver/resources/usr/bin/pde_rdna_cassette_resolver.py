@@ -13,6 +13,7 @@ destructive over-curation of structurally heterogeneous arrays (e.g. nrLitMari1)
 """
 
 import argparse
+import gzip
 import json
 import os
 import sys
@@ -29,7 +30,8 @@ def parse_hifiasm_gfa_depths(gfa_path):
     if not gfa_path or not os.path.exists(gfa_path):
         return unitigs
 
-    with open(gfa_path, "r", encoding="utf-8") as f:
+    opener = gzip.open if os.fspath(gfa_path).endswith(".gz") else open
+    with opener(gfa_path, "rt", encoding="utf-8") as f:
         for line in f:
             if not line.startswith("S\t"):
                 continue
@@ -202,7 +204,7 @@ def parse_paf(paf_path):
     Returns dict: query_name -> list of alignment dicts.
     """
     alns = defaultdict(list)
-    if not os.path.exists(paf_path):
+    if not paf_path or not os.path.exists(paf_path):
         return alns
     with open(paf_path) as f:
         for line in f:
@@ -575,7 +577,7 @@ def main():
         print(f"[{args.sample}] Zero rDNA cards in blueprint. Empty manifest emitted.")
         sys.exit(0)
 
-    flye_fasta_str = " ".join(args.flye_fasta) if isinstance(args.flye_fasta, list) else str(args.flye_fasta)
+    flye_fasta_str = " ".join(args.flye_fasta) if isinstance(args.flye_fasta, list) else (args.flye_fasta or "")
     contigs_info = parse_assembly_info(args.flye_info, flye_fasta_str)
     is_clean, gatekeeper_reason, _, _ = evaluate_graph_complexity(
         contigs_info, monomer_min_len=monomer_min_len, monomer_max_len=monomer_max_len, max_contigs=max_contigs
@@ -602,7 +604,7 @@ def main():
 
         if not is_clean:
             action = "DEFER_COMPLEX_RDNA_LOCUS"
-            status = "DEFERRED_COMPLEX_GRAPH"
+            status = "DEFERRED_COMPLEX_GRAPH" if contigs_info else "DEFERRED_NO_ASSEMBLY_EVIDENCE"
             manifest_rows.append({
                 "sample": args.sample, "card_id": card_id, "chrom": chrom,
                 "locus_type": locus_type, "action": action, "status": status,

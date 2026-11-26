@@ -27,6 +27,18 @@ include { SEGMENTQUANTIZED               } from '../../../modules/local/segmentq
 include { EXTRACTGAPEVIDENCE            } from '../../../modules/local/extractgapevidence/main'
 include { TELOCLIP_EXTRACT              } from '../../../modules/local/teloclip/extract/main'
 
+def hasFastqRecords(fastq) {
+    fastq.withInputStream { stream ->
+        new java.util.zip.GZIPInputStream(stream).withReader { reader ->
+            reader.readLine()?.startsWith('@') ?: false
+        }
+    }
+}
+
+def primaryUnitig(files, suffix) {
+    (files instanceof List ? files : [files]).find { path -> path.name.endsWith(suffix) }
+}
+
 workflow PDE_RECONNAISSANCE {
 
     take:
@@ -56,6 +68,7 @@ workflow PDE_RECONNAISSANCE {
     // MODULE: MINIMAP2_ALIGN (ALIGN_UNPLACED) — Align non-chromosomal contigs against chromosomes
     //
     ch_align_unplaced_input = FILTERCHROMOSOMES.out.non_chromosomal
+        .filter { _meta, fasta -> fasta.size() > 0 || workflow.stubRun }
         .combine(FILTERCHROMOSOMES.out.chromosomes, by: 0)
         .multiMap { meta, non_chr, chr ->
             reads: tuple(meta, non_chr)
@@ -176,6 +189,7 @@ workflow PDE_RECONNAISSANCE {
     // MODULE: HIFIASM — De novo assembly of telomeric unitigs from extracted reads
     //
     ch_hifiasm_input = EXTRACTTELOMERICREADS.out.reads
+        .filter { _meta, fastq -> workflow.stubRun || hasFastqRecords(fastq) }
         .map { meta, reads ->
             def read_list = (reads instanceof List) ? reads : [reads]
             tuple(meta, read_list, [])
@@ -192,10 +206,11 @@ workflow PDE_RECONNAISSANCE {
     //
     // MODULE: MINIMAP2_ALIGN — Map assembled telomeric unitigs against baseline assembly
     //
-    ch_minimap2_reads = HIFIASM.out.assembly_fasta
-        .filter { _meta, fasta -> fasta != null && fasta.size() > 0 }
+    ch_telo_unitigs = HIFIASM.out.assembly_fasta
+        .map { meta, files -> tuple(meta, primaryUnitig(files, '.p_utg.fa')) }
+        .filter { _meta, fasta -> fasta && (fasta.size() > 0 || workflow.stubRun) }
 
-    ch_minimap2_input = ch_minimap2_reads
+    ch_minimap2_input = ch_telo_unitigs
         .combine(ch_assembly, by: 0)
         .multiMap { meta, unitigs, assembly ->
             reads: tuple(meta, unitigs)
@@ -357,6 +372,7 @@ workflow PDE_RECONNAISSANCE {
     // MODULE: HIFIASM (HIFIASM_RDNA) — High-speed string-graph assembly of the rDNA repeat array and anchors
     //
     ch_hifiasm_rdna_input = EXTRACTRDNAREADS.out.reads
+        .filter { _meta, fastq -> workflow.stubRun || hasFastqRecords(fastq) }
         .map { meta, reads ->
             def read_list = (reads instanceof List) ? reads : [reads]
             tuple(meta, read_list, [])
@@ -371,16 +387,12 @@ workflow PDE_RECONNAISSANCE {
     )
 
     ch_rdna_assembly_reads = HIFIASM_RDNA.out.assembly_fasta
-        .map { meta, fasta ->
-            def target_fa = fasta
-            if (fasta instanceof List) {
-                target_fa = fasta.find { x -> x.name.endsWith('.p_utg.fa') } ?:
-                            fasta.find { x -> x.name.endsWith('.p_ctg.fa') } ?:
-                            fasta[0]
-            }
-            tuple(meta, target_fa)
-        }
-        .filter { _meta, fasta -> fasta != null }
+        .map { meta, files -> tuple(meta, primaryUnitig(files, '.p_utg.fa')) }
+        .filter { _meta, fasta -> fasta && (fasta.size() > 0 || workflow.stubRun) }
+
+    ch_rdna_assembly_gfa = HIFIASM_RDNA.out.assembly_graphs
+        .map { meta, files -> tuple(meta, primaryUnitig(files, '.p_utg.gfa.gz')) }
+        .filter { _meta, gfa -> gfa != null }
 
     //
     // MODULE: MINIMAP2_ALIGN (ALIGN_RDNA_TO_ASSEMBLY) — Map the rDNA assembly back onto
@@ -390,7 +402,6 @@ workflow PDE_RECONNAISSANCE {
     // Without it the cassette resolver can only fall back to guessing an anchor.
     //
     ch_rdna_align_input = ch_rdna_assembly_reads
-        .map { meta, f -> [ meta.subMap(['id', 'chromosomes', 'telomere_repeat']), f ] }
         .join(ch_assembly, by: 0)
         .multiMap { meta, rdna_fa, asm ->
             reads:     tuple(meta, rdna_fa)
@@ -422,10 +433,10 @@ workflow PDE_RECONNAISSANCE {
     barrnap_gff                = BARRNAP.out.gff
     rdna_reads                 = EXTRACTRDNAREADS.out.reads
     rdna_regions_bed           = EXTRACTRDNAREADS.out.bed
-    rdna_assembly_fasta        = ch_rdna_assembly_reads.map { meta, f -> [ meta.subMap(['id', 'chromosomes', 'telomere_repeat']), f ] }
-    rdna_assembly_gfa          = HIFIASM_RDNA.out.assembly_graphs.map { meta, f -> [ meta.subMap(['id', 'chromosomes', 'telomere_repeat']), f ] }
-    rdna_assembly_info         = HIFIASM_RDNA.out.log.map { meta, f -> [ meta.subMap(['id', 'chromosomes', 'telomere_repeat']), f ] }
-    rdna_assembly_paf          = ALIGN_RDNA_TO_ASSEMBLY.out.paf.map { meta, f -> [ meta.subMap(['id', 'chromosomes', 'telomere_repeat']), f ] }
+    rdna_assembly_fasta        = ch_rdna_assembly_reads
+    rdna_assembly_gfa          = ch_rdna_assembly_gfa
+    rdna_assembly_info         = HIFIASM_RDNA.out.log
+    rdna_assembly_paf          = ALIGN_RDNA_TO_ASSEMBLY.out.paf
 
     core_coverage              = ch_meta_with_coverage
     core_coverage_tsv          = IDENTIFYPUTATIVEGRS.out.core_coverage_tsv
@@ -436,7 +447,7 @@ workflow PDE_RECONNAISSANCE {
     terminal_softclips         = SOFTCLIPENDS.out.softclips
     terminal_ends_summary      = SOFTCLIPENDS.out.summary
     teloclip_overhangs         = TELOCLIP_EXTRACT.out.overhangs
-    telo_unitigs               = HIFIASM.out.assembly_fasta
+    telo_unitigs               = ch_telo_unitigs
     telo_paf                   = MINIMAP2_ALIGN.out.paf
     telo_junction_json         = TELOMERICJUNCTIONPROFILER.out.json
     telo_junction_tsv          = TELOMERICJUNCTIONPROFILER.out.tsv

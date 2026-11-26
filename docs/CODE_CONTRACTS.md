@@ -636,21 +636,21 @@
 
 | Symbol | Kind | Lines | Signature | Summary |
 | :--- | :--- | :--- | :--- | :--- |
-| `parse_hifiasm_gfa_depths` | `function` | `L23-L53` | `def parse_hifiasm_gfa_depths(gfa_path)` | Parse hifiasm native unitig read depths (rd:i:<depth>) from GFA S-lines. |
-| `run_self_test` | `function` | `L56-L95` | `def run_self_test()` | Verify GFA rd:i depth parsing, large overlap detection, and exclusion principle. |
-| `parse_args` | `function` | `L98-L112` | `def parse_args()` | — |
-| `load_fasta` | `function` | `L115-L145` | `def load_fasta(fasta_path)` | Loads a FASTA file (or space-separated list of FASTA files) into a dictionary of {name: seq}. |
-| `revcomp` | `function` | `L148-L151` | `def revcomp(seq)` | Reverse complement of DNA sequence. |
-| `parse_assembly_info` | `function` | `L154-L195` | `def parse_assembly_info(info_path, fasta_path=None)` | Parses Flye assembly_info.txt or synthesizes contig info directly from FASTA. |
-| `parse_paf` | `function` | `L199-L233` | `def parse_paf(paf_path)` | Parses Flye-to-reference PAF alignments. |
-| `extract_monomer_sequence` | `function` | `L236-L254` | `def extract_monomer_sequence(contig_seq, monomer_min_len=5000, monomer_max_len=18000)` | Extracts a single canonical monomer from a unitig. |
-| `evaluate_graph_complexity` | `function` | `L257-L298` | `def evaluate_graph_complexity(contigs, monomer_min_len=5000, monomer_max_len=18000, max_contigs=100)` | Evaluates assembly repeat graph complexity. |
-| `find_overlap` | `function` | `L302-L328` | `def find_overlap(seq1, seq2, min_k=21, max_check=None)` | Finds exact suffix-prefix overlap between seq1 end and seq2 start. |
-| `align_and_orient_monomer` | `function` | `L331-L357` | `def align_and_orient_monomer(anchor_seq, monomer_seq, k=25, search_window=150)` | Finds best orientation and junction offset between anchor tip and circular monomer. |
-| `count_telomeric_repeats` | `function` | `L360-L363` | `def count_telomeric_repeats(seq, motifs=('TTAGGC', 'GCCTAA'))` | Count maximum occurrences of forward or reverse telomeric motifs. |
-| `find_distal_telomeric_unitig` | `function` | `L366-L484` | `def find_distal_telomeric_unitig(telo_unitigs, query_seq, min_telo_repeats=15, min_k=25, motifs=('TTAGGC', 'GCCTAA'), used_unitigs=None, orphan_fallback=False)` | Identifies candidate distal telomeric cap unitigs that contain: |
-| `phase_monomer_to_distal_unitig` | `function` | `L487-L511` | `def phase_monomer_to_distal_unitig(monomer_seq, distal_unitig_seq, k=25)` | Finds where the 5' prefix of the distal unitig aligns within the circular monomer. |
-| `main` | `function` | `L514-L855` | `def main()` | — |
+| `parse_hifiasm_gfa_depths` | `function` | `L24-L55` | `def parse_hifiasm_gfa_depths(gfa_path)` | Parse hifiasm native unitig read depths (rd:i:<depth>) from GFA S-lines. |
+| `run_self_test` | `function` | `L58-L97` | `def run_self_test()` | Verify GFA rd:i depth parsing, large overlap detection, and exclusion principle. |
+| `parse_args` | `function` | `L100-L114` | `def parse_args()` | — |
+| `load_fasta` | `function` | `L117-L147` | `def load_fasta(fasta_path)` | Loads a FASTA file (or space-separated list of FASTA files) into a dictionary of {name: seq}. |
+| `revcomp` | `function` | `L150-L153` | `def revcomp(seq)` | Reverse complement of DNA sequence. |
+| `parse_assembly_info` | `function` | `L156-L197` | `def parse_assembly_info(info_path, fasta_path=None)` | Parses Flye assembly_info.txt or synthesizes contig info directly from FASTA. |
+| `parse_paf` | `function` | `L201-L235` | `def parse_paf(paf_path)` | Parses Flye-to-reference PAF alignments. |
+| `extract_monomer_sequence` | `function` | `L238-L256` | `def extract_monomer_sequence(contig_seq, monomer_min_len=5000, monomer_max_len=18000)` | Extracts a single canonical monomer from a unitig. |
+| `evaluate_graph_complexity` | `function` | `L259-L300` | `def evaluate_graph_complexity(contigs, monomer_min_len=5000, monomer_max_len=18000, max_contigs=100)` | Evaluates assembly repeat graph complexity. |
+| `find_overlap` | `function` | `L304-L330` | `def find_overlap(seq1, seq2, min_k=21, max_check=None)` | Finds exact suffix-prefix overlap between seq1 end and seq2 start. |
+| `align_and_orient_monomer` | `function` | `L333-L359` | `def align_and_orient_monomer(anchor_seq, monomer_seq, k=25, search_window=150)` | Finds best orientation and junction offset between anchor tip and circular monomer. |
+| `count_telomeric_repeats` | `function` | `L362-L365` | `def count_telomeric_repeats(seq, motifs=('TTAGGC', 'GCCTAA'))` | Count maximum occurrences of forward or reverse telomeric motifs. |
+| `find_distal_telomeric_unitig` | `function` | `L368-L486` | `def find_distal_telomeric_unitig(telo_unitigs, query_seq, min_telo_repeats=15, min_k=25, motifs=('TTAGGC', 'GCCTAA'), used_unitigs=None, orphan_fallback=False)` | Identifies candidate distal telomeric cap unitigs that contain: |
+| `phase_monomer_to_distal_unitig` | `function` | `L489-L513` | `def phase_monomer_to_distal_unitig(monomer_seq, distal_unitig_seq, k=25)` | Finds where the 5' prefix of the distal unitig aligns within the circular monomer. |
+| `main` | `function` | `L516-L857` | `def main()` | — |
 
 ### `modules/local/segmentquantized/resources/usr/bin/pde_segment_quantized.py`
 
