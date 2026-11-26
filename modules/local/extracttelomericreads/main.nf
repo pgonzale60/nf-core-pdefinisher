@@ -21,6 +21,7 @@ process EXTRACTTELOMERICREADS {
     def args   = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}"
 
+    // Keep BAM-derived read order stable for assembly while BBDuk filters in parallel.
     """
     fwd_repeat=\$(printf "%0.s${telomere_repeat}" {1..3})
     k_len=\${#fwd_repeat}
@@ -40,6 +41,7 @@ process EXTRACTTELOMERICREADS {
             k=\$k_len \\
             rcomp=t \\
             hdist=0 \\
+            ordered=t \\
             threads=${task.cpus}
     """
 
