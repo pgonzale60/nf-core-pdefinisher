@@ -65,10 +65,15 @@ def read_breaksites(path, lengths):
                 if line.startswith("#") or not line.strip():
                     continue
                 chromosome, start, end, label, _, strand, *_ = line.split()
-                if chromosome not in lengths or not 0 <= int(start) < int(end) <= lengths[chromosome]:
+                if "Type:S2G" not in label or strand not in {"+", "-"}:
+                    continue
+                start, end = int(start), int(end)
+                # DELFIES represents a cut at the physical boundary as [-1, 0)
+                # on the left or [length, length + 1) on the right.
+                position = start if strand == "+" else end
+                if chromosome not in lengths or start >= end or not 0 <= position <= lengths[chromosome]:
                     raise ValueError(f"Breakpoint outside assembly: {chromosome}:{start}-{end}")
-                if "Type:S2G" in label and strand in {"+", "-"}:
-                    sites[chromosome, strand].append(int(start if strand == "+" else end))
+                sites[chromosome, strand].append(position)
     return sites
 
 
