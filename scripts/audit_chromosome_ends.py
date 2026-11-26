@@ -10,9 +10,6 @@ import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
-import pysam
-
-
 COMPLEMENT = str.maketrans("ACGT", "TGCA")
 MATCH_OPERATIONS = {0, 7, 8}
 
@@ -181,6 +178,8 @@ def write_tsv(path, columns, rows):
 
 
 def audit(args):
+    import pysam
+
     assembly = dict(fasta_records(args.assembly))
     lengths = {name: len(sequence) for name, sequence in assembly.items()}
     chromosomes = args.chromosomes.split(",")
