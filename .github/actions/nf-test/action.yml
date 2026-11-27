@@ -103,9 +103,3 @@ runs:
         else
           echo "| ⚠️ | No test results found | ${{ inputs.profile }} | ${{ inputs.shard }}/${{ inputs.total_shards }} |" >> $GITHUB_STEP_SUMMARY
         fi
-
-    - name: Clean up
-      if: always()
-      shell: bash
-      run: |
-        sudo rm -rf /home/ubuntu/tests/
