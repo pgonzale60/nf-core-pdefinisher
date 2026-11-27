@@ -1,0 +1,23 @@
+nextflow_workflow {
+
+    name "Test optional curation evidence"
+    script "./optional_evidence.nf"
+    workflow "OPTIONAL_EVIDENCE"
+    tag "subworkflows/automated_pde_curation"
+
+    test("retains sample metadata when the optional channel is empty") {
+        when {
+            workflow {
+                """
+                input[0] = Channel.of(tuple([id: 'chr_only'], 'assembly.fasta'))
+                input[1] = Channel.empty()
+                """
+            }
+        }
+
+        then {
+            assert workflow.success
+            assert workflow.out.samples == [[[id: 'chr_only'], []]]
+        }
+    }
+}

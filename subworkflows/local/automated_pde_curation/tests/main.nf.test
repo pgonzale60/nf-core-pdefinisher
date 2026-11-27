@@ -21,19 +21,6 @@ nextflow_workflow {
     tag "curation_validation"
     tag "bgzipfasta"
 
-    setup {
-        if (!file("${baseDir}/modules/nf-core").exists()) {
-            nfcoreInitialise("${launchDir}/library/")
-            nfcoreInstall(
-                "${launchDir}/library/",
-                [
-                    "mosdepth"
-                ]
-            )
-            nfcoreLink("${launchDir}/library/", "${baseDir}/modules/")
-        }
-    }
-
     test("pde - stub") {
 
         // Stub only: exercises the full five stage chain, its channel wiring and the
@@ -52,14 +39,14 @@ nextflow_workflow {
                 """
                 input[0] = Channel.of(
                     [
-                        [ id: "test_sample" ],
+                        [ id: "test_sample", assembly_name: "test_sample" ],
                         file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/genome/genome.fasta', checkIfExists: true)
                     ]
                 )
 
                 input[1] = Channel.of(
                     [
-                        [ id: "test_sample" ],
+                        [ id: "test_sample", assembly_name: "test_sample" ],
                         file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/illumina/bam/test.paired_end.sorted.bam', checkIfExists: true),
                         file(params.nfcore_modules_testdata_base_path + 'genomics/sarscov2/illumina/bam/test.paired_end.sorted.bam.bai', checkIfExists: true)
                     ]
@@ -79,10 +66,5 @@ nextflow_workflow {
             )
         }
 
-        cleanup {
-            if (file("${launchDir}/library/").exists()) {
-                nfcoreUnlink("${launchDir}/library/", "${baseDir}/modules/nf-core")
-            }
-        }
     }
 }
