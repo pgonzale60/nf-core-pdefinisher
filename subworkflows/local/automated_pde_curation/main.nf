@@ -21,9 +21,9 @@ include { PDE_MOTIF_DISCOVERY  } from '../pde_motif_discovery/main'
 
 // Preserve the input sample even when an optional assembly or alignment was unavailable.
 def optionalEvidence(ch_assembly, ch_evidence) {
-    ch_assembly.map { meta, _fasta -> tuple(meta) }
-        .join(ch_evidence, by: 0, remainder: true, failOnDuplicate: true)
-        .map { row -> tuple(row[0], row.size() > 1 && row[1] ? row[1] : []) }
+    // Keep the assembly path in the join so a left-only remainder stays a tuple.
+    ch_assembly.join(ch_evidence, by: 0, remainder: true, failOnDuplicate: true)
+        .map { meta, _fasta, evidence -> tuple(meta, evidence ?: []) }
 }
 
 workflow AUTOMATED_PDE_CURATION {
