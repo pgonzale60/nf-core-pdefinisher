@@ -56,7 +56,8 @@ runs:
             shard=$(seq 1 "$shards_to_run" | jq -R . | jq -c -s .)
             total_shards="$shards_to_run"
           else
-            echo "Unexpected output format. Falling back to default values."
+            echo "Could not determine nf-test shard count."
+            exit 1
           fi
         fi
 
