@@ -36,19 +36,6 @@ nextflow_workflow {
     tag "subworkflows/../../modules/sanger-tol/telomericjunctionprofiler"
     tag "subworkflows/../../modules/nf-core/mosdepth"
 
-    setup {
-        if (!file("${baseDir}/modules/nf-core").exists()) {
-            nfcoreInitialise("${launchDir}/library/")
-            nfcoreInstall(
-                "${launchDir}/library/",
-                [
-                    "mosdepth"
-                ]
-            )
-            nfcoreLink("${launchDir}/library/", "${baseDir}/modules/")
-        }
-    }
-
     test("pde - stub") {
 
         options "-stub"
@@ -90,10 +77,5 @@ nextflow_workflow {
             )
         }
 
-        cleanup {
-            if (file("${launchDir}/library/").exists()) {
-                nfcoreUnlink("${launchDir}/library/", "${baseDir}/modules/nf-core")
-            }
-        }
     }
 }
