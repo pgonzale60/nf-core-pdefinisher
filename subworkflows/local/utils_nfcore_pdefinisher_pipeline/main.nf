@@ -324,8 +324,11 @@ def validateInputParameters(boolean allow_graph) {
                     def label = "Samplesheet row ${row_num} (sample '${sample_id}')"
 
                     if (allow_graph && graph) {
-                        if (!graph.gfa || !graph.end_archive) {
-                            validation_errors.add("${label}: supply both 'gfa' and 'end_archive' for graph finishing.")
+                        if (!graph.gfa) {
+                            validation_errors.add("${label}: supply 'gfa' for graph finishing.")
+                        }
+                        if (!graph.end_archive && !graph.hifi_reads && !bam_path) {
+                            validation_errors.add("${label}: supply 'end_archive' or HiFi reads ('hifi_reads' or 'bam') to build telomere end families for graph finishing.")
                         }
                         def chr_idx = header.indexOf('chromosomes')
                         if (!params.chromosomes && !(chr_idx >= 0 && chr_idx < cols.size() && cols[chr_idx])) {
@@ -407,11 +410,17 @@ def validateInputParameters(boolean allow_graph) {
         validation_errors.add("Mandatory parameter --outdir <path/to/output_dir> is missing.")
     }
 
-    // 3. Curation Policy verification
+    // 3. Curation Policy & Telomere End Clusters Config verification
     if (params.curation_policy) {
         def cp = file(params.curation_policy)
         if (!cp.exists()) {
             validation_errors.add("Curation policy JSON does not exist: ${params.curation_policy}")
+        }
+    }
+    if (params.telomere_end_clusters_config) {
+        def tc = file(params.telomere_end_clusters_config)
+        if (!tc.exists()) {
+            validation_errors.add("Telomere end-clusters config JSON does not exist: ${params.telomere_end_clusters_config}")
         }
     }
 

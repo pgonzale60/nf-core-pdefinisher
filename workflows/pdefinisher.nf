@@ -4,6 +4,7 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 include { AUTOMATED_PDE_CURATION } from '../subworkflows/local/automated_pde_curation/main'
+include { GRAPH_PREREQUISITES    } from '../subworkflows/local/graph_prerequisites/main'
 include { GFAPDEFINISHER         } from '../modules/local/gfapdefinisher/main'
 include { CURATIONSUMMARY        } from '../modules/local/curationsummary/main'
 include { MULTIQC                } from '../modules/nf-core/multiqc/main'
@@ -35,15 +36,33 @@ workflow PDEFINISHER {
         graph: meta.graph_inputs
         aligned: true
     }
-    def graph_input = samples.graph.map { meta, assembly, bam, _bai ->
+    def graph_samples = samples.graph.map { meta, assembly, bam, _bai ->
         def inputs = meta.graph_inputs
-        def optional_paths = ['raw_gfa', 'tiara', 'barrnap', 'ont_paf', 'ont_reads', 'hifi_reads', 'graph_recipe', 'hifi_patch_approvals']
-            .collect { key -> inputs[key] ? file(inputs[key], checkIfExists: true) : [] }
         def delivery_meta = meta.findAll { key, _value -> key != 'graph_inputs' }
-        def inputs_for_sample = [delivery_meta, assembly, file(inputs.gfa, checkIfExists: true),
-                                 file(inputs.end_archive, checkIfExists: true)] + optional_paths
-        tuple(meta.id, !!bam, inputs_for_sample)
+        tuple(delivery_meta, assembly, file(inputs.gfa, checkIfExists: true), inputs, bam)
     }
+
+    def end_clusters_config = file(params.telomere_end_clusters_config, checkIfExists: true)
+    def cluster_script      = file("${projectDir}/scripts/telomere_end_clusters.py", checkIfExists: true)
+
+    GRAPH_PREREQUISITES(
+        graph_samples,
+        end_clusters_config,
+        cluster_script
+    )
+
+    def graph_input = graph_samples
+        .map { delivery_meta, assembly, gfa, inputs, bam ->
+            def raw_gfa = inputs.raw_gfa ? file(inputs.raw_gfa, checkIfExists: true) : []
+            def trailing_paths = ['ont_paf', 'ont_reads', 'hifi_reads', 'graph_recipe', 'hifi_patch_approvals']
+                .collect { key -> inputs[key] ? file(inputs[key], checkIfExists: true) : [] }
+            tuple(delivery_meta.id, !!bam, delivery_meta, assembly, gfa, raw_gfa, trailing_paths)
+        }
+        .join(GRAPH_PREREQUISITES.out.resolved, by: 0, failOnMismatch: true, failOnDuplicate: true)
+        .map { id, has_bam, delivery_meta, assembly, gfa, raw_gfa, trailing_paths, end_archive, tiara, barrnap ->
+            def inputs_for_sample = [delivery_meta, assembly, gfa, end_archive, raw_gfa, tiara, barrnap] + trailing_paths
+            tuple(id, has_bam, inputs_for_sample)
+        }
 
     def aligned_samples = ch_samplesheet
         .filter { _meta, _assembly, bam, _bai -> bam }

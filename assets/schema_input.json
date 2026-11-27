@@ -93,7 +93,14 @@
         },
         "required": ["sample", "assembly"],
         "anyOf": [
-            { "required": ["gfa", "end_archive"] },
+            {
+                "required": ["gfa"],
+                "anyOf": [
+                    { "required": ["end_archive"] },
+                    { "required": ["hifi_reads"] },
+                    { "required": ["bam"] }
+                ]
+            },
             { "required": ["bam"], "not": { "anyOf": [{ "required": ["gfa"] }, { "required": ["end_archive"] }] } }
         ]
     }
