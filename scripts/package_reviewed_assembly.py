@@ -185,14 +185,17 @@ def validate_layout(fasta, out):
             raise ValueError("AGP or component FASTA has extra rows")
 
 
-def package(fasta, outdir, chromosomes, motif, min_repeats, reviewed_recipe=None, assembly_plan=None):
+def package(fasta, outdir, chromosomes, motif, min_repeats, reviewed_recipe=None, assembly_plan=None, reviewed_base=None):
     if outdir.exists():
         raise FileExistsError(outdir)
     original_digest = sha256(fasta)
+    if reviewed_base and not (reviewed_recipe and assembly_plan):
+        raise ValueError("A separate reviewed base requires its recipe and the final assembly plan")
+    reviewed_digest = sha256(reviewed_base) if reviewed_base else original_digest
     if reviewed_recipe:
         recipe = json.loads(reviewed_recipe.read_text())
-        if recipe.get("expected_sha256") != original_digest:
-            raise ValueError("Reviewed recipe checksum does not match the input FASTA")
+        if recipe.get("expected_sha256") != reviewed_digest:
+            raise ValueError("Reviewed recipe checksum does not match the reviewed FASTA")
     plan = None
     if assembly_plan:
         plan = json.loads(assembly_plan.read_text())
@@ -200,6 +203,8 @@ def package(fasta, outdir, chromosomes, motif, min_repeats, reviewed_recipe=None
             raise ValueError("Assembly plan version or FASTA checksum does not match")
         if reviewed_recipe and plan["recipe_sha256"] != sha256(reviewed_recipe):
             raise ValueError("The assembly plan was produced by a different recipe")
+        if reviewed_base and plan["base_fasta_sha256"] != reviewed_digest:
+            raise ValueError("The final assembly plan was produced from a different reviewed FASTA")
 
     outdir.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=outdir.parent) as temp:

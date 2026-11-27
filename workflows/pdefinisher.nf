@@ -37,7 +37,7 @@ workflow PDEFINISHER {
     }
     def graph_input = samples.graph.map { meta, assembly, bam, _bai ->
         def inputs = meta.graph_inputs
-        def optional_paths = ['raw_gfa', 'tiara', 'barrnap', 'ont_paf', 'ont_reads', 'hifi_reads', 'graph_recipe']
+        def optional_paths = ['raw_gfa', 'tiara', 'barrnap', 'ont_paf', 'ont_reads', 'hifi_reads', 'graph_recipe', 'hifi_patch_approvals']
             .collect { key -> inputs[key] ? file(inputs[key], checkIfExists: true) : [] }
         def delivery_meta = meta.findAll { key, _value -> key != 'graph_inputs' }
         def inputs_for_sample = [delivery_meta, assembly, file(inputs.gfa, checkIfExists: true),
@@ -45,7 +45,16 @@ workflow PDEFINISHER {
         tuple(meta.id, !!bam, inputs_for_sample)
     }
 
-    def aligned_samples = ch_samplesheet.filter { _meta, _assembly, bam, _bai -> bam }
+    def aligned_samples = ch_samplesheet
+        .filter { _meta, _assembly, bam, _bai -> bam }
+        .map { meta, assembly, bam, bai ->
+            // A curation approval changes delivery only. Reuse the upstream BAM resolver tasks on resume.
+            def graph_inputs = meta.graph_inputs
+            def evidence_meta = graph_inputs?.hifi_patch_approvals
+                ? meta + [graph_inputs: graph_inputs.findAll { key, _path -> key != 'hifi_patch_approvals' }]
+                : meta
+            tuple(evidence_meta, assembly, bam, bai)
+        }
     ch_assembly = aligned_samples.map { meta, assembly, _bam, _bai -> tuple(meta, assembly) }
     ch_bam      = aligned_samples.map { meta, _assembly, bam, bai  -> tuple(meta, bam, bai) }
 
@@ -69,15 +78,16 @@ workflow PDEFINISHER {
     def graph_with_bam = graph_input
         .filter { _id, has_bam, _inputs -> has_bam }
         .join(AUTOMATED_PDE_CURATION.out.graph_read_proposals, failOnMismatch: true, failOnDuplicate: true)
-        .map { _id, _has_bam, inputs, manifests -> inputs + [manifests] }
+        .map { _id, _has_bam, inputs, manifests, patches -> inputs + [manifests, patches] }
     def graph_only = graph_input
         .filter { _id, has_bam, _inputs -> !has_bam }
-        .map { _id, _has_bam, inputs -> inputs + [[]] }
+        .map { _id, _has_bam, inputs -> inputs + [[], []] }
     GFAPDEFINISHER(
         graph_only.mix(graph_with_bam),
         file("${projectDir}/scripts/gfapdefinisher_handoff.py", checkIfExists: true),
         file("${projectDir}/scripts/package_reviewed_assembly.py", checkIfExists: true),
         file("${projectDir}/scripts/curation_edit_plan.py", checkIfExists: true),
+        file("${projectDir}/scripts/approved_hifi_patches.py", checkIfExists: true),
         params.gfapdefinisher,
     )
 

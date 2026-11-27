@@ -53,6 +53,7 @@
             "ont_reads": { "type": "string", "format": "file-path", "exists": true },
             "hifi_reads": { "type": "string", "format": "file-path", "exists": true },
             "graph_recipe": { "type": "string", "format": "file-path", "exists": true },
+            "hifi_patch_approvals": { "type": "string", "format": "file-path", "exists": true },
             "chromosomes": {
                 "type": "string",
                 "meta": ["chromosomes"],

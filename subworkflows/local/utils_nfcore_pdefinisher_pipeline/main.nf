@@ -234,7 +234,7 @@ def samplesheetToList(String samplesheet_file, String _schema_path = null) {
 }
 
 def graphInputs(List header, List columns) {
-    def keys = ['gfa', 'end_archive', 'raw_gfa', 'tiara', 'barrnap', 'ont_paf', 'ont_reads', 'hifi_reads', 'graph_recipe']
+    def keys = ['gfa', 'end_archive', 'raw_gfa', 'tiara', 'barrnap', 'ont_paf', 'ont_reads', 'hifi_reads', 'graph_recipe', 'hifi_patch_approvals']
     keys.collectEntries { key ->
         def index = header.indexOf(key)
         index >= 0 && index < columns.size() && columns[index] ? [(key): columns[index]] : [:]
@@ -334,6 +334,9 @@ def validateInputParameters(boolean allow_graph) {
                         def name_idx = header.indexOf('assembly_name')
                         if (bam_path && !(name_idx >= 0 && name_idx < cols.size() && cols[name_idx])) {
                             validation_errors.add("${label}: supply 'assembly_name' to run BAM-based evidence modules.")
+                        }
+                        if (graph.hifi_patch_approvals && !bam_path) {
+                            validation_errors.add("${label}: 'hifi_patch_approvals' requires a HiFi BAM on the same row.")
                         }
                         graph.each { key, value ->
                             def artifact = file(value)

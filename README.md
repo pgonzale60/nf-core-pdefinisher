@@ -82,7 +82,21 @@ The main workflow runs `gfapdefinisher` for rows with `gfa` and `end_archive`. R
 
 Without `graph_recipe`, the workflow delivers the curated FASTA with an AGP and the candidate report. With a recipe, it delivers the reviewed graph FASTA and component AGP after verifying the checksum and round-tripping the layout. The graph route publishes its accepted assembly directly. BAM-based surgery runs for rows with BAM input alone.
 
-To collect both sources of proposals for the same sample, supply `assembly_name` and a BAM aligned to the input curated FASTA on the graph row. The BAM resolvers run before surgery and contribute their blueprint and manifests to `curation_edit_plan.json`. The plan records curated-reference coordinates, competing graph placements, and the decision for each proposal. A reviewed replay takes precedence across the reference records it changes. Individual graph and BAM proposals remain available for review. Optional motif discovery uses the same input FASTA and BAM coordinates.
+To collect both sources of proposals for the same sample, supply `assembly_name` and a BAM aligned to the input curated FASTA on the graph row. The BAM resolvers run before surgery and contribute their blueprint and manifests to `curation_edit_plan.json`. The plan records curated-reference coordinates, competing graph placements, and the decision for each proposal. Optional motif discovery uses the same input FASTA and BAM coordinates.
+
+### Approve HiFi gap patches
+
+Review `evidence/hifi_gap_patches.json` and the sequence payloads in `evidence/hifi_patch_sequences.fasta`. On the next run, set the samplesheet column `hifi_patch_approvals` to a JSON file containing the curated reference checksum and the IDs and sequence checksums you approve. Copy these values from the gap-patch report. Run with `-resume` to reuse the BAM resolver tasks.
+
+```json
+{
+  "version": 1,
+  "reference_sha256": "<curated reference file SHA-256>",
+  "patches": [{"gap_id": "CARD-02", "patch_sha256": "<approved patch sequence SHA-256>"}]
+}
+```
+
+The workflow applies approved patches after any reviewed graph replay. A patch must target an internal N-gap in the curated reference. At least one resolver-reported flank must uniquely anchor the locus in each assembly, and both flanks must delimit an intact gap in the accepted assembly in the expected order and orientation. The workflow records patches that are already present or withheld, including attempts to replace accepted graph sequence, anchored rDNA placeholders, or unresolved satellite ports. The final FASTA and AGP include the applied patches, and the assembly plan records their source and final coordinates.
 
 The graph evidence bundle includes `curated_end_review.tsv`, `graph_end_proposals.tsv`, and `family_placements.tsv`. `sequence_gaps.tsv` records both linkage and missing sequence. For an anchored rDNA array the flanking connection is supported, while the sequence and copy order within the array remain unresolved. `unresolved_joins.tsv` records gaps with unresolved or unassessed linkage, including tandem repeats with competing distal placements.
 

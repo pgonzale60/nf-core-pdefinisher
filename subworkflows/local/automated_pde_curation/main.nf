@@ -176,7 +176,8 @@ workflow AUTOMATED_PDE_CURATION {
         .join(CURATION_RESOLUTION.out.walker_manifest.filter { meta, _manifest -> meta.graph_inputs }, failOnDuplicate: true, failOnMismatch: true)
         .join(CURATION_RESOLUTION.out.rdna_manifest.filter { meta, _manifest -> meta.graph_inputs }, failOnDuplicate: true, failOnMismatch: true)
         .join(CURATION_RESOLUTION.out.trans_manifest.filter { meta, _manifest -> meta.graph_inputs }, failOnDuplicate: true, failOnMismatch: true)
-        .map { meta, blueprint, gap, walker, rdna, trans -> tuple(meta.id, [blueprint, gap, walker, rdna, trans]) }
+        .join(CURATION_RESOLUTION.out.gap_patches.filter { meta, _patches -> meta.graph_inputs }, failOnDuplicate: true, failOnMismatch: true)
+        .map { meta, blueprint, gap, walker, rdna, trans, patches -> tuple(meta.id, [blueprint, gap, walker, rdna, trans], patches) }
 
     // =========================================================================
     // MODULE 4: ASSEMBLY SURGERY & AGP VALIDATION

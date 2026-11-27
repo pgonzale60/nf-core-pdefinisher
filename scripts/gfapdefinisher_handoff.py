@@ -14,6 +14,7 @@ from pathlib import Path
 
 from package_reviewed_assembly import package, read_fasta, sha256
 from curation_edit_plan import decide
+from approved_hifi_patches import apply_approved_patches
 
 
 GAP = re.compile(r"N+")
@@ -340,8 +341,30 @@ def run_finishing(args, out):
             finish_agp = graph / "scaffolds.agp"
             trace_recipe(args.recipe, reviewed, {**sources, **graphs}, dict(sources, finish_agp=finish_agp),
                          plan, finish_agp)
-        assembly = decide(args.curated, rows(graph_proposals_path), args.bam_evidence, reviewed, args.recipe,
-                          evidence / "curation_edit_plan.json")
+        edit_plan_path = evidence / "curation_edit_plan.json"
+        base = decide(args.curated, rows(graph_proposals_path), args.bam_evidence, reviewed, args.recipe, edit_plan_path)
+        assembly, plan, patches = apply_approved_patches(
+            args.curated, base, plan, args.bam_evidence, args.gap_patches, args.hifi_patch_approvals,
+            Path(workspace), evidence,
+        )
+        if patches:
+            edit_plan = json.loads(edit_plan_path.read_text())
+            edit_plan["delivery_sha256"] = sha256(assembly)
+            edit_plan["hifi_gap_patches"] = patches
+            by_gap = {patch["gap_id"]: patch for patch in patches}
+            for proposal in edit_plan["proposals"]:
+                if not proposal["id"].startswith("bam:patches_manifest.tsv:") or proposal["kind"] != "PATCH_GAP_INSERTION":
+                    continue
+                patch = by_gap.get(proposal["evidence"]["card_id"])
+                if patch:
+                    proposal["reason"] = patch["reason"]
+                    if patch["status"] == "applied":
+                        proposal["decision"] = "accepted"
+                    elif patch["status"] == "already_present":
+                        proposal["decision"] = "already_present"
+            edit_plan_path.write_text(json.dumps(edit_plan, sort_keys=True, indent=2) + "\n")
+        if args.hifi_patch_approvals:
+            shutil.copyfile(args.hifi_patch_approvals, evidence / "hifi_patch_approvals.json")
         if args.bam_evidence:
             read_evidence = evidence / "bam_resolvers"
             read_evidence.mkdir()
@@ -349,11 +372,12 @@ def run_finishing(args, out):
                 shutil.copyfile(artifact, read_evidence / artifact.name)
         chromosomes = set(args.chromosomes.split(","))
         delivery = out / "assembly"
-        package(assembly, delivery, chromosomes, args.telomere.upper(), 3, args.recipe, plan)
+        package(assembly, delivery, chromosomes, args.telomere.upper(), 3, args.recipe, plan,
+                reviewed_base=reviewed if assembly != base else None)
         report_delivery(delivery, candidates, placements, config, args.recipe, evidence / "curated_end_review.tsv")
         inputs = dict(curated=args.curated, gfa=args.gfa, raw_gfa=args.raw_gfa, recipe=args.recipe,
                       tiara=args.tiara, barrnap=args.barrnap, ont_paf=ont_paf,
-                      ont_reads=args.ont_reads, hifi_reads=args.hifi_reads)
+                      ont_reads=args.ont_reads, hifi_reads=args.hifi_reads, hifi_patch_approvals=args.hifi_patch_approvals)
         (out / "inputs.json").write_text(json.dumps({
             "mode": "reviewed_replay" if args.recipe else "discovery",
             "native_phase_evidence": native_phase,
@@ -374,6 +398,8 @@ def main():
     parser.add_argument("--threads", type=int, default=4)
     parser.add_argument("--gfapdefinisher", default="gfapdefinisher")
     parser.add_argument("--bam-evidence", type=Path, nargs="+", default=[])
+    parser.add_argument("--gap-patches", type=Path)
+    parser.add_argument("--hifi-patch-approvals", type=Path)
     args = parser.parse_args()
     if args.outdir.exists():
         parser.error(f"Output already exists: {args.outdir}")
