@@ -24,7 +24,7 @@ process NCRFTELOMERES {
     def args = task.ext.args ?: ''
     prefix   = task.ext.prefix ?: "${meta.id}"
     """
-    if gzip -cd "${reads}" | grep -q '^>'; then
+    if ( set +o pipefail; gzip -cd "${reads}" | grep -q '^>' ); then
         gzip -cd "${reads}" \\
             | NCRF "${telomere_repeat}" \\
                 --scoring="${ncrf_scoring}" \\
@@ -35,7 +35,7 @@ process NCRFTELOMERES {
                 ${args} \\
             | gzip -c > "${prefix}.telomeric_repeats.ncrf.txt.gz"
 
-        if ! gzip -cd "${prefix}.telomeric_repeats.ncrf.txt.gz" | tail -n 5 | grep -q '^# ncrf end-of-file\$'; then
+        if ! ( set +o pipefail; gzip -cd "${prefix}.telomeric_repeats.ncrf.txt.gz" | tail -n 5 | grep -q '^# ncrf end-of-file\$' ); then
             echo "ERROR: Missing NCRF end-of-file marker" >&2
             exit 1
         fi

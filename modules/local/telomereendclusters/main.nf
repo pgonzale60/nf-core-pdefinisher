@@ -107,7 +107,7 @@ process TELOMEREENDCLUSTERS_SUMMARIZE {
     cp -L "${identity_sensitivity}" end_archive/identity_sensitivity.tsv
     cp -L "${assigned_paf}" end_archive/assigned.paf
 
-    if gzip -cd "${inward_full}" | grep -q '^>'; then
+    if ( set +o pipefail; gzip -cd "${inward_full}" | grep -q '^>' ); then
         minimap2 -x "\$preset" -c --cs=short --secondary=yes -N "\$secondary" -p "\$genome_ratio" -t ${task.cpus} \\
             "${assembly}" "${inward_full}" | gzip -c > genome.paf.gz
     else
