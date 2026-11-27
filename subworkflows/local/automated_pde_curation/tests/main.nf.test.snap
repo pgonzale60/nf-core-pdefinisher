@@ -3,6 +3,9 @@
         "content": [
             {
                 "0": [
+
+                ],
+                "1": [
                     [
                         {
                             "id": "test_sample",
@@ -11,16 +14,16 @@
                         "test_sample.curation_manifest.json:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
-                "1": [
+                "10": [
                     [
                         {
                             "id": "test_sample",
                             "assembly_name": "test_sample"
                         },
-                        "test_sample.curation_blueprint.md:md5,d41d8cd98f00b204e9800998ecf8427e"
+                        "test_sample.curation_scorecard.json:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
-                "10": [
+                "11": [
                     [
                         {
                             "id": "test_sample",
@@ -28,9 +31,6 @@
                         },
                         "test_sample.curation_report.md:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
-                ],
-                "11": [
-
                 ],
                 "12": [
 
@@ -62,7 +62,7 @@
                             "id": "test_sample",
                             "assembly_name": "test_sample"
                         },
-                        "test_sample.validated.agp:md5,d41d8cd98f00b204e9800998ecf8427e"
+                        "test_sample.curation_blueprint.md:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
                 "20": [
@@ -81,6 +81,9 @@
 
                 ],
                 "25": [
+
+                ],
+                "26": [
                     [
                         "AUTOMATED_PDE_CURATION:ASSEMBLY_SURGERY:ASMFORMATQC",
                         "agp-tpf-utils",
@@ -133,7 +136,7 @@
                             "id": "test_sample",
                             "assembly_name": "test_sample"
                         },
-                        "test_sample.curated.fasta:md5,d41d8cd98f00b204e9800998ecf8427e"
+                        "test_sample.validated.agp:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
                 "4": [
@@ -142,10 +145,19 @@
                             "id": "test_sample",
                             "assembly_name": "test_sample"
                         },
-                        "test_sample.components.fasta:md5,d41d8cd98f00b204e9800998ecf8427e"
+                        "test_sample.curated.fasta:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
                 "5": [
+                    [
+                        {
+                            "id": "test_sample",
+                            "assembly_name": "test_sample"
+                        },
+                        "test_sample.components.fasta:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "6": [
                     [
                         {
                             "id": "test_sample",
@@ -155,7 +167,7 @@
                         "test_sample.purged_rdna.fasta:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
-                "6": [
+                "7": [
                     [
                         {
                             "id": "test_sample",
@@ -164,7 +176,7 @@
                         "test_sample.curation_audit.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
-                "7": [
+                "8": [
                     [
                         {
                             "id": "test_sample",
@@ -173,22 +185,13 @@
                         "test_sample.curated.pde_segments.bed:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
-                "8": [
-                    [
-                        {
-                            "id": "test_sample",
-                            "assembly_name": "test_sample"
-                        },
-                        "test_sample.curated.repeats.bed:md5,d41d8cd98f00b204e9800998ecf8427e"
-                    ]
-                ],
                 "9": [
                     [
                         {
                             "id": "test_sample",
                             "assembly_name": "test_sample"
                         },
-                        "test_sample.curation_scorecard.json:md5,d41d8cd98f00b204e9800998ecf8427e"
+                        "test_sample.curated.repeats.bed:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
                 "best_auxiliary_motif": [
@@ -287,6 +290,9 @@
                 "fimo_genome_hits": [
 
                 ],
+                "graph_read_proposals": [
+
+                ],
                 "grid_summary_tsv": [
 
                 ],
@@ -382,7 +388,7 @@
                 ]
             }
         ],
-        "timestamp": "2026-11-28T00:15:10.744689",
+        "timestamp": "2026-11-28T00:21:57.819678",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
