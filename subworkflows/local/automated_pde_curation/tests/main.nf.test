@@ -21,19 +21,6 @@ nextflow_workflow {
     tag "curation_validation"
     tag "bgzipfasta"
 
-    setup {
-        if (!file("${baseDir}/modules/nf-core").exists()) {
-            nfcoreInitialise("${launchDir}/library/")
-            nfcoreInstall(
-                "${launchDir}/library/",
-                [
-                    "mosdepth"
-                ]
-            )
-            nfcoreLink("${launchDir}/library/", "${baseDir}/modules/")
-        }
-    }
-
     test("pde - stub") {
 
         // Stub only: exercises the full five stage chain, its channel wiring and the
@@ -79,10 +66,5 @@ nextflow_workflow {
             )
         }
 
-        cleanup {
-            if (file("${launchDir}/library/").exists()) {
-                nfcoreUnlink("${launchDir}/library/", "${baseDir}/modules/nf-core")
-            }
-        }
     }
 }
