@@ -80,7 +80,7 @@ The main workflow runs `gfapdefinisher` for rows with `gfa` and `end_archive`. R
 
 `gfapdefinisher` proposes paths from the graph. The workflow projects telomere-family consensuses onto both graphs and the curated assembly, records competing placements, and retains local haplotype patterns and original molecule IDs. It passes the [phased-end evidence bundle](docs/phased_end_evidence.md) to executables that support `--end-evidence`. With older executables the workflow associates the phased families with the graph candidates for review. A family consensus alignment by itself establishes a candidate placement.
 
-Without `graph_recipe`, the workflow delivers the curated FASTA with an AGP and the candidate report. With a recipe, it delivers the reviewed graph FASTA and component AGP after verifying the checksum and round-tripping the layout. The graph route publishes its accepted assembly directly. BAM-based surgery runs for rows with BAM input alone.
+Without `graph_recipe`, the workflow delivers the curated FASTA with an AGP and the candidate report. With a recipe, it verifies the reviewed nuclear assembly and retains curated records outside the recipe, such as the mitochondrial scaffold. The workflow round-trips the delivery FASTA against its component AGP. BAM-based surgery runs for rows with BAM input alone.
 
 To collect both sources of proposals for the same sample, supply `assembly_name` and a BAM aligned to the input curated FASTA on the graph row. The BAM resolvers run before surgery and contribute their blueprint and manifests to `curation_edit_plan.json`. The plan records curated-reference coordinates, competing graph placements, and the decision for each proposal. Optional motif discovery uses the same input FASTA and BAM coordinates.
 

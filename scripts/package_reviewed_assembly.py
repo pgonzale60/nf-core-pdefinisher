@@ -203,7 +203,7 @@ def package(fasta, outdir, chromosomes, motif, min_repeats, reviewed_recipe=None
             raise ValueError("Assembly plan version or FASTA checksum does not match")
         if reviewed_recipe and plan["recipe_sha256"] != sha256(reviewed_recipe):
             raise ValueError("The assembly plan was produced by a different recipe")
-        if reviewed_base and plan["base_fasta_sha256"] != reviewed_digest:
+        if reviewed_base and plan.get("reviewed_fasta_sha256", plan.get("base_fasta_sha256")) != reviewed_digest:
             raise ValueError("The final assembly plan was produced from a different reviewed FASTA")
 
     outdir.parent.mkdir(parents=True, exist_ok=True)

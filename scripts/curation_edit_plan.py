@@ -155,7 +155,7 @@ def review_reason(candidate):
     return "bam_edit_requires_review"
 
 
-def decide(reference, graph_rows, bam_artifacts, reviewed, reviewed_recipe, output):
+def decide(reference, graph_rows, bam_artifacts, reviewed, reviewed_recipe, output, nuclear_chromosomes=None):
     """Choose the reference or an explicit replay and record every candidate's disposition."""
     reference_records = dict(read_fasta(reference))
     lengths = {name: len(seq) for name, seq in reference_records.items()}
@@ -171,13 +171,15 @@ def decide(reference, graph_rows, bam_artifacts, reviewed, reviewed_recipe, outp
         if reviewed_digest != recipe.get("expected_sha256"):
             raise ValueError("Reviewed replay requires a matching expected FASTA checksum")
         reviewed_records = dict(read_fasta(reviewed))
-        if missing := sorted(lengths.keys() - reviewed_records.keys()):
+        required_records = lengths.keys() if nuclear_chromosomes is None else nuclear_chromosomes
+        if missing := sorted(required_records - reviewed_records.keys()):
             raise ValueError(f"Reviewed replay omits curated records: {', '.join(missing)}")
-        changed = [interval(lengths, record, 0, lengths[record]) for record in sorted(lengths)
+        changed = [interval(lengths, record, 0, lengths[record]) for record in sorted(lengths.keys() & reviewed_records.keys())
                    if reviewed_records[record].upper() != reference_records[record].upper()]
         accepted = proposal("graph", "reviewed_replay", "reviewed_assembly", changed, {
             "recipe_sha256": sha256(reviewed_recipe), "fasta_sha256": reviewed_digest,
             "added_records": sorted(reviewed_records.keys() - lengths.keys()),
+            "preserved_reference_records": sorted(lengths.keys() - reviewed_records.keys()),
         })
         candidates.append(accepted)
         selected = reviewed

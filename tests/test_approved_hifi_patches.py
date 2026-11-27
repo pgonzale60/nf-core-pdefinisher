@@ -8,6 +8,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from approved_hifi_patches import apply_approved_patches, reference_layout, reverse_complement
+from curation_edit_plan import decide
+from gfapdefinisher_handoff import retain_reference_records
 from package_reviewed_assembly import package, read_fasta, sha256
 
 
@@ -75,3 +77,25 @@ def test_conflicting_patches_keep_the_accepted_graph_assembly(tmp_path, options,
     assert apply_approved_patches(reference, base, plan, manifests, payloads, approvals, tmp_path, tmp_path)[:2] == (base, plan)
     row = json.loads((tmp_path / "hifi_gap_patches.json").read_text())["patches"][0]
     assert (row["status"], row["reason"]) == ("withheld", reason)
+
+
+def test_reviewed_nuclear_recipe_and_gap_patch_retain_other_reference_records(tmp_path):
+    reference, reviewed, plan, manifests, payloads, approvals, recipe, sequence, patch = fixture(tmp_path)
+    mt_sequence = "cggaatagtctacgacgagatccccgggatt"
+    with reference.open("a") as handle:
+        handle.write(f">scaffold_MT\n{mt_sequence}\n")
+    document = json.loads(approvals.read_text())
+    document["reference_sha256"] = sha256(reference)
+    approvals.write_text(json.dumps(document))
+    decision = tmp_path / "decision.json"
+    decide(reference, [], [], reviewed, recipe, decision, nuclear_chromosomes={"I"})
+    base, plan = retain_reference_records(reference, reviewed, plan, tmp_path)
+    fasta, final_plan, results = apply_approved_patches(reference, base, plan, manifests, payloads, approvals,
+                                                       tmp_path, tmp_path)
+    assert results[0]["status"] == "applied"
+    assert dict(read_fasta(fasta)) == {"I": sequence.replace("NNNN", patch), "scaffold_MT": mt_sequence}
+    package(fasta, tmp_path / "delivery", {"I"}, "TTAGGC", 3, recipe, final_plan, reviewed_base=reviewed)
+    layout = json.loads(final_plan.read_text())
+    assert layout["objects"]["scaffold_MT"]["parts"][0]["source"] == "reference"
+    assert layout["reviewed_fasta_sha256"] == sha256(reviewed)
+    assert layout["base_fasta_sha256"] == sha256(base)

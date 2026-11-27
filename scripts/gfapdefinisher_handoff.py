@@ -14,7 +14,7 @@ from pathlib import Path
 
 from package_reviewed_assembly import package, read_fasta, sha256
 from curation_edit_plan import decide
-from approved_hifi_patches import apply_approved_patches
+from approved_hifi_patches import apply_approved_patches, reference_layout
 
 
 GAP = re.compile(r"N+")
@@ -285,6 +285,29 @@ def graph_args(command, **values):
     subprocess.run(command, check=True)
 
 
+def retain_reference_records(reference, reviewed, plan, work):
+    """Add untouched reference records outside the reviewed recipe to the accepted layout."""
+    layout = json.loads(plan.read_text())
+    retained = {name: seq for name, seq in read_fasta(reference) if name not in layout["objects"]}
+    if not retained:
+        return reviewed, plan
+    reference_digest = sha256(reference)
+    assembly = work / "reviewed_with_reference.fa"
+    shutil.copyfile(reviewed, assembly)
+    with assembly.open("a") as handle:
+        for name, seq in retained.items():
+            handle.write(f">{name}\n")
+            for start in range(0, len(seq), 60):
+                handle.write(seq[start:start + 60] + "\n")
+    layout["objects"].update(reference_layout(retained, reference_digest)["objects"])
+    layout["sources"]["reference"] = reference_digest
+    layout["reviewed_fasta_sha256"] = layout["fasta_sha256"]
+    layout["fasta_sha256"] = sha256(assembly)
+    updated_plan = work / "reviewed_with_reference_plan.json"
+    updated_plan.write_text(json.dumps(layout, indent=2) + "\n")
+    return assembly, updated_plan
+
+
 def run_finishing(args, out):
     evidence = out / "evidence"
     evidence.mkdir()
@@ -342,12 +365,16 @@ def run_finishing(args, out):
             trace_recipe(args.recipe, reviewed, {**sources, **graphs}, dict(sources, finish_agp=finish_agp),
                          plan, finish_agp)
         edit_plan_path = evidence / "curation_edit_plan.json"
-        base = decide(args.curated, rows(graph_proposals_path), args.bam_evidence, reviewed, args.recipe, edit_plan_path)
+        chromosomes = set(args.chromosomes.split(","))
+        base = decide(args.curated, rows(graph_proposals_path), args.bam_evidence, reviewed, args.recipe, edit_plan_path,
+                      nuclear_chromosomes=chromosomes)
+        if reviewed:
+            base, plan = retain_reference_records(args.curated, reviewed, plan, Path(workspace))
         assembly, plan, patches = apply_approved_patches(
             args.curated, base, plan, args.bam_evidence, args.gap_patches, args.hifi_patch_approvals,
             Path(workspace), evidence,
         )
-        if patches:
+        if patches or (reviewed and base != reviewed):
             edit_plan = json.loads(edit_plan_path.read_text())
             edit_plan["delivery_sha256"] = sha256(assembly)
             edit_plan["hifi_gap_patches"] = patches
@@ -370,10 +397,9 @@ def run_finishing(args, out):
             read_evidence.mkdir()
             for artifact in args.bam_evidence:
                 shutil.copyfile(artifact, read_evidence / artifact.name)
-        chromosomes = set(args.chromosomes.split(","))
         delivery = out / "assembly"
         package(assembly, delivery, chromosomes, args.telomere.upper(), 3, args.recipe, plan,
-                reviewed_base=reviewed if assembly != base else None)
+                reviewed_base=reviewed if assembly != reviewed else None)
         report_delivery(delivery, candidates, placements, config, args.recipe, evidence / "curated_end_review.tsv")
         inputs = dict(curated=args.curated, gfa=args.gfa, raw_gfa=args.raw_gfa, recipe=args.recipe,
                       tiara=args.tiara, barrnap=args.barrnap, ont_paf=ont_paf,
