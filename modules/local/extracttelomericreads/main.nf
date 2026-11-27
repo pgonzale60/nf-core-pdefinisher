@@ -12,7 +12,7 @@ process EXTRACTTELOMERICREADS {
     output:
     tuple val(meta), path("*.telomeric_reads.fastq.gz"), emit: reads
     tuple val("${task.process}"), val('samtools'), eval("samtools --version | head -n 1 | sed 's/samtools //'"), topic: versions, emit: versions_samtools
-    tuple val("${task.process}"), val('bbmap'), eval("bbduk.sh --version 2>&1 | head -n 1 | sed 's/BBMap version //'"), topic: versions, emit: versions_bbmap
+    tuple val("${task.process}"), val('bbmap'), eval('bbversion.sh'), topic: versions, emit: versions_bbmap
 
     when:
     task.ext.when == null || task.ext.when
