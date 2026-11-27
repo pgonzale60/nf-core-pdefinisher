@@ -156,10 +156,6 @@ nextflow_process {
 
         setup {
 
-            nfcoreInitialise("${launchDir}/library/")
-            nfcoreInstall("${launchDir}/library/", ["yak/count"])
-            nfcoreLink("${launchDir}/library/", "${baseDir}/modules/")
-
             run("YAK_COUNT", alias: "YAK_COUNT_1") {
                 script "../../../nf-core/yak/count/main.nf"
                 process {
@@ -241,9 +237,6 @@ nextflow_process {
             )
         }
 
-        cleanup {
-            nfcoreUnlink("${launchDir}/library/", "${baseDir}/modules/")
-        }
 
     }
 
