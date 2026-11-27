@@ -12,7 +12,7 @@ process EXTRACTTELOMERICREADS {
     output:
     tuple val(meta), path("*.telomeric_reads.fastq.gz"), emit: reads
     tuple val("${task.process}"), val('samtools'), eval("samtools --version | head -n 1 | sed 's/samtools //'"), topic: versions, emit: versions_samtools
-    tuple val("${task.process}"), val('bbmap'), eval("bbduk.sh --version 2>&1 | head -n 1 | sed 's/BBMap version //'"), topic: versions, emit: versions_bbmap
+    tuple val("${task.process}"), val('bbmap'), eval('bbversion.sh'), topic: versions, emit: versions_bbmap
 
     when:
     task.ext.when == null || task.ext.when
@@ -21,6 +21,7 @@ process EXTRACTTELOMERICREADS {
     def args   = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}"
 
+    // Keep BAM-derived read order stable for assembly while BBDuk filters in parallel.
     """
     fwd_repeat=\$(printf "%0.s${telomere_repeat}" {1..3})
     k_len=\${#fwd_repeat}
@@ -40,6 +41,7 @@ process EXTRACTTELOMERICREADS {
             k=\$k_len \\
             rcomp=t \\
             hdist=0 \\
+            ordered=t \\
             threads=${task.cpus}
     """
 
