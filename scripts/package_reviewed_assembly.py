@@ -58,7 +58,38 @@ def terminal_repeats(sequence, motif, side):
                 if (match := pattern.match(sequence, shift))), default=0)
 
 
-def write_layout(fasta, out, chromosomes, motif, min_repeats):
+def assembly_intervals(seq, plan):
+    if plan is not None:
+        offset = 0
+        for part in plan:
+            start, end = part["start"], part["end"]
+            gap = part.get("gap")
+            if start != offset or not start < end <= len(seq):
+                raise ValueError("Assembly plan parts must tile the FASTA record")
+            bases = seq[start:end].upper()
+            if (gap and bases.strip("N")) or (not gap and "N" in bases):
+                raise ValueError("Assembly plan gap disagrees with FASTA")
+            if not gap and (
+                not part["source"] or not part["record"] or part["strand"] not in ("+", "-")
+                or part["source_start"] < 0 or part["source_end"] - part["source_start"] != end - start
+            ):
+                raise ValueError("Invalid source interval in assembly plan")
+            yield start, end, gap
+            offset = end
+        if offset != len(seq):
+            raise ValueError("Assembly plan does not cover the FASTA record")
+        return
+    offset = 0
+    for gap in GAP.finditer(seq):
+        if offset < gap.start():
+            yield offset, gap.start(), None
+        yield gap.start(), gap.end(), "unknown"
+        offset = gap.end()
+    if offset < len(seq):
+        yield offset, len(seq), None
+
+
+def write_layout(fasta, out, chromosomes, motif, min_repeats, plan=None):
     reverse_motif = motif.translate(str.maketrans("ACGT", "TGCA"))[::-1]
     seen = set()
     with (
@@ -69,6 +100,8 @@ def write_layout(fasta, out, chromosomes, motif, min_repeats):
     ):
         agp.write("##agp-version 2.1\n")
         agp.write("# Components are slices of the supplied reviewed FASTA.\n")
+        if plan is not None:
+            agp.write("# Source intervals are recorded in assembly_plan.json.\n")
         end_rows = csv.writer(ends, delimiter="\t", lineterminator="\n")
         join_rows = csv.writer(joins, delimiter="\t", lineterminator="\n")
         end_rows.writerow(("chromosome", "side", "canonical_repeat_bp", "physical_tip_status"))
@@ -84,15 +117,9 @@ def write_layout(fasta, out, chromosomes, motif, min_repeats):
                     status = "canonical_tract" if bp >= min_repeats * len(motif) else "open_or_unconfirmed"
                     end_rows.writerow((name, side, bp, status))
 
-            intervals = []
-            offset = 0
-            for gap in GAP.finditer(seq):
-                if offset < gap.start():
-                    intervals.append((offset, gap.start(), False))
-                intervals.append((gap.start(), gap.end(), True))
-                offset = gap.end()
-            if offset < len(seq):
-                intervals.append((offset, len(seq), False))
+            if plan is not None and name not in plan:
+                raise ValueError(f"Assembly plan has no path for {name}")
+            intervals = list(assembly_intervals(seq, plan[name]["parts"] if plan is not None else None))
             if not any(not gap for _, _, gap in intervals):
                 raise ValueError(f"FASTA record contains only gap characters: {name}")
 
@@ -111,6 +138,8 @@ def write_layout(fasta, out, chromosomes, motif, min_repeats):
                         components.write(seq[i:min(i + 60, stop)] + "\n")
                 agp.write("\t".join(map(str, (name, start + 1, stop, part, *fields))) + "\n")
 
+    if plan is not None and set(plan) != seen:
+        raise ValueError("The assembly plan and FASTA must contain the same records")
     if not seen or chromosomes - seen:
         raise ValueError(f"Assembly is empty or is missing chromosome IDs: {sorted(chromosomes - seen)}")
 
@@ -141,7 +170,7 @@ def validate_layout(fasta, out):
             raise ValueError("AGP or component FASTA has extra rows")
 
 
-def package(fasta, outdir, chromosomes, motif, min_repeats, reviewed_recipe=None):
+def package(fasta, outdir, chromosomes, motif, min_repeats, reviewed_recipe=None, assembly_plan=None):
     if outdir.exists():
         raise FileExistsError(outdir)
     original_digest = sha256(fasta)
@@ -149,6 +178,13 @@ def package(fasta, outdir, chromosomes, motif, min_repeats, reviewed_recipe=None
         recipe = json.loads(reviewed_recipe.read_text())
         if recipe.get("expected_sha256") != original_digest:
             raise ValueError("Reviewed recipe checksum does not match the input FASTA")
+    plan = None
+    if assembly_plan:
+        plan = json.loads(assembly_plan.read_text())
+        if plan["version"] != 1 or plan["fasta_sha256"] != original_digest:
+            raise ValueError("Assembly plan version or FASTA checksum does not match")
+        if reviewed_recipe and plan["recipe_sha256"] != sha256(reviewed_recipe):
+            raise ValueError("The assembly plan was produced by a different recipe")
 
     outdir.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=outdir.parent) as temp:
@@ -159,12 +195,14 @@ def package(fasta, outdir, chromosomes, motif, min_repeats, reviewed_recipe=None
         shutil.copyfile(fasta, staged_fasta)
         if sha256(staged_fasta) != original_digest:
             raise ValueError("FASTA changed during packaging")
-        write_layout(staged_fasta, staging, chromosomes, motif, min_repeats)
+        write_layout(staged_fasta, staging, chromosomes, motif, min_repeats, plan["objects"] if plan else None)
         validate_layout(staged_fasta, staging)
         if reviewed_recipe:
             shutil.copyfile(reviewed_recipe, staging / "reviewed_recipe.json")
+        if assembly_plan:
+            shutil.copyfile(assembly_plan, staging / "assembly_plan.json")
         metadata = {
-            "input_fasta": str(fasta.resolve()),
+            "input_fasta": name if plan else str(fasta.resolve()),
             "chromosomes": sorted(chromosomes),
             "telomere_repeat": motif,
             "min_telomere_repeats": min_repeats,
@@ -184,12 +222,14 @@ def main():
     parser.add_argument("--telomere", required=True, help="Forward telomere motif")
     parser.add_argument("--min-telomere-repeats", type=int, default=3)
     parser.add_argument("--reviewed-recipe", type=Path, help="Optional provenance with the accepted FASTA SHA-256")
+    parser.add_argument("--assembly-plan", type=Path, help="Reviewed component coordinates from gfapdefinisher")
     args = parser.parse_args()
     chromosomes = set(args.chromosomes.split(","))
     motif = args.telomere.upper()
     if "" in chromosomes or not re.fullmatch("[ACGT]+", motif) or args.min_telomere_repeats <= 0:
         parser.error("Supply nonempty chromosome IDs, a DNA motif and a positive repeat count")
-    package(args.assembly, args.outdir, chromosomes, motif, args.min_telomere_repeats, args.reviewed_recipe)
+    package(args.assembly, args.outdir, chromosomes, motif, args.min_telomere_repeats,
+            args.reviewed_recipe, args.assembly_plan)
 
 
 if __name__ == "__main__":

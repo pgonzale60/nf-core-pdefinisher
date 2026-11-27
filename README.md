@@ -67,6 +67,19 @@ verifies that the AGP and components reconstruct the input sequence. Components
 are slices of the reviewed FASTA. An optional reviewed recipe can preserve source
 graph and read evidence if its expected FASTA checksum matches.
 
+## Graph finishing pilot
+
+`graph_finish.nf` runs `gfapdefinisher` against an existing Hifiasm primary GFA and compares its proposed ends with the curated assembly. It also projects the telomere-family consensuses onto the primary graph, the optional raw graph, and the curated assembly. The evidence bundle keeps cluster membership, original molecule IDs, local haplotype patterns, and competing alignments. A consensus alignment identifies a candidate and cannot establish a physical germline closure.
+
+```bash
+nextflow run graph_finish.nf --curated curated.fa.gz --gfa asm.p_utg.gfa.gz \
+    --end_archive path/to/end_clusters --chromosomes I,II,III,IV,V,X --outdir results
+```
+
+Use a worker environment with Python 3, `gfapdefinisher`, minimap2, and seqkit. Set `--gfapdefinisher` to select an installed checkout or executable. The end archive is the output directory of the telomeric read clustering workflow. Optional graph inputs are `--raw_gfa`, `--tiara`, `--barrnap`, `--ont_reads`, and `--ont_paf`. An ONT PAF must use the supplied primary unitig graph as its reference. The raw GFA and `--hifi_reads` can also supply sequence used by a reviewed recipe.
+
+Discovery publishes the curated FASTA byte-for-byte with AGP and graph proposals for review. Adding `--recipe` replays a reviewed graph assembly. The replay checks its component source intervals against the spelled FASTA, publishes the source plan, and round-trips the delivered AGP and component FASTA. See `evidence/curated_end_review.tsv` for assignment and continuity and `evidence/graph_end_proposals.tsv` for the graph candidates. This pilot requires a prebuilt GFA and runs independently of the existing surgery and motif workflows.
+
 ## Credits
 
 `nf-core/pdefinisher` was originally written by **Pablo M. Gonzalez de la Rosa**.
