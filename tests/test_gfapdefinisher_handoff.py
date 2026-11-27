@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-import graph_finish
+import gfapdefinisher_handoff
 from package_reviewed_assembly import package, sha256
 
 
@@ -27,9 +27,9 @@ def test_reviewed_path_round_trips_with_reverse_source_and_unknown_join(tmp_path
             ],
         }],
     }))
-    monkeypatch.setattr(graph_finish, "source_records", lambda path, _: dict(graph_finish.read_fasta(path)))
+    monkeypatch.setattr(gfapdefinisher_handoff, "source_records", lambda path, _: dict(gfapdefinisher_handoff.read_fasta(path)))
     plan = tmp_path / "plan.json"
-    graph_finish.trace_recipe(recipe, reviewed, {"primary": reference}, {"primary": reference}, plan)
+    gfapdefinisher_handoff.trace_recipe(recipe, reviewed, {"primary": reference}, {"primary": reference}, plan)
     parts = json.loads(plan.read_text())["objects"]["I"]["parts"]
     assert parts[1] == {"start": 4, "end": 7, "gap": "source_gap"}
     assert parts[2]["strand"] == "-"
@@ -41,7 +41,7 @@ def test_reviewed_path_round_trips_with_reverse_source_and_unknown_join(tmp_path
 
     reviewed.write_text(">I\nACCGNNNCCC\n")
     with pytest.raises(ValueError, match="fail to reconstruct"):
-        graph_finish.trace_recipe(recipe, reviewed, {"primary": reference}, {"primary": reference}, plan)
+        gfapdefinisher_handoff.trace_recipe(recipe, reviewed, {"primary": reference}, {"primary": reference}, plan)
 
 
 def test_placed_rdna_with_unresolved_copy_order_is_not_an_unresolved_join(tmp_path, monkeypatch):
@@ -63,15 +63,34 @@ def test_placed_rdna_with_unresolved_copy_order_is_not_an_unresolved_join(tmp_pa
              "parts": [satellite, {"gap": "satellite_port"}, satellite]},
         ],
     }))
-    monkeypatch.setattr(graph_finish, "source_records", lambda path, _: dict(graph_finish.read_fasta(path)))
+    monkeypatch.setattr(gfapdefinisher_handoff, "source_records", lambda path, _: dict(gfapdefinisher_handoff.read_fasta(path)))
     plan = tmp_path / "plan.json"
-    graph_finish.trace_recipe(recipe, reviewed, {"finish": reference}, {"finish": reference}, plan, graph_agp)
+    gfapdefinisher_handoff.trace_recipe(recipe, reviewed, {"finish": reference}, {"finish": reference}, plan, graph_agp)
     delivery = tmp_path / "delivery"
     package(reviewed, delivery, {"II", "III"}, "TTAGGC", 3, recipe, plan)
-    gaps = list(graph_finish.rows(delivery / "sequence_gaps.tsv"))
+    gaps = list(gfapdefinisher_handoff.rows(delivery / "sequence_gaps.tsv"))
     assert [(r["object"], r["linkage_status"], r["sequence_status"]) for r in gaps] == [
         ("II", "flanking_connection_supported", "sequence_and_copy_order_unresolved"),
         ("III", "distal_placement_unresolved", "sequence_unresolved"),
     ]
-    assert list(graph_finish.rows(delivery / "unresolved_joins.tsv")) == gaps[1:]
+    assert list(gfapdefinisher_handoff.rows(delivery / "unresolved_joins.tsv")) == gaps[1:]
     assert "II\t5\t7\t2\tN\t3\trepeat\tyes\tunspecified" in (delivery / "assembly.agp").read_text()
+
+
+def test_reference_alignment_is_linked_to_its_proximal_scaffold_end(tmp_path):
+    catalog = tmp_path / "catalog.tsv"
+    catalog.write_text(
+        "end_id\tobject_id\tside\thorizon_port\tcandidate_endings\n"
+        "S:5p\tS\t5p\tu+\t\n"
+        "S:3p\tS\t3p\tv-\t\n"
+    )
+    paf = tmp_path / "scaffolds.paf"
+    paf.write_text("S\t1000\t10\t190\t+\tI\t180\t0\t180\t180\t180\t60\n")
+    config = {"mapping_min_bp": 100, "mapping_identity": 0.98, "reference_end_window_bp": 20}
+    outfile = tmp_path / "proposals.tsv"
+    matches = gfapdefinisher_handoff.report_candidates(catalog, [], paf, config, outfile)
+    assert matches["I", "5p"] == ["S:5p"]
+    assert matches["I", "3p"] == []
+    assert [row["decision"] for row in gfapdefinisher_handoff.rows(outfile)] == [
+        "review_required", "unplaced_graph_end",
+    ]

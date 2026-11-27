@@ -31,6 +31,7 @@ workflow PIPELINE_INITIALISATION {
     help              // boolean: Display help message and exit
     help_full         // boolean: Show the full help message
     _show_hidden       // boolean: Show hidden parameters in the help message
+    allow_graph        // boolean: Accept graph-backed samples in this entry point
 
     main:
 
@@ -64,7 +65,7 @@ workflow PIPELINE_INITIALISATION {
     //
     // Pre-run verification gate: fail-fast parameter & path integrity check
     //
-    validateInputParameters()
+    validateInputParameters(allow_graph)
 
     //
     // Create channel from input file provided through params.input
@@ -72,7 +73,7 @@ workflow PIPELINE_INITIALISATION {
     channel
         .fromList(samplesheetToList(input, "${projectDir}/assets/schema_input.json"))
         .map { meta, assembly, bam, bai ->
-            def resolved_bai = bai ? file(bai, checkIfExists: true) : (
+            def resolved_bai = !bam ? [] : bai ? file(bai, checkIfExists: true) : (
                 file("${bam}.bai").exists() ? file("${bam}.bai", checkIfExists: true) :
                 file("${bam}.csi", checkIfExists: true)
             )
@@ -82,7 +83,7 @@ workflow PIPELINE_INITIALISATION {
                 chromosomes    : norm_chroms,
                 telomere_repeat: norm_telo
             ]
-            return [ enriched_meta, file(assembly, checkIfExists: true), file(bam, checkIfExists: true), resolved_bai ]
+            return [ enriched_meta, file(assembly, checkIfExists: true), bam ? file(bam, checkIfExists: true) : [], resolved_bai ]
         }
         .set { ch_samplesheet }
 
@@ -209,7 +210,7 @@ def samplesheetToList(String samplesheet_file, String _schema_path = null) {
 
     def records = []
     lines.drop(1).each { line ->
-        def cols = line.tokenize(separator).collect { x -> x.trim() }
+        def cols = line.split(separator, -1).collect { x -> x.trim() }
         def sample = sample_idx >= 0 && sample_idx < cols.size() ? cols[sample_idx] : null
         def assembly = assembly_idx >= 0 && assembly_idx < cols.size() ? cols[assembly_idx] : null
         def bam = bam_idx >= 0 && bam_idx < cols.size() ? cols[bam_idx] : null
@@ -224,10 +225,20 @@ def samplesheetToList(String samplesheet_file, String _schema_path = null) {
         if (telo)   meta.telomere_repeat = telo
         if (species)       meta.species = species
         if (assembly_name) meta.assembly_name = assembly_name
+        def graph_inputs = graphInputs(header, cols)
+        if (graph_inputs) meta.graph_inputs = graph_inputs
 
-        records << [ meta, assembly, bam, bai ]
+        records << [ meta, assembly, bam ?: null, bai ]
     }
     return records
+}
+
+def graphInputs(List header, List columns) {
+    def keys = ['gfa', 'end_archive', 'raw_gfa', 'tiara', 'barrnap', 'ont_paf', 'ont_reads', 'hifi_reads', 'graph_recipe']
+    keys.collectEntries { key ->
+        def index = header.indexOf(key)
+        index >= 0 && index < columns.size() && columns[index] ? [(key): columns[index]] : [:]
+    }
 }
 
 //
@@ -268,7 +279,7 @@ def paramsSummaryMap(_workflow, Map _options = [:]) {
 //
 // Pre-run verification gate: fail-fast parameter & path integrity check
 //
-def validateInputParameters() {
+def validateInputParameters(boolean allow_graph) {
     def validation_errors = []
 
     // 1. Mandatory Input Samplesheet
@@ -299,14 +310,34 @@ def validateInputParameters() {
                 if (assembly_idx < 0) {
                     validation_errors.add("Samplesheet header is missing required column 'assembly': ${lines[0]}")
                 }
-                if (bam_idx < 0) {
+                if (bam_idx < 0 && !allow_graph) {
                     validation_errors.add("Samplesheet header is missing required column 'bam': ${lines[0]}")
                 }
 
                 lines.drop(1).eachWithIndex { line, line_idx ->
                     def row_num = line_idx + 2
-                    def cols = line.tokenize(separator).collect { x -> x.trim() }
+                    def cols = line.split(separator, -1).collect { x -> x.trim() }
                     def sample_id = sample_idx >= 0 && sample_idx < cols.size() ? cols[sample_idx] : "row_${row_num}"
+                    def graph = graphInputs(header, cols)
+                    def bam_required = !allow_graph || !graph || params.run_motif_discovery
+                    def bam_path = bam_idx >= 0 && bam_idx < cols.size() ? cols[bam_idx] : null
+                    def label = "Samplesheet row ${row_num} (sample '${sample_id}')"
+
+                    if (allow_graph && graph) {
+                        if (!graph.gfa || !graph.end_archive) {
+                            validation_errors.add("${label}: supply both 'gfa' and 'end_archive' for graph finishing.")
+                        }
+                        def chr_idx = header.indexOf('chromosomes')
+                        if (!params.chromosomes && !(chr_idx >= 0 && chr_idx < cols.size() && cols[chr_idx])) {
+                            validation_errors.add("${label}: graph finishing requires chromosome names.")
+                        }
+                        graph.each { key, value ->
+                            def artifact = file(value)
+                            if (!artifact.exists() || (key == 'end_archive' ? !artifact.isDirectory() : !artifact.isFile())) {
+                                validation_errors.add("${label}: invalid '${key}' path: ${value}")
+                            }
+                        }
+                    }
 
                     if (!sample_id || sample_id.contains(' ')) {
                         validation_errors.add("Samplesheet row ${row_num}: 'sample' ID must not be empty or contain whitespace (found: '${sample_id}').")
@@ -326,8 +357,7 @@ def validateInputParameters() {
                         }
                     }
 
-                    if (bam_idx >= 0 && bam_idx < cols.size()) {
-                        def bam_path = cols[bam_idx]
+                    if (bam_required || bam_path) {
                         if (!bam_path) {
                             validation_errors.add("Samplesheet row ${row_num} (sample '${sample_id}'): 'bam' column is empty.")
                         } else {

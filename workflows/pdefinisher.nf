@@ -4,6 +4,8 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 include { AUTOMATED_PDE_CURATION } from '../subworkflows/local/automated_pde_curation/main'
+include { GFAPDEFINISHER         } from '../modules/local/gfapdefinisher/main'
+include { RECON_MOTIF_PIPELINE   } from './recon_motif'
 include { CURATIONSUMMARY        } from '../modules/local/curationsummary/main'
 include { MULTIQC                } from '../modules/nf-core/multiqc/main'
 include { paramsSummaryMultiqc   } from '../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -30,16 +32,38 @@ workflow PDEFINISHER {
     def ch_versions      = channel.empty()
     def ch_multiqc_files = channel.empty()
 
-    ch_assembly = ch_samplesheet.map { meta, assembly, _bam, _bai -> tuple(meta, assembly) }
-    ch_bam      = ch_samplesheet.map { meta, _assembly, bam, bai  -> tuple(meta, bam, bai) }
+    def samples = ch_samplesheet.branch { meta, _assembly, _bam, _bai ->
+        graph: meta.graph_inputs
+        aligned: true
+    }
+    def graph_input = samples.graph.map { meta, assembly, _bam, _bai ->
+        def inputs = meta.graph_inputs
+        def optional_paths = ['raw_gfa', 'tiara', 'barrnap', 'ont_paf', 'ont_reads', 'hifi_reads', 'graph_recipe']
+            .collect { key -> inputs[key] ? file(inputs[key], checkIfExists: true) : [] }
+        def delivery_meta = meta.findAll { key, _value -> key != 'graph_inputs' }
+        [delivery_meta, assembly, file(inputs.gfa, checkIfExists: true),
+         file(inputs.end_archive, checkIfExists: true)] + optional_paths
+    }
+    GFAPDEFINISHER(
+        graph_input,
+        file("${projectDir}/scripts/gfapdefinisher_handoff.py", checkIfExists: true),
+        file("${projectDir}/scripts/package_reviewed_assembly.py", checkIfExists: true),
+        params.gfapdefinisher,
+    )
+
+    // Keep motif analysis on the reference that the supplied BAM was aligned to.
+    RECON_MOTIF_PIPELINE(samples.graph.filter { _meta, _assembly, _bam, _bai -> params.run_motif_discovery })
+
+    ch_assembly = samples.aligned.map { meta, assembly, _bam, _bai -> tuple(meta, assembly) }
+    ch_bam      = samples.aligned.map { meta, _assembly, bam, bai  -> tuple(meta, bam, bai) }
 
     //
     // SUBWORKFLOW: Run end-to-end Automated PDE Curation
     //
     def policy_file = file(params.curation_policy ?: "${projectDir}/assets/curation_policy.json", checkIfExists: true)
 
-    def val_telomere_repeat = ch_samplesheet.map { meta, _assembly, _bam, _bai -> meta.telomere_repeat ?: (params.telomere_repeat ?: 'TTAGGC') }.first()
-    def val_chromosomes     = ch_samplesheet.map { meta, _assembly, _bam, _bai -> meta.chromosomes ?: (params.chromosomes ?: '') }.first()
+    def val_telomere_repeat = samples.aligned.map { meta, _assembly, _bam, _bai -> meta.telomere_repeat ?: (params.telomere_repeat ?: 'TTAGGC') }.first()
+    def val_chromosomes     = samples.aligned.map { meta, _assembly, _bam, _bai -> meta.chromosomes ?: (params.chromosomes ?: '') }.first()
 
     AUTOMATED_PDE_CURATION (
         ch_assembly,
@@ -57,6 +81,7 @@ workflow PDEFINISHER {
     ch_all_validations = AUTOMATED_PDE_CURATION.out.validation_json.map { _meta, f -> f }.collect().ifEmpty([])
 
     ch_summary_input = ch_all_scorecards.toList()
+        .filter { scorecards -> scorecards }
         .combine(ch_all_validations.toList())
         .map { scorecards, validations ->
             tuple([ id: 'cohort' ], scorecards, validations)
@@ -110,7 +135,9 @@ workflow PDEFINISHER {
     def ch_methods_description = channel.value(methodsDescriptionText(ch_multiqc_custom_methods_description))
     ch_multiqc_files = ch_multiqc_files.mix(ch_methods_description.collectFile(name: 'methods_description_mqc.yaml', sort: true))
     MULTIQC(
-        ch_multiqc_files.flatten().collect().map { files ->
+        ch_multiqc_files.flatten().collect().map { files -> [files] }
+            .combine(samples.aligned.map { _meta, _assembly, _bam, _bai -> true }.first())
+            .map { files, _run_legacy_report ->
             [
                 [id: 'pdefinisher'],
                 files,
@@ -125,9 +152,10 @@ workflow PDEFINISHER {
     )
 
     emit:
-    curated_fasta              = AUTOMATED_PDE_CURATION.out.curated_fasta
-    curated_agp                = AUTOMATED_PDE_CURATION.out.curated_agp
-    components_fasta           = AUTOMATED_PDE_CURATION.out.components_fasta
+    curated_fasta              = AUTOMATED_PDE_CURATION.out.curated_fasta.mix(GFAPDEFINISHER.out.curated_fasta)
+    curated_agp                = AUTOMATED_PDE_CURATION.out.curated_agp.mix(GFAPDEFINISHER.out.curated_agp)
+    components_fasta           = AUTOMATED_PDE_CURATION.out.components_fasta.mix(GFAPDEFINISHER.out.components_fasta)
+    graph_evidence             = GFAPDEFINISHER.out.evidence
     segregated_fastas          = AUTOMATED_PDE_CURATION.out.segregated_fastas
     curation_audit             = AUTOMATED_PDE_CURATION.out.curation_audit
     curated_pde_segments       = AUTOMATED_PDE_CURATION.out.curated_pde_segments
@@ -140,16 +168,16 @@ workflow PDEFINISHER {
     validation_md              = AUTOMATED_PDE_CURATION.out.validation_md
     curated_bam                = AUTOMATED_PDE_CURATION.out.curated_bam
     curated_bai                = AUTOMATED_PDE_CURATION.out.curated_bai
-    best_core_motif            = AUTOMATED_PDE_CURATION.out.best_core_motif
-    core_motif_metrics_json    = AUTOMATED_PDE_CURATION.out.core_motif_metrics_json
-    grid_summary_tsv           = AUTOMATED_PDE_CURATION.out.grid_summary_tsv
-    best_auxiliary_motif       = AUTOMATED_PDE_CURATION.out.best_auxiliary_motif
-    bipartite_spacing_tsv      = AUTOMATED_PDE_CURATION.out.bipartite_spacing_tsv
-    motif_discovery_report_md  = AUTOMATED_PDE_CURATION.out.motif_discovery_report_md
-    fimo_genome_hits           = AUTOMATED_PDE_CURATION.out.fimo_genome_hits
-    fimo_annotated_hits        = AUTOMATED_PDE_CURATION.out.fimo_annotated_hits
-    motif_distribution_summary = AUTOMATED_PDE_CURATION.out.motif_distribution_summary
-    motif_distribution_report  = AUTOMATED_PDE_CURATION.out.motif_distribution_report
+    best_core_motif            = AUTOMATED_PDE_CURATION.out.best_core_motif.mix(RECON_MOTIF_PIPELINE.out.best_core_motif)
+    core_motif_metrics_json    = AUTOMATED_PDE_CURATION.out.core_motif_metrics_json.mix(RECON_MOTIF_PIPELINE.out.core_motif_metrics_json)
+    grid_summary_tsv           = AUTOMATED_PDE_CURATION.out.grid_summary_tsv.mix(RECON_MOTIF_PIPELINE.out.grid_summary_tsv)
+    best_auxiliary_motif       = AUTOMATED_PDE_CURATION.out.best_auxiliary_motif.mix(RECON_MOTIF_PIPELINE.out.best_auxiliary_motif)
+    bipartite_spacing_tsv      = AUTOMATED_PDE_CURATION.out.bipartite_spacing_tsv.mix(RECON_MOTIF_PIPELINE.out.bipartite_spacing_tsv)
+    motif_discovery_report_md  = AUTOMATED_PDE_CURATION.out.motif_discovery_report_md.mix(RECON_MOTIF_PIPELINE.out.motif_discovery_report_md)
+    fimo_genome_hits           = AUTOMATED_PDE_CURATION.out.fimo_genome_hits.mix(RECON_MOTIF_PIPELINE.out.fimo_genome_hits)
+    fimo_annotated_hits        = AUTOMATED_PDE_CURATION.out.fimo_annotated_hits.mix(RECON_MOTIF_PIPELINE.out.fimo_annotated_hits)
+    motif_distribution_summary = AUTOMATED_PDE_CURATION.out.motif_distribution_summary.mix(RECON_MOTIF_PIPELINE.out.motif_distribution_summary)
+    motif_distribution_report  = AUTOMATED_PDE_CURATION.out.motif_distribution_report.mix(RECON_MOTIF_PIPELINE.out.motif_distribution_report)
     summary_md                 = CURATIONSUMMARY.out.summary_md
     summary_tsv                = CURATIONSUMMARY.out.summary_tsv
     summary_json               = CURATIONSUMMARY.out.summary_json

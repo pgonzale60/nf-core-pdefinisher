@@ -27,11 +27,18 @@ In species with PDE, mixed germline/somatic sequencing libraries produce complex
 
 ### Samplesheet Input
 
-Prepare a comma-separated `samplesheet.csv` with your sample ID, input draft assembly FASTA, and long reads (FASTA/FASTQ):
+Provide one row per sample in a CSV or TSV. For BAM-based curation, supply the assembly and reads aligned to that exact assembly:
 
 ```csv
-sample,assembly,reads
-oscheius_onirici,/path/to/draft_assembly.fasta.gz,/path/to/hifi_reads.fasta.gz
+sample,assembly,bam,bai,chromosomes,assembly_name
+oscheius_onirici,/path/to/curated.fa.gz,/path/to/hifi.bam,/path/to/hifi.bam.bai,I;II;III;IV;V;X,nxOscOnir1.1
+```
+
+For graph-based curation, supply the whole-genome primary Hifiasm GFA, phased telomere-family archive, and nuclear chromosome names:
+
+```csv
+sample,assembly,gfa,end_archive,chromosomes
+DF5120,/path/to/curated.fa.gz,/path/to/asm.p_utg.gfa.gz,/path/to/end_clusters,I;II;III;IV;V;X
 ```
 
 ### Running the Pipeline
@@ -67,20 +74,15 @@ verifies that the AGP and components reconstruct the input sequence. Components
 are slices of the reviewed FASTA. An optional reviewed recipe can preserve source
 graph and read evidence if its expected FASTA checksum matches.
 
-## Graph finishing pilot
+## Graph-based curation
 
-`graph_finish.nf` runs `gfapdefinisher` against an existing Hifiasm primary GFA and compares its proposed ends with the curated assembly. It also projects the telomere-family consensuses onto the primary graph, the optional raw graph, and the curated assembly. The evidence bundle keeps cluster membership, original molecule IDs, local haplotype patterns, and competing alignments. A consensus alignment identifies a candidate and cannot establish a physical germline closure.
+The main workflow runs `gfapdefinisher` for rows with `gfa` and `end_archive`. Run it with an environment that provides Python 3, `gfapdefinisher`, minimap2, and seqkit. Set `--gfapdefinisher` to select a specific installed executable. The archive is the output directory of the telomeric read clustering workflow. Optional samplesheet columns are `raw_gfa`, `tiara`, `barrnap`, `ont_reads`, `ont_paf`, `hifi_reads`, and `graph_recipe`. The ONT PAF must use the primary unitig graph as its reference. A reviewed recipe can draw sequence from the raw GFA, the curated FASTA, and original HiFi or ONT reads.
 
-```bash
-nextflow run graph_finish.nf --curated curated.fa.gz --gfa asm.p_utg.gfa.gz \
-    --end_archive path/to/end_clusters --chromosomes I,II,III,IV,V,X --outdir results
-```
+`gfapdefinisher` proposes paths from the graph. The workflow projects telomere-family consensuses onto both graphs and the curated assembly, records competing placements, and retains local haplotype patterns and original molecule IDs. The graph engine's current CLI takes graph and read evidence. The workflow associates the phased families with its output candidates for review. A family consensus alignment by itself establishes a candidate placement.
 
-Use a worker environment with Python 3, `gfapdefinisher`, minimap2, and seqkit. Set `--gfapdefinisher` to select an installed checkout or executable. The end archive is the output directory of the telomeric read clustering workflow. Optional graph inputs are `--raw_gfa`, `--tiara`, `--barrnap`, `--ont_reads`, and `--ont_paf`. An ONT PAF must use the supplied primary unitig graph as its reference. The raw GFA and `--hifi_reads` can also supply sequence used by a reviewed recipe.
+Without `graph_recipe`, the workflow delivers the curated FASTA with an AGP and the candidate report. With a recipe, it delivers the reviewed graph FASTA and component AGP after verifying the checksum and round-tripping the layout. The graph route publishes its accepted assembly directly. BAM-based surgery runs for rows with BAM input alone. For optional motif discovery on a graph-backed row, supply `assembly_name` and a BAM aligned to the input curated FASTA. Those motif results use input coordinates.
 
-Discovery publishes the curated FASTA byte-for-byte with AGP and graph proposals for review. Adding `--recipe` replays a reviewed graph assembly. The replay checks its component source intervals against the spelled FASTA, publishes the source plan, and round-trips the delivered AGP and component FASTA. See `evidence/curated_end_review.tsv` for assignment and continuity and `evidence/graph_end_proposals.tsv` for the graph candidates. This pilot requires a prebuilt GFA and runs independently of the existing surgery and motif workflows.
-
-`assembly/sequence_gaps.tsv` records both linkage and missing sequence. For an anchored rDNA array, the flanking connection is supported while the sequence and copy order within the array remain unresolved. `assembly/unresolved_joins.tsv` records gaps with unresolved or unassessed linkage, including tandem repeats with competing distal placements.
+The graph evidence bundle includes `curated_end_review.tsv`, `graph_end_proposals.tsv`, and `family_placements.tsv`. `sequence_gaps.tsv` records both linkage and missing sequence. For an anchored rDNA array the flanking connection is supported, while the sequence and copy order within the array remain unresolved. `unresolved_joins.tsv` records gaps with unresolved or unassessed linkage, including tandem repeats with competing distal placements.
 
 ## Credits
 

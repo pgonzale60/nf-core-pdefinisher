@@ -84,10 +84,11 @@ def families_on_graph(archive, targets, out, threads):
     for label, target in targets.items():
         paf = out / f"families_to_{label}.paf"
         align(target, consensus, paf, "asm20", threads)
-        for family, _, qstart, qend, strand, record, _, start, end, matches, span, mapq in paf_rows(paf):
+        for family, _, qstart, qend, strand, record, length, start, end, matches, span, mapq in paf_rows(paf):
             if span >= min_bp and matches / span >= min_identity:
                 placements.append(dict(
                     cluster_id=family, source=label, record=record, strand=strand, start=start, end=end,
+                    target_bp=length,
                     consensus_start=qstart, consensus_end=qend, matches=matches, alignment_bp=span, mapq=mapq,
                     family_molecules=len(molecules[family]),
                     patterns=",".join(sorted(row["pattern_id"] for row in patterns[family])),
@@ -119,7 +120,7 @@ def report_candidates(catalog, placements, curated_paf, config, out):
             target_side = "5p" if is_left else "3p"
             distance = start if is_left else clen - stop
             qdistance = qstart if side == "5p" else qlen - qend
-            if distance <= config["reference_end_window_bp"]:
+            if distance <= config["reference_end_window_bp"] and qdistance < qlen - qdistance:
                 candidates.append((chrom, target_side, strand, distance, qdistance, mapq))
                 by_curated_end[chrom, target_side].append(end["end_id"])
         ports = {unitig for unitig, _ in PORT.findall(",".join((end["horizon_port"], end["candidate_endings"])))}
@@ -136,18 +137,33 @@ def report_candidates(catalog, placements, curated_paf, config, out):
     return by_curated_end
 
 
-def report_delivery(delivery, candidates, recipe, out):
+def report_delivery(delivery, candidates, placements, config, recipe, out):
     gaps = defaultdict(list)
     for gap in rows(delivery / "sequence_gaps.tsv"):
         gaps[gap["object"]].append(gap)
+    plan = json.loads((delivery / "assembly_plan.json").read_text())["objects"] if recipe else {}
+    by_source = defaultdict(list)
+    for placement in placements:
+        by_source[placement["source"], placement["record"]].append(placement)
     records = []
     for end in rows(delivery / "ends.tsv"):
         chrom, side = end["chromosome"], end["side"]
         chrom_gaps = gaps[chrom]
         gap = (chrom_gaps[0] if side == "5p" else chrom_gaps[-1]) if chrom_gaps else None
+        cap = plan.get(chrom, {}).get("caps", {}).get(side)
+        family_matches = set()
+        if cap:
+            source_left = (side == "5p") == (cap.get("strand", "+") == "+")
+            for hit in by_source[cap["source"], cap["record"]]:
+                distance = hit["start"] if source_left else hit["target_bp"] - hit["end"]
+                if distance <= config["reference_end_window_bp"]:
+                    family_matches.add(hit["cluster_id"])
         records.append({
             **end,
             "distal_cap_in_layout": "reviewed" if recipe else "unverified",
+            "reviewed_cap_source": cap["source"] if cap else "",
+            "reviewed_cap_record": cap["record"] if cap else "",
+            "family_matches_near_reviewed_cap": ",".join(sorted(family_matches)),
             "chromosome_sequence": "contains_placeholders" if gap else "gapless_in_layout",
             "nearest_sequence_gap": f"{gap['start']}-{gap['end']}" if gap else "",
             "nearest_gap_class": gap["gap_class"] if gap else "",
@@ -268,7 +284,7 @@ def run_pilot(args, out):
         placements, config = families_on_graph(
             args.end_archive, {**graphs, "curated": args.curated}, evidence, args.threads,
         )
-        fields = ("cluster_id source record strand start end consensus_start consensus_end matches alignment_bp mapq "
+        fields = ("cluster_id source record strand start end target_bp consensus_start consensus_end matches alignment_bp mapq "
                   "family_molecules patterns").split()
         write_rows(evidence / "family_placements.tsv", fields, sorted(placements, key=lambda hit: tuple(hit[f] for f in fields)))
 
@@ -300,7 +316,7 @@ def run_pilot(args, out):
         chromosomes = set(args.chromosomes.split(","))
         delivery = out / "assembly"
         package(assembly, delivery, chromosomes, args.telomere.upper(), 3, args.recipe, plan)
-        report_delivery(delivery, candidates, args.recipe, evidence / "curated_end_review.tsv")
+        report_delivery(delivery, candidates, placements, config, args.recipe, evidence / "curated_end_review.tsv")
         inputs = dict(curated=args.curated, gfa=args.gfa, raw_gfa=args.raw_gfa, recipe=args.recipe,
                       tiara=args.tiara, barrnap=args.barrnap, ont_paf=ont_paf,
                       ont_reads=args.ont_reads, hifi_reads=args.hifi_reads)

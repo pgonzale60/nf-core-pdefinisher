@@ -1,0 +1,52 @@
+process GFAPDEFINISHER {
+    tag "$meta.id"
+    label 'process_low'
+
+    // The installed graph tool can change independently of the executable path.
+    cache false
+
+    input:
+    tuple val(meta), path(assembly), path(gfa), path(end_archive, stageAs: 'end_archive'),
+        path(raw_gfa), path(tiara), path(barrnap), path(ont_paf), path(ont_reads), path(hifi_reads), path(recipe)
+    path handoff_script
+    path package_script
+    val executable
+
+    output:
+    tuple val(meta), path("${meta.id}.curated.fasta*"), emit: curated_fasta
+    tuple val(meta), path("${meta.id}.curated.agp"), emit: curated_agp
+    tuple val(meta), path("${meta.id}.components.fasta"), emit: components_fasta
+    tuple val(meta), path('graph_evidence'), emit: evidence
+
+    script:
+    def inputs = [raw_gfa: raw_gfa, tiara: tiara, barrnap: barrnap, ont_paf: ont_paf,
+                  ont_reads: ont_reads, hifi_reads: hifi_reads, recipe: recipe]
+        .findAll { _key, value -> value }
+        .collect { key, value -> "--${key.replace('_', '-')} \"${value}\"" }
+        .join(' ')
+    def staged_fasta = recipe || !assembly.name.endsWith('.gz') ? 'assembly.fasta' : 'assembly.fasta.gz'
+    def fasta_suffix = staged_fasta.endsWith('.gz') ? '.gz' : ''
+    """
+    PYTHONPATH="\$PWD" python3 "${handoff_script}" \\
+        --curated "${assembly}" \\
+        --gfa "${gfa}" \\
+        --end-archive "${end_archive}" \\
+        --chromosomes "${meta.chromosomes}" \\
+        --telomere "${meta.telomere_repeat}" \\
+        --gfapdefinisher "${executable}" \\
+        --threads ${task.cpus} \\
+        --outdir graph_evidence \\
+        ${inputs}
+    ln "graph_evidence/assembly/${staged_fasta}" "${meta.id}.curated.fasta${fasta_suffix}"
+    ln graph_evidence/assembly/assembly.agp "${meta.id}.curated.agp"
+    ln graph_evidence/assembly/components.fasta "${meta.id}.components.fasta"
+    """
+
+    stub:
+    def fasta_suffix = recipe || !assembly.name.endsWith('.gz') ? '' : '.gz'
+    """
+    mkdir graph_evidence
+    touch "${meta.id}.curated.fasta${fasta_suffix}" "${meta.id}.curated.agp" "${meta.id}.components.fasta"
+    touch graph_evidence/inputs.json
+    """
+}
