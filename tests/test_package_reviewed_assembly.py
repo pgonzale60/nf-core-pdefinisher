@@ -31,6 +31,20 @@ class ReviewedAssemblyPackageTests(unittest.TestCase):
                 package(fasta, out, {"I"}, "TTAGGC", 3, recipe)
             self.assertFalse(out.exists())
 
+    def test_terminal_repeats_bridges_tip_indels_and_variants(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fasta, out = root / "input.fa", root / "package"
+            # 5p: 4x GCCTAA (24 bp) + 1-bp A insertion + 20x GCCTAA (120 bp) -> 144 canonical bp
+            # 3p: 15x TTAGGC (90 bp) + 1-bp deletion in TTAGG + 7x TTAGGC (42 bp) -> 132 canonical bp
+            seq_5p = "CTAAGC" * 4 + "A" + "GCCTAA" * 20
+            seq_3p = "TTAGGC" * 15 + "TTAGG" + "TTAGGC" * 7
+            fasta.write_text(f">I\n{seq_5p}{'N' * 100}{seq_3p}\n")
+            package(fasta, out, {"I"}, "TTAGGC", 3)
+            ends = (out / "ends.tsv").read_text()
+            self.assertIn("I\t5p\t144\tcanonical_tract", ends)
+            self.assertIn("I\t3p\t132\tcanonical_tract", ends)
+
 
 if __name__ == "__main__":
     unittest.main()

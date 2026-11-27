@@ -47,16 +47,27 @@ def sha256(path):
     return digest.hexdigest()
 
 
-def terminal_repeats(sequence, motif, side):
+def terminal_repeats(sequence, motif, side, max_tip_gap=25):
+    """Count canonical telomere repeat bp in the terminal tract, bridging small indels/variants."""
     if side == "3p":
         sequence = sequence[::-1]
         motif = motif[::-1]
-    rotations = (motif[i:] + motif[:i] for i in range(len(motif)))
-    patterns = [re.compile(f"(?:{repeat})+") for repeat in rotations]
-    return max((match.end() - match.start()
-                for shift in range(min(25, len(sequence)) + 1)
-                for pattern in patterns
-                if (match := pattern.match(sequence, shift))), default=0)
+    k = len(motif)
+    max_internal_gap = 2 * k
+    rotations = (motif[i:] + motif[:i] for i in range(k))
+    pattern = re.compile("|".join(rotations))
+    match = pattern.search(sequence, 0, min(len(sequence), max_tip_gap + k))
+    if match is None:
+        return 0
+    tract_bp = match.end() - match.start()
+    pos = match.end()
+    while pos < len(sequence):
+        nxt = pattern.search(sequence, pos, min(len(sequence), pos + max_internal_gap + k))
+        if nxt is None:
+            break
+        tract_bp += nxt.end() - nxt.start()
+        pos = nxt.end()
+    return tract_bp
 
 
 def assembly_intervals(seq, plan):
