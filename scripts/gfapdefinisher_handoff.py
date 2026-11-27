@@ -13,6 +13,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from package_reviewed_assembly import package, read_fasta, sha256
+from curation_edit_plan import decide
 
 
 GAP = re.compile(r"N+")
@@ -72,12 +73,24 @@ def families_on_graph(archive, targets, out, threads):
     patterns = defaultdict(list)
     for row in rows(archive / "haplotype_patterns.tsv.gz"):
         patterns[row["cluster_id"]].append(row)
-    observations = {row["end_id"]: row["read_id"] for row in rows(archive / "end_records.tsv.gz")}
-    molecules = defaultdict(set)
+    observations = {row["end_id"]: row for row in rows(archive / "end_records.tsv.gz")}
+    members = defaultdict(list)
     for row in rows(archive / "membership.tsv.gz"):
-        molecules[row["cluster_id"]].add(observations[row["end_id"]])
-    if (set(patterns) | set(molecules)) - set(families):
+        end = observations[row["end_id"]]
+        members[row["cluster_id"]].append({
+            "end_id": end["end_id"], "molecule_id": end["read_id"], "read_end": end["read_end"],
+            "tract_start": int(end["tract_start"]), "tract_end": int(end["tract_end"]),
+        })
+    if (set(patterns) | set(members)) - set(families):
         raise ValueError("Haplotype or membership table refers to an unknown family")
+    molecule_counts = {family: len({row["molecule_id"] for row in family_members})
+                       for family, family_members in members.items()}
+    phase_families = [
+        {"cluster_id": family, "members": sorted(members[family], key=lambda row: row["end_id"]),
+         "haplotype_patterns": [{"pattern_id": row["pattern_id"], "read_count": int(row["reads"]), "alleles": row["alleles"]}
+                                for row in sorted(patterns[family], key=lambda row: row["pattern_id"])]}
+        for family in sorted(families)
+    ]
     config = json.loads((archive / "MANIFEST.yaml").read_text())["parameters"]
     min_bp, min_identity = config["mapping_min_bp"], config["mapping_identity"]
     placements = []
@@ -90,12 +103,12 @@ def families_on_graph(archive, targets, out, threads):
                     cluster_id=family, source=label, record=record, strand=strand, start=start, end=end,
                     target_bp=length,
                     consensus_start=qstart, consensus_end=qend, matches=matches, alignment_bp=span, mapq=mapq,
-                    family_molecules=len(molecules[family]),
+                    family_molecules=molecule_counts.get(family, 0),
                     patterns=",".join(sorted(row["pattern_id"] for row in patterns[family])),
                 ))
     for name in ARCHIVE_FILES:
         shutil.copyfile(archive / name, out / name)
-    return placements, config
+    return placements, config, phase_families
 
 
 def report_candidates(catalog, placements, curated_paf, config, out):
@@ -271,7 +284,7 @@ def graph_args(command, **values):
     subprocess.run(command, check=True)
 
 
-def run_pilot(args, out):
+def run_finishing(args, out):
     evidence = out / "evidence"
     evidence.mkdir()
     with tempfile.TemporaryDirectory(dir=out) as workspace:
@@ -281,38 +294,59 @@ def run_pilot(args, out):
                 target = Path(workspace) / f"{label}.fa"
                 export_graph(path, target)
                 graphs[label] = target
-        placements, config = families_on_graph(
+        placements, config, phase_families = families_on_graph(
             args.end_archive, {**graphs, "curated": args.curated}, evidence, args.threads,
         )
         fields = ("cluster_id source record strand start end target_bp consensus_start consensus_end matches alignment_bp mapq "
                   "family_molecules patterns").split()
         write_rows(evidence / "family_placements.tsv", fields, sorted(placements, key=lambda hit: tuple(hit[f] for f in fields)))
+        phase_evidence = evidence / "phased_end_evidence.json"
+        phase_evidence.write_text(json.dumps({
+            "version": 1,
+            "coordinate_system": "zero-based half-open on forward sequences",
+            "graph_sha256": {label: sha256(path) for label, path in (("primary", args.gfa), ("raw", args.raw_gfa)) if path},
+            "families": phase_families,
+            "consensus_placements": sorted(
+                (hit for hit in placements if hit["source"] in graphs),
+                key=lambda hit: tuple(hit[field] for field in fields),
+            ),
+        }, sort_keys=True, indent=2) + "\n")
 
         graph = out / "graph"
         ont_paf = args.ont_paf
         if args.ont_reads and not ont_paf:
             ont_paf = evidence / "ont_to_primary.paf"
             align(graphs["primary"], args.ont_reads, ont_paf, "map-ont", args.threads)
+        finish_help = subprocess.run([args.gfapdefinisher, "finish", "--help"], check=True, text=True,
+                                     stdout=subprocess.PIPE).stdout
+        native_phase = bool(re.search(r"(?<!\S)--end-evidence(?=[\s=,]|$)", finish_help))
         graph_args([args.gfapdefinisher, "finish", "--nominate-super"], gfa=args.gfa, tiara=args.tiara,
-                   barrnap=args.barrnap, ont_paf=ont_paf, ont_reads=args.ont_reads, out_dir=graph)
+                   barrnap=args.barrnap, ont_paf=ont_paf, ont_reads=args.ont_reads, out_dir=graph,
+                   end_evidence=phase_evidence if native_phase else None)
         scaffolds = graph / "scaffolds.fasta"
         scaffold_paf = evidence / "scaffolds_to_curated.paf"
         align(args.curated, scaffolds, scaffold_paf, "asm20", args.threads)
-        candidates = report_candidates(
-            graph / "end_catalog.tsv", placements, scaffold_paf, config, evidence / "graph_end_proposals.tsv",
-        )
+        graph_proposals_path = evidence / "graph_end_proposals.tsv"
+        candidates = report_candidates(graph / "end_catalog.tsv", placements, scaffold_paf, config, graph_proposals_path)
 
-        assembly, plan = args.curated, None
+        reviewed, plan = None, None
         if args.recipe:
-            assembly, plan = Path(workspace) / "reviewed.fa", Path(workspace) / "assembly_plan.json"
+            reviewed, plan = Path(workspace) / "reviewed.fa", Path(workspace) / "assembly_plan.json"
             graph_args([args.gfapdefinisher, "curate"], recipe=args.recipe, reference=args.curated, gfa=args.gfa,
                        raw_gfa=args.raw_gfa, scaffolds=scaffolds, ont_reads=args.ont_reads,
-                       hifi_reads=args.hifi_reads, out=assembly)
+                       hifi_reads=args.hifi_reads, out=reviewed)
             sources = dict(primary=args.gfa, raw=args.raw_gfa, finish=scaffolds,
                            reference=args.curated, ont=args.ont_reads, hifi=args.hifi_reads)
             finish_agp = graph / "scaffolds.agp"
-            trace_recipe(args.recipe, assembly, {**sources, **graphs}, dict(sources, finish_agp=finish_agp),
+            trace_recipe(args.recipe, reviewed, {**sources, **graphs}, dict(sources, finish_agp=finish_agp),
                          plan, finish_agp)
+        assembly = decide(args.curated, rows(graph_proposals_path), args.bam_evidence, reviewed, args.recipe,
+                          evidence / "curation_edit_plan.json")
+        if args.bam_evidence:
+            read_evidence = evidence / "bam_resolvers"
+            read_evidence.mkdir()
+            for artifact in args.bam_evidence:
+                shutil.copyfile(artifact, read_evidence / artifact.name)
         chromosomes = set(args.chromosomes.split(","))
         delivery = out / "assembly"
         package(assembly, delivery, chromosomes, args.telomere.upper(), 3, args.recipe, plan)
@@ -322,8 +356,10 @@ def run_pilot(args, out):
                       ont_reads=args.ont_reads, hifi_reads=args.hifi_reads)
         (out / "inputs.json").write_text(json.dumps({
             "mode": "reviewed_replay" if args.recipe else "discovery",
+            "native_phase_evidence": native_phase,
             "sha256": {key: sha256(path) for key, path in inputs.items() if path is not None},
             "end_archive_sha256": {name: sha256(args.end_archive / name) for name in ARCHIVE_FILES},
+            "bam_evidence_sha256": {path.name: sha256(path) for path in sorted(args.bam_evidence)},
         }, indent=2) + "\n")
 
 
@@ -337,6 +373,7 @@ def main():
     parser.add_argument("--telomere", default="TTAGGC")
     parser.add_argument("--threads", type=int, default=4)
     parser.add_argument("--gfapdefinisher", default="gfapdefinisher")
+    parser.add_argument("--bam-evidence", type=Path, nargs="+", default=[])
     args = parser.parse_args()
     if args.outdir.exists():
         parser.error(f"Output already exists: {args.outdir}")
@@ -346,7 +383,7 @@ def main():
     with tempfile.TemporaryDirectory(dir=args.outdir.parent) as tmp:
         out = Path(tmp) / "results"
         out.mkdir()
-        run_pilot(args, out)
+        run_finishing(args, out)
         out.rename(args.outdir)
 
 

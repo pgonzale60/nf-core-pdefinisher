@@ -331,6 +331,10 @@ def validateInputParameters(boolean allow_graph) {
                         if (!params.chromosomes && !(chr_idx >= 0 && chr_idx < cols.size() && cols[chr_idx])) {
                             validation_errors.add("${label}: graph finishing requires chromosome names.")
                         }
+                        def name_idx = header.indexOf('assembly_name')
+                        if (bam_path && !(name_idx >= 0 && name_idx < cols.size() && cols[name_idx])) {
+                            validation_errors.add("${label}: supply 'assembly_name' to run BAM-based evidence modules.")
+                        }
                         graph.each { key, value ->
                             def artifact = file(value)
                             if (!artifact.exists() || (key == 'end_archive' ? !artifact.isDirectory() : !artifact.isFile())) {

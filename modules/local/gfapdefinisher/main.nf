@@ -7,9 +7,11 @@ process GFAPDEFINISHER {
 
     input:
     tuple val(meta), path(assembly), path(gfa), path(end_archive, stageAs: 'end_archive'),
-        path(raw_gfa), path(tiara), path(barrnap), path(ont_paf), path(ont_reads), path(hifi_reads), path(recipe)
+        path(raw_gfa), path(tiara), path(barrnap), path(ont_paf), path(ont_reads), path(hifi_reads), path(recipe),
+        path(bam_evidence)
     path handoff_script
     path package_script
+    path edit_plan_script
     val executable
 
     output:
@@ -26,6 +28,7 @@ process GFAPDEFINISHER {
         .join(' ')
     def staged_fasta = recipe || !assembly.name.endsWith('.gz') ? 'assembly.fasta' : 'assembly.fasta.gz'
     def fasta_suffix = staged_fasta.endsWith('.gz') ? '.gz' : ''
+    def bam_args = bam_evidence ? '--bam-evidence ' + bam_evidence.collect { "\"${it}\"" }.join(' ') : ''
     """
     PYTHONPATH="\$PWD" python3 "${handoff_script}" \\
         --curated "${assembly}" \\
@@ -36,7 +39,7 @@ process GFAPDEFINISHER {
         --gfapdefinisher "${executable}" \\
         --threads ${task.cpus} \\
         --outdir graph_evidence \\
-        ${inputs}
+        ${inputs} ${bam_args}
     ln "graph_evidence/assembly/${staged_fasta}" "${meta.id}.curated.fasta${fasta_suffix}"
     ln graph_evidence/assembly/assembly.agp "${meta.id}.curated.agp"
     ln graph_evidence/assembly/components.fasta "${meta.id}.components.fasta"
