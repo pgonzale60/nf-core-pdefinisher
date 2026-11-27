@@ -13,6 +13,7 @@ from pathlib import Path
 
 
 GAP = re.compile("N+", re.IGNORECASE)
+MITOCHONDRIAL_IDS = {"chrmt", "chrm", "mt", "scaffold_mt", "mitochondrion", "mitochondria"}
 
 
 def read_fasta(path):
@@ -58,21 +59,59 @@ def terminal_repeats(sequence, motif, side):
                 if (match := pattern.match(sequence, shift))), default=0)
 
 
-def write_layout(fasta, out, chromosomes, motif, min_repeats):
+def assembly_intervals(seq, plan):
+    if plan is not None:
+        offset = 0
+        for part in plan:
+            start, end = part["start"], part["end"]
+            gap = part.get("gap")
+            if start != offset or not start < end <= len(seq):
+                raise ValueError("Assembly plan parts must tile the FASTA record")
+            bases = seq[start:end].upper()
+            if (gap and bases.strip("N")) or (not gap and "N" in bases):
+                raise ValueError("Assembly plan gap disagrees with FASTA")
+            if not gap and (
+                not part["source"] or not part["record"] or part["strand"] not in ("+", "-")
+                or part["source_start"] < 0 or part["source_end"] - part["source_start"] != end - start
+            ):
+                raise ValueError("Invalid source interval in assembly plan")
+            yield start, end, gap
+            offset = end
+        if offset != len(seq):
+            raise ValueError("Assembly plan does not cover the FASTA record")
+        return
+    offset = 0
+    for gap in GAP.finditer(seq):
+        if offset < gap.start():
+            yield offset, gap.start(), None
+        yield gap.start(), gap.end(), "unknown"
+        offset = gap.end()
+    if offset < len(seq):
+        yield offset, len(seq), None
+
+
+def write_layout(fasta, out, chromosomes, motif, min_repeats, plan=None):
     reverse_motif = motif.translate(str.maketrans("ACGT", "TGCA"))[::-1]
     seen = set()
     with (
         (out / "assembly.agp").open("w") as agp,
         (out / "components.fasta").open("w") as components,
         (out / "ends.tsv").open("w") as ends,
+        (out / "sequence_gaps.tsv").open("w") as gaps,
         (out / "unresolved_joins.tsv").open("w") as joins,
     ):
         agp.write("##agp-version 2.1\n")
         agp.write("# Components are slices of the supplied reviewed FASTA.\n")
+        if plan is not None:
+            agp.write("# Source intervals are recorded in assembly_plan.json.\n")
         end_rows = csv.writer(ends, delimiter="\t", lineterminator="\n")
+        gap_rows = csv.writer(gaps, delimiter="\t", lineterminator="\n")
         join_rows = csv.writer(joins, delimiter="\t", lineterminator="\n")
         end_rows.writerow(("chromosome", "side", "canonical_repeat_bp", "physical_tip_status"))
-        join_rows.writerow(("object", "start", "end", "placeholder_bp", "placement", "agp_part"))
+        gap_header = ("object", "start", "end", "placeholder_bp", "placement", "agp_part",
+                      "gap_class", "linkage_status", "sequence_status")
+        gap_rows.writerow(gap_header)
+        join_rows.writerow(gap_header)
 
         for record_number, (name, seq) in enumerate(read_fasta(fasta), 1):
             if name in seen or not seq or not re.fullmatch("[ACGTRYSWKMBDHVNacgtryswkmbdhvn]+", seq):
@@ -84,15 +123,9 @@ def write_layout(fasta, out, chromosomes, motif, min_repeats):
                     status = "canonical_tract" if bp >= min_repeats * len(motif) else "open_or_unconfirmed"
                     end_rows.writerow((name, side, bp, status))
 
-            intervals = []
-            offset = 0
-            for gap in GAP.finditer(seq):
-                if offset < gap.start():
-                    intervals.append((offset, gap.start(), False))
-                intervals.append((gap.start(), gap.end(), True))
-                offset = gap.end()
-            if offset < len(seq):
-                intervals.append((offset, len(seq), False))
+            if plan is not None and name not in plan:
+                raise ValueError(f"Assembly plan has no path for {name}")
+            intervals = list(assembly_intervals(seq, plan[name]["parts"] if plan is not None else None))
             if not any(not gap for _, _, gap in intervals):
                 raise ValueError(f"FASTA record contains only gap characters: {name}")
 
@@ -102,7 +135,17 @@ def write_layout(fasta, out, chromosomes, motif, min_repeats):
                     terminal = start == 0 or stop == len(seq)
                     gap_type = "telomere" if terminal and name in chromosomes else "contig"
                     fields = ("N", length, gap_type, "no", "na")
-                    join_rows.writerow((name, start, stop, length, "terminal" if terminal else "internal", part))
+                    gap_class, linkage, sequence_status = "unclassified", "unassessed", "sequence_unresolved"
+                    if gap == "rdna":
+                        gap_class, linkage, sequence_status = "rdna_array", "flanking_connection_supported", "sequence_and_copy_order_unresolved"
+                        fields = ("N", length, "repeat", "yes", "unspecified")
+                    elif gap == "satellite_port":
+                        gap_class, linkage = "tandem_repeat", "distal_placement_unresolved"
+                    row = (name, start, stop, length, "terminal" if terminal else "internal", part,
+                           gap_class, linkage, sequence_status)
+                    gap_rows.writerow(row)
+                    if gap != "rdna":
+                        join_rows.writerow(row)
                 else:
                     component = f"component_{record_number}_{part}"
                     fields = ("W", component, 1, length, "+")
@@ -111,6 +154,8 @@ def write_layout(fasta, out, chromosomes, motif, min_repeats):
                         components.write(seq[i:min(i + 60, stop)] + "\n")
                 agp.write("\t".join(map(str, (name, start + 1, stop, part, *fields))) + "\n")
 
+    if plan is not None and set(plan) != seen:
+        raise ValueError("The assembly plan and FASTA must contain the same records")
     if not seen or chromosomes - seen:
         raise ValueError(f"Assembly is empty or is missing chromosome IDs: {sorted(chromosomes - seen)}")
 
@@ -141,37 +186,102 @@ def validate_layout(fasta, out):
             raise ValueError("AGP or component FASTA has extra rows")
 
 
-def package(fasta, outdir, chromosomes, motif, min_repeats, reviewed_recipe=None):
+def split_mitochondrial_fasta(fasta, staging, chromosomes):
+    """Preserve original FASTA record bytes when splitting recognized mitochondrial IDs."""
+    nuclear_path = staging / "assembly.fasta"
+    mito_path = staging / "mitochondrial.fasta"
+    mitochondrial_names = set()
+    opener = gzip.open if fasta.suffix == ".gz" else open
+    with opener(fasta, "rb") as source, nuclear_path.open("wb") as nuclear, mito_path.open("wb") as mito:
+        destination = nuclear
+        for line in source:
+            if line.startswith(b">"):
+                header = line[1:].split()
+                if not header:
+                    raise ValueError(f"Missing FASTA record ID in {fasta}")
+                name = header[0].decode("ascii")
+                if name not in chromosomes and name.casefold() in MITOCHONDRIAL_IDS:
+                    if name in mitochondrial_names:
+                        raise ValueError(f"Duplicate mitochondrial FASTA record: {name}")
+                    mitochondrial_names.add(name)
+                    destination = mito
+                else:
+                    destination = nuclear
+            destination.write(line)
+    if mitochondrial_names:
+        mitochondrial_records = dict(read_fasta(mito_path))
+        if any(not re.fullmatch("[ACGTRYSWKMBDHVNacgtryswkmbdhvn]+", seq) for seq in mitochondrial_records.values()):
+            raise ValueError("Empty or invalid mitochondrial FASTA record")
+    else:
+        if fasta.suffix == ".gz":
+            nuclear_path.unlink()
+        mito_path.unlink()
+    return mitochondrial_names
+
+
+def package(fasta, outdir, chromosomes, motif, min_repeats, reviewed_recipe=None, assembly_plan=None, reviewed_base=None):
     if outdir.exists():
         raise FileExistsError(outdir)
     original_digest = sha256(fasta)
+    if reviewed_base and not (reviewed_recipe and assembly_plan):
+        raise ValueError("A separate reviewed base requires its recipe and the final assembly plan")
+    reviewed_digest = sha256(reviewed_base) if reviewed_base else original_digest
     if reviewed_recipe:
         recipe = json.loads(reviewed_recipe.read_text())
-        if recipe.get("expected_sha256") != original_digest:
-            raise ValueError("Reviewed recipe checksum does not match the input FASTA")
+        if recipe.get("expected_sha256") != reviewed_digest:
+            raise ValueError("Reviewed recipe checksum does not match the reviewed FASTA")
+    plan = None
+    if assembly_plan:
+        plan = json.loads(assembly_plan.read_text())
+        if plan["version"] != 1 or plan["fasta_sha256"] != original_digest:
+            raise ValueError("Assembly plan version or FASTA checksum does not match")
+        if reviewed_recipe and plan["recipe_sha256"] != sha256(reviewed_recipe):
+            raise ValueError("The assembly plan was produced by a different recipe")
+        if reviewed_base and plan.get("reviewed_fasta_sha256", plan.get("base_fasta_sha256")) != reviewed_digest:
+            raise ValueError("The final assembly plan was produced from a different reviewed FASTA")
 
     outdir.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=outdir.parent) as temp:
         staging = Path(temp) / "package"
         staging.mkdir()
-        name = "assembly.fasta.gz" if fasta.suffix == ".gz" else "assembly.fasta"
-        staged_fasta = staging / name
-        shutil.copyfile(fasta, staged_fasta)
-        if sha256(staged_fasta) != original_digest:
-            raise ValueError("FASTA changed during packaging")
-        write_layout(staged_fasta, staging, chromosomes, motif, min_repeats)
+        mitochondrial_names = split_mitochondrial_fasta(fasta, staging, chromosomes)
+        if mitochondrial_names:
+            staged_fasta = staging / "assembly.fasta"
+            if plan:
+                plan["mitochondrial_objects"] = {
+                    record: plan["objects"].pop(record) for record in sorted(mitochondrial_names)
+                }
+                plan["combined_fasta_sha256"] = original_digest
+                plan["fasta_sha256"] = sha256(staged_fasta)
+                plan["mitochondrial_fasta_sha256"] = sha256(staging / "mitochondrial.fasta")
+        else:
+            name = "assembly.fasta.gz" if fasta.suffix == ".gz" else "assembly.fasta"
+            staged_fasta = staging / name
+            if fasta.suffix == ".gz":
+                shutil.copyfile(fasta, staged_fasta)
+            if sha256(staged_fasta) != original_digest:
+                raise ValueError("FASTA changed during packaging")
+        write_layout(staged_fasta, staging, chromosomes, motif, min_repeats, plan["objects"] if plan else None)
         validate_layout(staged_fasta, staging)
         if reviewed_recipe:
             shutil.copyfile(reviewed_recipe, staging / "reviewed_recipe.json")
+        if assembly_plan:
+            if mitochondrial_names:
+                (staging / "assembly_plan.json").write_text(json.dumps(plan, indent=2) + "\n")
+            else:
+                shutil.copyfile(assembly_plan, staging / "assembly_plan.json")
         metadata = {
-            "input_fasta": str(fasta.resolve()),
+            "input_fasta": staged_fasta.name if plan else str(fasta.resolve()),
             "chromosomes": sorted(chromosomes),
             "telomere_repeat": motif,
             "min_telomere_repeats": min_repeats,
             "agp_provenance": "components are slices of the accepted FASTA",
-            "unresolved_join_coordinates": "zero-based half-open",
+            "gap_coordinates": "zero-based half-open",
             "checksums_sha256": {item.name: sha256(item) for item in sorted(staging.iterdir())},
         }
+        if mitochondrial_names:
+            metadata["mitochondrial_records"] = sorted(mitochondrial_names)
+            metadata["combined_fasta_sha256"] = original_digest
         (staging / "manifest.json").write_text(json.dumps(metadata, indent=2) + "\n")
         staging.rename(outdir)
 
@@ -184,12 +294,14 @@ def main():
     parser.add_argument("--telomere", required=True, help="Forward telomere motif")
     parser.add_argument("--min-telomere-repeats", type=int, default=3)
     parser.add_argument("--reviewed-recipe", type=Path, help="Optional provenance with the accepted FASTA SHA-256")
+    parser.add_argument("--assembly-plan", type=Path, help="Reviewed component coordinates from gfapdefinisher")
     args = parser.parse_args()
     chromosomes = set(args.chromosomes.split(","))
     motif = args.telomere.upper()
     if "" in chromosomes or not re.fullmatch("[ACGT]+", motif) or args.min_telomere_repeats <= 0:
         parser.error("Supply nonempty chromosome IDs, a DNA motif and a positive repeat count")
-    package(args.assembly, args.outdir, chromosomes, motif, args.min_telomere_repeats, args.reviewed_recipe)
+    package(args.assembly, args.outdir, chromosomes, motif, args.min_telomere_repeats,
+            args.reviewed_recipe, args.assembly_plan)
 
 
 if __name__ == "__main__":

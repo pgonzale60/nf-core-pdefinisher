@@ -51,6 +51,8 @@ workflow NFCORE_PDEFINISHER {
     curated_fasta              = PDEFINISHER.out.curated_fasta
     curated_agp                = PDEFINISHER.out.curated_agp
     components_fasta           = PDEFINISHER.out.components_fasta
+    mitochondrial_fasta        = PDEFINISHER.out.mitochondrial_fasta
+    graph_evidence             = PDEFINISHER.out.graph_evidence
     segregated_fastas          = PDEFINISHER.out.segregated_fastas
     curation_audit             = PDEFINISHER.out.curation_audit
     curated_pde_segments       = PDEFINISHER.out.curated_pde_segments
@@ -102,7 +104,8 @@ workflow {
         params.input,
         params.help,
         params.help_full,
-        params.show_hidden
+        params.show_hidden,
+        true,
     )
 
     //
@@ -128,6 +131,8 @@ workflow {
     curated_fasta              = NFCORE_PDEFINISHER.out.curated_fasta
     curated_agp                = NFCORE_PDEFINISHER.out.curated_agp
     components_fasta           = NFCORE_PDEFINISHER.out.components_fasta
+    mitochondrial_fasta        = NFCORE_PDEFINISHER.out.mitochondrial_fasta
+    graph_evidence             = NFCORE_PDEFINISHER.out.graph_evidence
     segregated_fastas          = NFCORE_PDEFINISHER.out.segregated_fastas
     curation_audit             = NFCORE_PDEFINISHER.out.curation_audit
     curated_pde_segments       = NFCORE_PDEFINISHER.out.curated_pde_segments
@@ -175,6 +180,14 @@ output {
     }
     components_fasta {
         path { meta, _file -> PdePublish.pathFor(params, meta, "curated_assembly") }
+        mode params.publish_dir_mode
+    }
+    mitochondrial_fasta {
+        path { meta, _file -> PdePublish.pathFor(params, meta, "mitochondrial_assembly") }
+        mode params.publish_dir_mode
+    }
+    graph_evidence {
+        path { meta, _directory -> PdePublish.pathFor(params, meta, "curated_assembly/${meta.id}") }
         mode params.publish_dir_mode
     }
     segregated_fastas {

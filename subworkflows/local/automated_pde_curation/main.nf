@@ -26,6 +26,10 @@ def optionalEvidence(ch_assembly, ch_evidence) {
         .map { meta, _fasta, evidence -> tuple(meta, evidence ?: []) }
 }
 
+def surgeryInputs(channel) {
+    channel.filter { row -> !row[0].graph_inputs }
+}
+
 workflow AUTOMATED_PDE_CURATION {
 
     take:
@@ -166,25 +170,34 @@ workflow AUTOMATED_PDE_CURATION {
     )
     ch_versions = ch_versions.mix(CURATION_RESOLUTION.out.versions)
 
+    ch_graph_read_proposals = CURATIONSYNTHESIS.out.blueprint_json
+        .filter { meta, _blueprint -> meta.graph_inputs }
+        .join(CURATION_RESOLUTION.out.gap_manifest.filter { meta, _manifest -> meta.graph_inputs }, failOnDuplicate: true, failOnMismatch: true)
+        .join(CURATION_RESOLUTION.out.walker_manifest.filter { meta, _manifest -> meta.graph_inputs }, failOnDuplicate: true, failOnMismatch: true)
+        .join(CURATION_RESOLUTION.out.rdna_manifest.filter { meta, _manifest -> meta.graph_inputs }, failOnDuplicate: true, failOnMismatch: true)
+        .join(CURATION_RESOLUTION.out.trans_manifest.filter { meta, _manifest -> meta.graph_inputs }, failOnDuplicate: true, failOnMismatch: true)
+        .join(CURATION_RESOLUTION.out.gap_patches.filter { meta, _patches -> meta.graph_inputs }, failOnDuplicate: true, failOnMismatch: true)
+        .map { meta, blueprint, gap, walker, rdna, trans, patches -> tuple(meta.id, [blueprint, gap, walker, rdna, trans], patches) }
+
     // =========================================================================
     // MODULE 4: ASSEMBLY SURGERY & AGP VALIDATION
     // =========================================================================
     ASSEMBLY_SURGERY (
-        CURATIONSYNTHESIS.out.blueprint_json,
-        ch_assembly,
-        CURATION_RESOLUTION.out.gap_manifest,
-        CURATION_RESOLUTION.out.gap_patches,
-        CURATION_RESOLUTION.out.walker_manifest,
-        CURATION_RESOLUTION.out.walker_patches,
-        CURATION_RESOLUTION.out.rdna_manifest,
-        CURATION_RESOLUTION.out.rdna_cassettes,
-        CURATION_RESOLUTION.out.trans_manifest,
-        PDE_RECONNAISSANCE.out.pde_segments_bed,
-        PDE_RECONNAISSANCE.out.red_bed
+        surgeryInputs(CURATIONSYNTHESIS.out.blueprint_json),
+        surgeryInputs(ch_assembly),
+        surgeryInputs(CURATION_RESOLUTION.out.gap_manifest),
+        surgeryInputs(CURATION_RESOLUTION.out.gap_patches),
+        surgeryInputs(CURATION_RESOLUTION.out.walker_manifest),
+        surgeryInputs(CURATION_RESOLUTION.out.walker_patches),
+        surgeryInputs(CURATION_RESOLUTION.out.rdna_manifest),
+        surgeryInputs(CURATION_RESOLUTION.out.rdna_cassettes),
+        surgeryInputs(CURATION_RESOLUTION.out.trans_manifest),
+        surgeryInputs(PDE_RECONNAISSANCE.out.pde_segments_bed),
+        surgeryInputs(PDE_RECONNAISSANCE.out.red_bed)
     )
     ch_versions = ch_versions.mix(ASSEMBLY_SURGERY.out.versions)
     // Delivery must fail on a missing sample instead of completing with an empty publish channel.
-    ch_assembly_delivery = ch_assembly
+    ch_assembly_delivery = surgeryInputs(ch_assembly)
         .join(ASSEMBLY_SURGERY.out.curated_fasta, failOnMismatch: true, failOnDuplicate: true)
         .join(ASSEMBLY_SURGERY.out.curated_agp, failOnMismatch: true, failOnDuplicate: true)
 
@@ -192,18 +205,18 @@ workflow AUTOMATED_PDE_CURATION {
     // MODULE 5: POST-SURGERY EVALUATION & SCORECARD
     // =========================================================================
     CURATION_EVALUATION (
-        ch_assembly,
+        surgeryInputs(ch_assembly),
         ASSEMBLY_SURGERY.out.curated_fasta,
-        CURATIONSYNTHESIS.out.blueprint_json,
+        surgeryInputs(CURATIONSYNTHESIS.out.blueprint_json),
         ASSEMBLY_SURGERY.out.curated_agp,
         ASSEMBLY_SURGERY.out.audit,
-        CURATION_RESOLUTION.out.gap_manifest,
-        CURATION_RESOLUTION.out.walker_manifest,
-        CURATION_RESOLUTION.out.rdna_manifest,
-        PDE_RECONNAISSANCE.out.terminal_ends_summary,
-        CURATION_RESOLUTION.out.trans_manifest,
-        PDE_RECONNAISSANCE.out.red_bed,
-        PDE_RECONNAISSANCE.out.gap_evidence_json,
+        surgeryInputs(CURATION_RESOLUTION.out.gap_manifest),
+        surgeryInputs(CURATION_RESOLUTION.out.walker_manifest),
+        surgeryInputs(CURATION_RESOLUTION.out.rdna_manifest),
+        surgeryInputs(PDE_RECONNAISSANCE.out.terminal_ends_summary),
+        surgeryInputs(CURATION_RESOLUTION.out.trans_manifest),
+        surgeryInputs(PDE_RECONNAISSANCE.out.red_bed),
+        surgeryInputs(PDE_RECONNAISSANCE.out.gap_evidence_json),
         val_chromosomes
     )
     ch_versions = ch_versions.mix(CURATION_EVALUATION.out.versions)
@@ -217,7 +230,7 @@ workflow AUTOMATED_PDE_CURATION {
     def ch_val_bai  = Channel.empty()
 
     if (!params.skip_validation) {
-        ch_val_reads = ch_bam.map { meta, bam, _bai -> tuple(meta, bam) }
+        ch_val_reads = surgeryInputs(ch_bam).map { meta, bam, _bai -> tuple(meta, bam) }
         CURATION_VALIDATION (
             ch_val_reads,
             ASSEMBLY_SURGERY.out.curated_fasta,
@@ -268,6 +281,7 @@ workflow AUTOMATED_PDE_CURATION {
     }
 
     emit:
+    graph_read_proposals       = ch_graph_read_proposals
     blueprint_json             = CURATIONSYNTHESIS.out.blueprint_json
     blueprint_md               = CURATIONSYNTHESIS.out.blueprint_md
     curated_agp                = ch_assembly_delivery.map { meta, _input, _fasta, agp -> tuple(meta, agp) }

@@ -34,6 +34,26 @@
                 "pattern": "^\\S+\\.(bai|csi)$",
                 "errorMessage": "BAM index file must have extension .bai or .csi"
             },
+            "gfa": {
+                "type": "string",
+                "format": "file-path",
+                "exists": true,
+                "description": "Sequence-bearing whole-genome primary Hifiasm GFA"
+            },
+            "end_archive": {
+                "type": "string",
+                "format": "directory-path",
+                "exists": true,
+                "description": "Clustered and haplotyped telomere-end evidence archive"
+            },
+            "raw_gfa": { "type": "string", "format": "file-path", "exists": true },
+            "tiara": { "type": "string", "format": "file-path", "exists": true },
+            "barrnap": { "type": "string", "format": "file-path", "exists": true },
+            "ont_paf": { "type": "string", "format": "file-path", "exists": true },
+            "ont_reads": { "type": "string", "format": "file-path", "exists": true },
+            "hifi_reads": { "type": "string", "format": "file-path", "exists": true },
+            "graph_recipe": { "type": "string", "format": "file-path", "exists": true },
+            "hifi_patch_approvals": { "type": "string", "format": "file-path", "exists": true },
             "chromosomes": {
                 "type": "string",
                 "meta": ["chromosomes"],
@@ -71,6 +91,13 @@
                 "meta": ["specimen_id"]
             }
         },
-        "required": ["sample", "assembly", "bam"]
+        "required": ["sample", "assembly"],
+        "anyOf": [
+            {
+                "required": ["gfa"],
+                "anyOf": [{ "required": ["end_archive"] }, { "required": ["hifi_reads"] }, { "required": ["bam"] }]
+            },
+            { "required": ["bam"], "not": { "anyOf": [{ "required": ["gfa"] }, { "required": ["end_archive"] }] } }
+        ]
     }
 }

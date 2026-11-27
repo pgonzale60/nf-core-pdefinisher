@@ -27,11 +27,18 @@ In species with PDE, mixed germline/somatic sequencing libraries produce complex
 
 ### Samplesheet Input
 
-Prepare a comma-separated `samplesheet.csv` with your sample ID, input draft assembly FASTA, and long reads (FASTA/FASTQ):
+Provide one row per sample in a CSV or TSV. For BAM-based curation, supply the assembly and reads aligned to that exact assembly:
 
 ```csv
-sample,assembly,reads
-oscheius_onirici,/path/to/draft_assembly.fasta.gz,/path/to/hifi_reads.fasta.gz
+sample,assembly,bam,bai,chromosomes,assembly_name
+oscheius_onirici,/path/to/curated.fa.gz,/path/to/hifi.bam,/path/to/hifi.bam.bai,I;II;III;IV;V;X,nxOscOnir1.1
+```
+
+For graph-based curation, supply the whole-genome primary Hifiasm GFA, phased telomere-family archive, and nuclear chromosome names:
+
+```csv
+sample,assembly,gfa,end_archive,chromosomes
+DF5120,/path/to/curated.fa.gz,/path/to/asm.p_utg.gfa.gz,/path/to/end_clusters,I;II;III;IV;V;X
 ```
 
 ### Running the Pipeline
@@ -66,6 +73,34 @@ FASTA, an end inventory, unresolved join coordinates, and checksums. The script
 verifies that the AGP and components reconstruct the input sequence. Components
 are slices of the reviewed FASTA. An optional reviewed recipe can preserve source
 graph and read evidence if its expected FASTA checksum matches.
+
+## Graph-based curation
+
+The main workflow runs `gfapdefinisher` for rows with `gfa` and `end_archive`. Run it with an environment that provides Python 3, `gfapdefinisher`, minimap2, and seqkit. Set `--gfapdefinisher` to select a specific installed executable. The archive is the output directory of the telomeric read clustering workflow. Optional samplesheet columns are `raw_gfa`, `tiara`, `barrnap`, `ont_reads`, `ont_paf`, `hifi_reads`, and `graph_recipe`. The ONT PAF must use the primary unitig graph as its reference. A reviewed recipe can draw sequence from the raw GFA, the curated FASTA, and original HiFi or ONT reads.
+
+`gfapdefinisher` proposes paths from the graph. The workflow projects telomere-family consensuses onto both graphs and the curated assembly, records competing placements, and retains local haplotype patterns and original molecule IDs. It passes the [phased-end evidence bundle](docs/phased_end_evidence.md) to executables that support `--end-evidence`. With older executables the workflow associates the phased families with the graph candidates for review. A family consensus alignment by itself establishes a candidate placement.
+
+Without `graph_recipe`, the workflow delivers the curated FASTA with an AGP and the candidate report. With a recipe, it verifies the reviewed nuclear assembly and retains curated records outside the recipe, such as the mitochondrial scaffold. The workflow round-trips the delivery FASTA against its component AGP. BAM-based surgery runs for rows with BAM input alone.
+
+The graph route publishes mitochondrial records such as `scaffold_MT` to `mitochondrial_assembly/<sample>.mitochondrial.fasta`. The nuclear FASTA, AGP and component FASTA are published together in `curated_assembly/`.
+
+To collect both sources of proposals for the same sample, supply `assembly_name` and a BAM aligned to the input curated FASTA on the graph row. The BAM resolvers run before surgery and contribute their blueprint and manifests to `curation_edit_plan.json`. The plan records curated-reference coordinates, competing graph placements, and the decision for each proposal. Optional motif discovery uses the same input FASTA and BAM coordinates.
+
+### Approve HiFi gap patches
+
+Review `evidence/hifi_gap_patches.json` and the sequence payloads in `evidence/hifi_patch_sequences.fasta`. On the next run, set the samplesheet column `hifi_patch_approvals` to a JSON file containing the curated reference checksum and the IDs and sequence checksums you approve. Copy these values from the gap-patch report. Run with `-resume` to reuse the BAM resolver tasks.
+
+```json
+{
+  "version": 1,
+  "reference_sha256": "<curated reference file SHA-256>",
+  "patches": [{ "gap_id": "CARD-02", "patch_sha256": "<approved patch sequence SHA-256>" }]
+}
+```
+
+The workflow applies approved patches after any reviewed graph replay. A patch must target an internal N-gap in the curated reference. At least one resolver-reported flank must uniquely anchor the locus in each assembly, and both flanks must delimit an intact gap in the accepted assembly in the expected order and orientation. The workflow records patches that are already present or withheld, including attempts to replace accepted graph sequence, anchored rDNA placeholders, or unresolved satellite ports. The final FASTA and AGP include the applied patches, and the assembly plan records their source and final coordinates.
+
+The graph evidence bundle includes `curated_end_review.tsv`, `graph_end_proposals.tsv`, and `family_placements.tsv`. `sequence_gaps.tsv` records both linkage and missing sequence. For an anchored rDNA array the flanking connection is supported, while the sequence and copy order within the array remain unresolved. `unresolved_joins.tsv` records gaps with unresolved or unassessed linkage, including tandem repeats with competing distal placements.
 
 ## Audit chromosome ends on a curated assembly
 

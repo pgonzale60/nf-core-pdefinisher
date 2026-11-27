@@ -4,6 +4,8 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 include { AUTOMATED_PDE_CURATION } from '../subworkflows/local/automated_pde_curation/main'
+include { GRAPH_PREREQUISITES    } from '../subworkflows/local/graph_prerequisites/main'
+include { GFAPDEFINISHER         } from '../modules/local/gfapdefinisher/main'
 include { CURATIONSUMMARY        } from '../modules/local/curationsummary/main'
 include { MULTIQC                } from '../modules/nf-core/multiqc/main'
 include { paramsSummaryMultiqc   } from '../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -30,16 +32,58 @@ workflow PDEFINISHER {
     def ch_versions      = channel.empty()
     def ch_multiqc_files = channel.empty()
 
-    ch_assembly = ch_samplesheet.map { meta, assembly, _bam, _bai -> tuple(meta, assembly) }
-    ch_bam      = ch_samplesheet.map { meta, _assembly, bam, bai  -> tuple(meta, bam, bai) }
+    def samples = ch_samplesheet.branch { meta, _assembly, _bam, _bai ->
+        graph: meta.graph_inputs
+        aligned: true
+    }
+    def graph_samples = samples.graph.map { meta, assembly, bam, _bai ->
+        def inputs = meta.graph_inputs
+        def delivery_meta = meta.findAll { key, _value -> key != 'graph_inputs' }
+        tuple(delivery_meta, assembly, file(inputs.gfa, checkIfExists: true), inputs, bam)
+    }
+
+    def end_clusters_config = file(params.telomere_end_clusters_config, checkIfExists: true)
+    def cluster_script      = file("${projectDir}/scripts/telomere_end_clusters.py", checkIfExists: true)
+
+    GRAPH_PREREQUISITES(
+        graph_samples,
+        end_clusters_config,
+        cluster_script
+    )
+
+    def graph_input = graph_samples
+        .map { delivery_meta, assembly, gfa, inputs, bam ->
+            def raw_gfa = inputs.raw_gfa ? file(inputs.raw_gfa, checkIfExists: true) : []
+            def trailing_paths = ['ont_paf', 'ont_reads', 'hifi_reads', 'graph_recipe', 'hifi_patch_approvals']
+                .collect { key -> inputs[key] ? file(inputs[key], checkIfExists: true) : [] }
+            tuple(delivery_meta.id, !!bam, delivery_meta, assembly, gfa, raw_gfa, trailing_paths)
+        }
+        .join(GRAPH_PREREQUISITES.out.resolved, by: 0, failOnMismatch: true, failOnDuplicate: true)
+        .map { id, has_bam, delivery_meta, assembly, gfa, raw_gfa, trailing_paths, end_archive, tiara, barrnap ->
+            def inputs_for_sample = [delivery_meta, assembly, gfa, end_archive, raw_gfa, tiara, barrnap] + trailing_paths
+            tuple(id, has_bam, inputs_for_sample)
+        }
+
+    def aligned_samples = ch_samplesheet
+        .filter { _meta, _assembly, bam, _bai -> bam }
+        .map { meta, assembly, bam, bai ->
+            // A curation approval changes delivery only. Reuse the upstream BAM resolver tasks on resume.
+            def graph_inputs = meta.graph_inputs
+            def evidence_meta = graph_inputs?.hifi_patch_approvals
+                ? meta + [graph_inputs: graph_inputs.findAll { key, _path -> key != 'hifi_patch_approvals' }]
+                : meta
+            tuple(evidence_meta, assembly, bam, bai)
+        }
+    ch_assembly = aligned_samples.map { meta, assembly, _bam, _bai -> tuple(meta, assembly) }
+    ch_bam      = aligned_samples.map { meta, _assembly, bam, bai  -> tuple(meta, bam, bai) }
 
     //
     // SUBWORKFLOW: Run end-to-end Automated PDE Curation
     //
     def policy_file = file(params.curation_policy ?: "${projectDir}/assets/curation_policy.json", checkIfExists: true)
 
-    def val_telomere_repeat = ch_samplesheet.map { meta, _assembly, _bam, _bai -> meta.telomere_repeat ?: (params.telomere_repeat ?: 'TTAGGC') }.first()
-    def val_chromosomes     = ch_samplesheet.map { meta, _assembly, _bam, _bai -> meta.chromosomes ?: (params.chromosomes ?: '') }.first()
+    def val_telomere_repeat = aligned_samples.map { meta, _assembly, _bam, _bai -> meta.telomere_repeat ?: (params.telomere_repeat ?: 'TTAGGC') }.first()
+    def val_chromosomes     = aligned_samples.map { meta, _assembly, _bam, _bai -> meta.chromosomes ?: (params.chromosomes ?: '') }.first()
 
     AUTOMATED_PDE_CURATION (
         ch_assembly,
@@ -50,6 +94,22 @@ workflow PDEFINISHER {
     )
     ch_versions = ch_versions.mix(AUTOMATED_PDE_CURATION.out.versions)
 
+    def graph_with_bam = graph_input
+        .filter { _id, has_bam, _inputs -> has_bam }
+        .join(AUTOMATED_PDE_CURATION.out.graph_read_proposals, failOnMismatch: true, failOnDuplicate: true)
+        .map { _id, _has_bam, inputs, manifests, patches -> inputs + [manifests, patches] }
+    def graph_only = graph_input
+        .filter { _id, has_bam, _inputs -> !has_bam }
+        .map { _id, _has_bam, inputs -> inputs + [[], []] }
+    GFAPDEFINISHER(
+        graph_only.mix(graph_with_bam),
+        file("${projectDir}/scripts/gfapdefinisher_handoff.py", checkIfExists: true),
+        file("${projectDir}/scripts/package_reviewed_assembly.py", checkIfExists: true),
+        file("${projectDir}/scripts/curation_edit_plan.py", checkIfExists: true),
+        file("${projectDir}/scripts/approved_hifi_patches.py", checkIfExists: true),
+        params.gfapdefinisher,
+    )
+
     //
     // MODULE: Cohort-level Curation Summary across all processed samples
     //
@@ -57,6 +117,7 @@ workflow PDEFINISHER {
     ch_all_validations = AUTOMATED_PDE_CURATION.out.validation_json.map { _meta, f -> f }.collect().ifEmpty([])
 
     ch_summary_input = ch_all_scorecards.toList()
+        .filter { scorecards -> scorecards }
         .combine(ch_all_validations.toList())
         .map { scorecards, validations ->
             tuple([ id: 'cohort' ], scorecards, validations)
@@ -110,7 +171,9 @@ workflow PDEFINISHER {
     def ch_methods_description = channel.value(methodsDescriptionText(ch_multiqc_custom_methods_description))
     ch_multiqc_files = ch_multiqc_files.mix(ch_methods_description.collectFile(name: 'methods_description_mqc.yaml', sort: true))
     MULTIQC(
-        ch_multiqc_files.flatten().collect().map { files ->
+        ch_multiqc_files.flatten().collect().map { files -> [files] }
+            .combine(samples.aligned.map { _meta, _assembly, _bam, _bai -> true }.first())
+            .map { files, _run_legacy_report ->
             [
                 [id: 'pdefinisher'],
                 files,
@@ -125,9 +188,11 @@ workflow PDEFINISHER {
     )
 
     emit:
-    curated_fasta              = AUTOMATED_PDE_CURATION.out.curated_fasta
-    curated_agp                = AUTOMATED_PDE_CURATION.out.curated_agp
-    components_fasta           = AUTOMATED_PDE_CURATION.out.components_fasta
+    curated_fasta              = AUTOMATED_PDE_CURATION.out.curated_fasta.mix(GFAPDEFINISHER.out.curated_fasta)
+    curated_agp                = AUTOMATED_PDE_CURATION.out.curated_agp.mix(GFAPDEFINISHER.out.curated_agp)
+    components_fasta           = AUTOMATED_PDE_CURATION.out.components_fasta.mix(GFAPDEFINISHER.out.components_fasta)
+    mitochondrial_fasta        = GFAPDEFINISHER.out.mitochondrial_fasta
+    graph_evidence             = GFAPDEFINISHER.out.evidence
     segregated_fastas          = AUTOMATED_PDE_CURATION.out.segregated_fastas
     curation_audit             = AUTOMATED_PDE_CURATION.out.curation_audit
     curated_pde_segments       = AUTOMATED_PDE_CURATION.out.curated_pde_segments
