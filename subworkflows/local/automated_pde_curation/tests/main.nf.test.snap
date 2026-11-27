@@ -5,7 +5,8 @@
                 "0": [
                     [
                         {
-                            "id": "test_sample"
+                            "id": "test_sample",
+                            "assembly_name": "test_sample"
                         },
                         "test_sample.curation_manifest.json:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
@@ -13,69 +14,73 @@
                 "1": [
                     [
                         {
-                            "id": "test_sample"
+                            "id": "test_sample",
+                            "assembly_name": "test_sample"
                         },
                         "test_sample.curation_blueprint.md:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
-                "2": [
+                "10": [
                     [
                         {
-                            "id": "test_sample"
-                        },
-                        "test_sample.validated.agp:md5,d41d8cd98f00b204e9800998ecf8427e"
-                    ]
-                ],
-                "3": [
-                    [
-                        {
-                            "id": "test_sample"
-                        },
-                        "test_sample.curated.fasta:md5,d41d8cd98f00b204e9800998ecf8427e"
-                    ]
-                ],
-                "4": [
-                    [
-                        {
-                            "id": "test_sample"
-                        },
-                        "test_sample.components.fasta:md5,d41d8cd98f00b204e9800998ecf8427e"
-                    ]
-                ],
-                "5": [
-                    [
-                        {
-                            "id": "test_sample"
-                        },
-                        "test_sample.haplotigs.fasta:md5,d41d8cd98f00b204e9800998ecf8427e",
-                        "test_sample.purged_rdna.fasta:md5,d41d8cd98f00b204e9800998ecf8427e"
-                    ]
-                ],
-                "6": [
-                    [
-                        {
-                            "id": "test_sample"
-                        },
-                        "test_sample.curation_audit.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
-                    ]
-                ],
-                "7": [
-                    [
-                        {
-                            "id": "test_sample"
-                        },
-                        "test_sample.curation_scorecard.json:md5,d41d8cd98f00b204e9800998ecf8427e"
-                    ]
-                ],
-                "8": [
-                    [
-                        {
-                            "id": "test_sample"
+                            "id": "test_sample",
+                            "assembly_name": "test_sample"
                         },
                         "test_sample.curation_report.md:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
-                "9": [
+                "11": [
+
+                ],
+                "12": [
+
+                ],
+                "13": [
+
+                ],
+                "14": [
+
+                ],
+                "15": [
+
+                ],
+                "16": [
+
+                ],
+                "17": [
+
+                ],
+                "18": [
+
+                ],
+                "19": [
+
+                ],
+                "2": [
+                    [
+                        {
+                            "id": "test_sample",
+                            "assembly_name": "test_sample"
+                        },
+                        "test_sample.validated.agp:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "20": [
+
+                ],
+                "21": [
+
+                ],
+                "22": [
+
+                ],
+                "23": [
+
+                ],
+                "24": [
+
+                ],
+                "25": [
                     [
                         "AUTOMATED_PDE_CURATION:ASSEMBLY_SURGERY:ASMFORMATQC",
                         "agp-tpf-utils",
@@ -85,6 +90,11 @@
                         "AUTOMATED_PDE_CURATION:ASSEMBLY_SURGERY:CURATIONAGPGENERATOR",
                         "python",
                         "3.10.4"
+                    ],
+                    [
+                        "AUTOMATED_PDE_CURATION:ASSEMBLY_SURGERY:RAGTAG_AGPCHECK",
+                        "ragtag",
+                        "v2.1.0"
                     ],
                     [
                         "AUTOMATED_PDE_CURATION:CURATIONSYNTHESIS",
@@ -117,10 +127,84 @@
                         "3.10.4"
                     ]
                 ],
+                "3": [
+                    [
+                        {
+                            "id": "test_sample",
+                            "assembly_name": "test_sample"
+                        },
+                        "test_sample.curated.fasta:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "4": [
+                    [
+                        {
+                            "id": "test_sample",
+                            "assembly_name": "test_sample"
+                        },
+                        "test_sample.components.fasta:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "5": [
+                    [
+                        {
+                            "id": "test_sample",
+                            "assembly_name": "test_sample"
+                        },
+                        "test_sample.haplotigs.fasta:md5,d41d8cd98f00b204e9800998ecf8427e",
+                        "test_sample.purged_rdna.fasta:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "6": [
+                    [
+                        {
+                            "id": "test_sample",
+                            "assembly_name": "test_sample"
+                        },
+                        "test_sample.curation_audit.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "7": [
+                    [
+                        {
+                            "id": "test_sample",
+                            "assembly_name": "test_sample"
+                        },
+                        "test_sample.curated.pde_segments.bed:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "8": [
+                    [
+                        {
+                            "id": "test_sample",
+                            "assembly_name": "test_sample"
+                        },
+                        "test_sample.curated.repeats.bed:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "9": [
+                    [
+                        {
+                            "id": "test_sample",
+                            "assembly_name": "test_sample"
+                        },
+                        "test_sample.curation_scorecard.json:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "best_auxiliary_motif": [
+
+                ],
+                "best_core_motif": [
+
+                ],
+                "bipartite_spacing_tsv": [
+
+                ],
                 "blueprint_json": [
                     [
                         {
-                            "id": "test_sample"
+                            "id": "test_sample",
+                            "assembly_name": "test_sample"
                         },
                         "test_sample.curation_manifest.json:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
@@ -128,7 +212,8 @@
                 "blueprint_md": [
                     [
                         {
-                            "id": "test_sample"
+                            "id": "test_sample",
+                            "assembly_name": "test_sample"
                         },
                         "test_sample.curation_blueprint.md:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
@@ -136,39 +221,89 @@
                 "components_fasta": [
                     [
                         {
-                            "id": "test_sample"
+                            "id": "test_sample",
+                            "assembly_name": "test_sample"
                         },
                         "test_sample.components.fasta:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
+                "core_motif_metrics_json": [
+
+                ],
                 "curated_agp": [
                     [
                         {
-                            "id": "test_sample"
+                            "id": "test_sample",
+                            "assembly_name": "test_sample"
                         },
                         "test_sample.validated.agp:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
+                "curated_bai": [
+
+                ],
+                "curated_bam": [
+
+                ],
                 "curated_fasta": [
                     [
                         {
-                            "id": "test_sample"
+                            "id": "test_sample",
+                            "assembly_name": "test_sample"
                         },
                         "test_sample.curated.fasta:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "curated_pde_segments": [
+                    [
+                        {
+                            "id": "test_sample",
+                            "assembly_name": "test_sample"
+                        },
+                        "test_sample.curated.pde_segments.bed:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "curated_repeats": [
+                    [
+                        {
+                            "id": "test_sample",
+                            "assembly_name": "test_sample"
+                        },
+                        "test_sample.curated.repeats.bed:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
                 "curation_audit": [
                     [
                         {
-                            "id": "test_sample"
+                            "id": "test_sample",
+                            "assembly_name": "test_sample"
                         },
                         "test_sample.curation_audit.tsv:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
                 ],
+                "fimo_annotated_hits": [
+
+                ],
+                "fimo_genome_hits": [
+
+                ],
+                "grid_summary_tsv": [
+
+                ],
+                "motif_discovery_report_md": [
+
+                ],
+                "motif_distribution_report": [
+
+                ],
+                "motif_distribution_summary": [
+
+                ],
                 "report_md": [
                     [
                         {
-                            "id": "test_sample"
+                            "id": "test_sample",
+                            "assembly_name": "test_sample"
                         },
                         "test_sample.curation_report.md:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
@@ -176,7 +311,8 @@
                 "scorecard_json": [
                     [
                         {
-                            "id": "test_sample"
+                            "id": "test_sample",
+                            "assembly_name": "test_sample"
                         },
                         "test_sample.curation_scorecard.json:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
@@ -184,11 +320,18 @@
                 "segregated_fastas": [
                     [
                         {
-                            "id": "test_sample"
+                            "id": "test_sample",
+                            "assembly_name": "test_sample"
                         },
                         "test_sample.haplotigs.fasta:md5,d41d8cd98f00b204e9800998ecf8427e",
                         "test_sample.purged_rdna.fasta:md5,d41d8cd98f00b204e9800998ecf8427e"
                     ]
+                ],
+                "validation_json": [
+
+                ],
+                "validation_md": [
+
                 ],
                 "versions": [
                     [
@@ -200,6 +343,11 @@
                         "AUTOMATED_PDE_CURATION:ASSEMBLY_SURGERY:CURATIONAGPGENERATOR",
                         "python",
                         "3.10.4"
+                    ],
+                    [
+                        "AUTOMATED_PDE_CURATION:ASSEMBLY_SURGERY:RAGTAG_AGPCHECK",
+                        "ragtag",
+                        "v2.1.0"
                     ],
                     [
                         "AUTOMATED_PDE_CURATION:CURATIONSYNTHESIS",
@@ -234,7 +382,7 @@
                 ]
             }
         ],
-        "timestamp": "2026-09-20T10:52:13.33905",
+        "timestamp": "2026-11-28T00:15:10.744689",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.6"
