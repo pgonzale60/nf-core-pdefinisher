@@ -1,0 +1,196 @@
+#!/usr/bin/env python3
+"""Package an accepted FASTA as AGP, component FASTA, and an end/gap inventory."""
+
+import argparse
+import csv
+import gzip
+import hashlib
+import json
+import re
+import shutil
+import tempfile
+from pathlib import Path
+
+
+GAP = re.compile("N+", re.IGNORECASE)
+
+
+def read_fasta(path):
+    opener = gzip.open if path.suffix == ".gz" else open
+    with opener(path, "rt", encoding="ascii") as handle:
+        name, parts = None, []
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith(">"):
+                if name is not None:
+                    yield name, "".join(parts)
+                header = line[1:].split()
+                if not header:
+                    raise ValueError(f"Missing FASTA record ID in {path}")
+                name, parts = header[0], []
+            elif name is None:
+                raise ValueError(f"Expected a FASTA header in {path}")
+            else:
+                parts.append(line)
+        if name is not None:
+            yield name, "".join(parts)
+
+
+def sha256(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def terminal_repeats(sequence, motif, side):
+    if side == "3p":
+        sequence = sequence[::-1]
+        motif = motif[::-1]
+    rotations = (motif[i:] + motif[:i] for i in range(len(motif)))
+    patterns = [re.compile(f"(?:{repeat})+") for repeat in rotations]
+    return max((match.end() - match.start()
+                for shift in range(min(25, len(sequence)) + 1)
+                for pattern in patterns
+                if (match := pattern.match(sequence, shift))), default=0)
+
+
+def write_layout(fasta, out, chromosomes, motif, min_repeats):
+    reverse_motif = motif.translate(str.maketrans("ACGT", "TGCA"))[::-1]
+    seen = set()
+    with (
+        (out / "assembly.agp").open("w") as agp,
+        (out / "components.fasta").open("w") as components,
+        (out / "ends.tsv").open("w") as ends,
+        (out / "unresolved_joins.tsv").open("w") as joins,
+    ):
+        agp.write("##agp-version 2.1\n")
+        agp.write("# Components are slices of the supplied reviewed FASTA.\n")
+        end_rows = csv.writer(ends, delimiter="\t", lineterminator="\n")
+        join_rows = csv.writer(joins, delimiter="\t", lineterminator="\n")
+        end_rows.writerow(("chromosome", "side", "canonical_repeat_bp", "physical_tip_status"))
+        join_rows.writerow(("object", "start", "end", "placeholder_bp", "placement", "agp_part"))
+
+        for record_number, (name, seq) in enumerate(read_fasta(fasta), 1):
+            if name in seen or not seq or not re.fullmatch("[ACGTRYSWKMBDHVNacgtryswkmbdhvn]+", seq):
+                raise ValueError(f"Duplicate, empty, or invalid FASTA record: {name}")
+            seen.add(name)
+            if name in chromosomes:
+                for side, end_motif in (("5p", reverse_motif), ("3p", motif)):
+                    bp = terminal_repeats(seq.upper(), end_motif, side)
+                    status = "canonical_tract" if bp >= min_repeats * len(motif) else "open_or_unconfirmed"
+                    end_rows.writerow((name, side, bp, status))
+
+            intervals = []
+            offset = 0
+            for gap in GAP.finditer(seq):
+                if offset < gap.start():
+                    intervals.append((offset, gap.start(), False))
+                intervals.append((gap.start(), gap.end(), True))
+                offset = gap.end()
+            if offset < len(seq):
+                intervals.append((offset, len(seq), False))
+            if not any(not gap for _, _, gap in intervals):
+                raise ValueError(f"FASTA record contains only gap characters: {name}")
+
+            for part, (start, stop, gap) in enumerate(intervals, 1):
+                length = stop - start
+                if gap:
+                    terminal = start == 0 or stop == len(seq)
+                    gap_type = "telomere" if terminal and name in chromosomes else "contig"
+                    fields = ("N", length, gap_type, "no", "na")
+                    join_rows.writerow((name, start, stop, length, "terminal" if terminal else "internal", part))
+                else:
+                    component = f"component_{record_number}_{part}"
+                    fields = ("W", component, 1, length, "+")
+                    components.write(f">{component}\n")
+                    for i in range(start, stop, 60):
+                        components.write(seq[i:min(i + 60, stop)] + "\n")
+                agp.write("\t".join(map(str, (name, start + 1, stop, part, *fields))) + "\n")
+
+    if not seen or chromosomes - seen:
+        raise ValueError(f"Assembly is empty or is missing chromosome IDs: {sorted(chromosomes - seen)}")
+
+
+def validate_layout(fasta, out):
+    """Round-trip the written AGP and components against each original FASTA record."""
+    components = iter(read_fasta(out / "components.fasta"))
+    with (out / "assembly.agp").open() as handle:
+        rows = (line.rstrip().split("\t") for line in handle if not line.startswith("#"))
+        for name, seq in read_fasta(fasta):
+            offset, part = 0, 1
+            while offset < len(seq):
+                row = next(rows, None)
+                if row is None or row[0] != name or int(row[1]) != offset + 1 or int(row[3]) != part:
+                    raise ValueError(f"AGP order or coordinates disagree with FASTA for {name}")
+                stop = int(row[2])
+                if row[4] == "W":
+                    component = next(components, None)
+                    if component is None or component[0] != row[5] or row[6:] != ["1", str(stop - offset), "+"]:
+                        raise ValueError(f"AGP component coordinates disagree with FASTA for {name}")
+                    assembled = component[1].upper()
+                else:
+                    assembled = "N" * int(row[5])
+                if stop <= offset or stop > len(seq) or assembled != seq[offset:stop].upper():
+                    raise ValueError(f"AGP does not reconstruct FASTA at {name}:{offset + 1}-{stop}")
+                offset, part = stop, part + 1
+        if next(rows, None) is not None or next(components, None) is not None:
+            raise ValueError("AGP or component FASTA has extra rows")
+
+
+def package(fasta, outdir, chromosomes, motif, min_repeats, reviewed_recipe=None):
+    if outdir.exists():
+        raise FileExistsError(outdir)
+    original_digest = sha256(fasta)
+    if reviewed_recipe:
+        recipe = json.loads(reviewed_recipe.read_text())
+        if recipe.get("expected_sha256") != original_digest:
+            raise ValueError("Reviewed recipe checksum does not match the input FASTA")
+
+    outdir.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=outdir.parent) as temp:
+        staging = Path(temp) / "package"
+        staging.mkdir()
+        name = "assembly.fasta.gz" if fasta.suffix == ".gz" else "assembly.fasta"
+        staged_fasta = staging / name
+        shutil.copyfile(fasta, staged_fasta)
+        if sha256(staged_fasta) != original_digest:
+            raise ValueError("FASTA changed during packaging")
+        write_layout(staged_fasta, staging, chromosomes, motif, min_repeats)
+        validate_layout(staged_fasta, staging)
+        if reviewed_recipe:
+            shutil.copyfile(reviewed_recipe, staging / "reviewed_recipe.json")
+        metadata = {
+            "input_fasta": str(fasta.resolve()),
+            "chromosomes": sorted(chromosomes),
+            "telomere_repeat": motif,
+            "min_telomere_repeats": min_repeats,
+            "agp_provenance": "components are slices of the accepted FASTA",
+            "unresolved_join_coordinates": "zero-based half-open",
+            "checksums_sha256": {item.name: sha256(item) for item in sorted(staging.iterdir())},
+        }
+        (staging / "manifest.json").write_text(json.dumps(metadata, indent=2) + "\n")
+        staging.rename(outdir)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--assembly", type=Path, required=True)
+    parser.add_argument("--outdir", type=Path, required=True)
+    parser.add_argument("--chromosomes", required=True, help="Comma-separated FASTA record IDs")
+    parser.add_argument("--telomere", required=True, help="Forward telomere motif")
+    parser.add_argument("--min-telomere-repeats", type=int, default=3)
+    parser.add_argument("--reviewed-recipe", type=Path, help="Optional provenance with the accepted FASTA SHA-256")
+    args = parser.parse_args()
+    chromosomes = set(args.chromosomes.split(","))
+    motif = args.telomere.upper()
+    if "" in chromosomes or not re.fullmatch("[ACGT]+", motif) or args.min_telomere_repeats <= 0:
+        parser.error("Supply nonempty chromosome IDs, a DNA motif and a positive repeat count")
+    package(args.assembly, args.outdir, chromosomes, motif, args.min_telomere_repeats, args.reviewed_recipe)
+
+
+if __name__ == "__main__":
+    main()

@@ -10,7 +10,7 @@
 // Module 5: Post-Surgery Evaluation & Impact Scorecard
 //
 
-include { PDE_RECONNAISSANCE   } from '../pde_reconnaissance/main'
+include { PDE_RECONNAISSANCE; primaryUnitig } from '../pde_reconnaissance/main'
 include { BGZIPFASTA          } from '../../../modules/local/bgzipfasta/main'
 include { CURATIONSYNTHESIS   } from '../../../modules/local/curationsynthesis/main'
 include { CURATION_RESOLUTION  } from '../curation_resolution/main'
@@ -18,6 +18,13 @@ include { ASSEMBLY_SURGERY     } from '../assembly_surgery/main'
 include { CURATION_EVALUATION  } from '../curation_evaluation/main'
 include { CURATION_VALIDATION  } from '../curation_validation/main'
 include { PDE_MOTIF_DISCOVERY  } from '../pde_motif_discovery/main'
+
+// Preserve the input sample even when an optional assembly or alignment was unavailable.
+def optionalEvidence(ch_assembly, ch_evidence) {
+    ch_assembly.map { meta, _fasta -> tuple(meta) }
+        .join(ch_evidence, by: 0, remainder: true, failOnDuplicate: true)
+        .map { row -> tuple(row[0], row.size() > 1 && row[1] ? row[1] : []) }
+}
 
 workflow AUTOMATED_PDE_CURATION {
 
@@ -44,6 +51,9 @@ workflow AUTOMATED_PDE_CURATION {
     // =========================================================================
     // MODULE 2: CURATION SYNTHESIS (BLUEPRINT)
     // =========================================================================
+    ch_unplaced_paf = optionalEvidence(ch_assembly, PDE_RECONNAISSANCE.out.unplaced_paf)
+    ch_telo_paf = optionalEvidence(ch_assembly, PDE_RECONNAISSANCE.out.telo_paf)
+
     ch_s1  = ch_assembly.map { meta, fasta -> [ meta.id, meta, fasta ] }
     ch_s2  = PDE_RECONNAISSANCE.out.grs_summary_tsv.map { meta, f -> [ meta.id, f ] }
     ch_s3  = PDE_RECONNAISSANCE.out.mosdepth_regions.map { meta, f -> [ meta.id, f ] }
@@ -52,10 +62,10 @@ workflow AUTOMATED_PDE_CURATION {
     ch_s6  = PDE_RECONNAISSANCE.out.delfies_bed.map { meta, f -> [ meta.id, f ] }
     ch_s7  = PDE_RECONNAISSANCE.out.rdna_regions_bed.map { meta, f -> [ meta.id, f ] }
     ch_s8  = PDE_RECONNAISSANCE.out.barrnap_gff.map { meta, f -> [ meta.id, f ] }
-    ch_s9  = PDE_RECONNAISSANCE.out.rdna_assembly_info.map { meta, f -> [ meta.id, f ] }
-    ch_s10 = PDE_RECONNAISSANCE.out.unplaced_paf.map { meta, f -> [ meta.id, f ] }
+    ch_s9  = ch_assembly.map { meta, _fasta -> [ meta.id, [] ] }
+    ch_s10 = ch_unplaced_paf.map { meta, f -> [ meta.id, f ] }
     ch_s11 = PDE_RECONNAISSANCE.out.red_bed.map { meta, f -> [ meta.id, f ] }
-    ch_s12 = PDE_RECONNAISSANCE.out.telo_paf.map { meta, f -> [ meta.id, f ] }
+    ch_s12 = ch_telo_paf.map { meta, f -> [ meta.id, f ] }
     ch_s13 = PDE_RECONNAISSANCE.out.gap_evidence_json.map { meta, f -> [ meta.id, f ] }
     ch_s14 = PDE_RECONNAISSANCE.out.telo_junction_json.map { meta, f -> [ meta.id, f ] }
 
@@ -123,15 +133,21 @@ workflow AUTOMATED_PDE_CURATION {
     // the summary over as one is how a unitig cap came to report an entire unitig as its extension.
     // A unitig's interval now travels on the Module 2 card as evidence.unitig_extension_region.
 
-    ch_telo_unitigs  = PDE_RECONNAISSANCE.out.telo_unitigs
+    ch_telo_primary = PDE_RECONNAISSANCE.out.telo_unitigs
+        .map { meta, files -> tuple(meta, primaryUnitig(files, '.p_utg.fa')) }
+        .filter { _meta, fasta -> fasta && (fasta.size() > 0 || workflow.stubRun) }
+    ch_telo_unitigs = optionalEvidence(ch_assembly, ch_telo_primary)
 
-    ch_flye_evidence = PDE_RECONNAISSANCE.out.rdna_assembly_fasta
-        .join(PDE_RECONNAISSANCE.out.rdna_assembly_info, by: 0)
-        .join(PDE_RECONNAISSANCE.out.rdna_assembly_paf, by: 0)
-        .join(PDE_RECONNAISSANCE.out.rdna_assembly_gfa, by: 0)
-        .map { meta, fa, info, paf, gfa ->
-            tuple(meta, fa, info, paf, gfa)
-        }
+    ch_rdna_fasta = optionalEvidence(ch_assembly, PDE_RECONNAISSANCE.out.rdna_assembly_fasta)
+    ch_rdna_paf = optionalEvidence(ch_assembly, PDE_RECONNAISSANCE.out.rdna_assembly_paf)
+    ch_rdna_primary_gfa = PDE_RECONNAISSANCE.out.rdna_assembly_gfa
+        .map { meta, files -> tuple(meta, primaryUnitig(files, '.p_utg.gfa.gz')) }
+        .filter { _meta, gfa -> gfa != null }
+    ch_rdna_gfa = optionalEvidence(ch_assembly, ch_rdna_primary_gfa)
+    ch_rdna_evidence = ch_rdna_fasta
+        .join(ch_rdna_paf, by: 0)
+        .join(ch_rdna_gfa, by: 0)
+        .map { meta, fasta, paf, gfa -> tuple(meta, fasta, [], paf, gfa) }
 
     ch_gaps_bed      = PDE_RECONNAISSANCE.out.gaps_bed
     ch_policy_json   = ch_assembly.map { meta, _fasta -> [ meta, policy_file ] }
@@ -143,8 +159,8 @@ workflow AUTOMATED_PDE_CURATION {
         ch_gaps_bed,
         ch_policy_json,
         ch_telo_unitigs,
-        PDE_RECONNAISSANCE.out.unplaced_paf,
-        ch_flye_evidence,
+        ch_unplaced_paf,
+        ch_rdna_evidence,
         ch_indexed_assembly,
         val_telomere_repeat
     )
@@ -167,6 +183,10 @@ workflow AUTOMATED_PDE_CURATION {
         PDE_RECONNAISSANCE.out.red_bed
     )
     ch_versions = ch_versions.mix(ASSEMBLY_SURGERY.out.versions)
+    // Delivery must fail on a missing sample instead of completing with an empty publish channel.
+    ch_assembly_delivery = ch_assembly
+        .join(ASSEMBLY_SURGERY.out.curated_fasta, failOnMismatch: true, failOnDuplicate: true)
+        .join(ASSEMBLY_SURGERY.out.curated_agp, failOnMismatch: true, failOnDuplicate: true)
 
     // =========================================================================
     // MODULE 5: POST-SURGERY EVALUATION & SCORECARD
@@ -250,8 +270,8 @@ workflow AUTOMATED_PDE_CURATION {
     emit:
     blueprint_json             = CURATIONSYNTHESIS.out.blueprint_json
     blueprint_md               = CURATIONSYNTHESIS.out.blueprint_md
-    curated_agp                = ASSEMBLY_SURGERY.out.curated_agp
-    curated_fasta              = ASSEMBLY_SURGERY.out.curated_fasta
+    curated_agp                = ch_assembly_delivery.map { meta, _input, _fasta, agp -> tuple(meta, agp) }
+    curated_fasta              = ch_assembly_delivery.map { meta, _input, fasta, _agp -> tuple(meta, fasta) }
     components_fasta           = ASSEMBLY_SURGERY.out.components_fasta
     segregated_fastas          = ASSEMBLY_SURGERY.out.segregated_fastas
     curation_audit             = ASSEMBLY_SURGERY.out.audit

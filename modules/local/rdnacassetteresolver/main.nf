@@ -20,16 +20,19 @@ process RDNACASSETTERESOLVER {
     script:
     def args     = task.ext.args ?: ''
     def prefix   = task.ext.prefix ?: "${meta.id}"
+    def fasta_arg = flye_fasta ? "--flye-fasta \"${flye_fasta}\"" : ""
+    def info_arg = flye_info ? "--flye-info \"${flye_info}\"" : ""
+    def paf_arg = flye_paf ? "--flye-paf \"${flye_paf}\"" : ""
     def telo_arg = telomeric_unitigs ? "--telomeric-unitigs \"${telomeric_unitigs}\"" : ""
     def gfa_arg  = rdna_gfa ? "--rdna-gfa \"${rdna_gfa}\"" : ""
     """
-    # Tool: pde_rdna_cassette_resolver.py | Script-SHA: ffc929748bb75b68
+    # Tool: pde_rdna_cassette_resolver.py | Script-SHA: b4ae01b82be8dff1
     pde_rdna_cassette_resolver.py \\
         --blueprint "${blueprint_json}" \\
         --ref "${ref_fasta}" \\
-        --flye-fasta "${flye_fasta}" \\
-        --flye-info "${flye_info}" \\
-        --flye-paf "${flye_paf}" \\
+        ${fasta_arg} \\
+        ${info_arg} \\
+        ${paf_arg} \\
         ${telo_arg} \\
         ${gfa_arg} \\
         --sample "${prefix}" \\
