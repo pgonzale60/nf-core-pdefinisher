@@ -94,7 +94,7 @@ Review `evidence/hifi_gap_patches.json` and the sequence payloads in `evidence/h
 {
   "version": 1,
   "reference_sha256": "<curated reference file SHA-256>",
-  "patches": [{"gap_id": "CARD-02", "patch_sha256": "<approved patch sequence SHA-256>"}]
+  "patches": [{ "gap_id": "CARD-02", "patch_sha256": "<approved patch sequence SHA-256>" }]
 }
 ```
 

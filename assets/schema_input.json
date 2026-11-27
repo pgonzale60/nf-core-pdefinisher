@@ -95,11 +95,7 @@
         "anyOf": [
             {
                 "required": ["gfa"],
-                "anyOf": [
-                    { "required": ["end_archive"] },
-                    { "required": ["hifi_reads"] },
-                    { "required": ["bam"] }
-                ]
+                "anyOf": [{ "required": ["end_archive"] }, { "required": ["hifi_reads"] }, { "required": ["bam"] }]
             },
             { "required": ["bam"], "not": { "anyOf": [{ "required": ["gfa"] }, { "required": ["end_archive"] }] } }
         ]
