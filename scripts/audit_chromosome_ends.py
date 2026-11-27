@@ -160,7 +160,7 @@ def query_anchor(read, intervals, inward_from_right, minimum):
 def terminal_pattern(motif):
     rotations = {strand[i:] + strand[:i] for strand in (motif, reverse_complement(motif))
                  for i in range(len(motif))}
-    return re.compile("|".join(f"(?:{word}){{3,}}" for word in sorted(rotations)))
+    return re.compile("|".join(f"(?:{word})" r"{3,}" for word in sorted(rotations)))
 
 
 def terminal_tract(sequence, pattern):
