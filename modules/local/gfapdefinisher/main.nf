@@ -19,6 +19,7 @@ process GFAPDEFINISHER {
     tuple val(meta), path("${meta.id}.curated.fasta*"), emit: curated_fasta
     tuple val(meta), path("${meta.id}.curated.agp"), emit: curated_agp
     tuple val(meta), path("${meta.id}.components.fasta"), emit: components_fasta
+    tuple val(meta), path("${meta.id}.mitochondrial.fasta"), optional: true, emit: mitochondrial_fasta
     tuple val(meta), path('graph_evidence'), emit: evidence
 
     script:
@@ -47,6 +48,9 @@ process GFAPDEFINISHER {
     fi
     ln graph_evidence/assembly/assembly.agp "${meta.id}.curated.agp"
     ln graph_evidence/assembly/components.fasta "${meta.id}.components.fasta"
+    if [[ -f graph_evidence/assembly/mitochondrial.fasta ]]; then
+        ln graph_evidence/assembly/mitochondrial.fasta "${meta.id}.mitochondrial.fasta"
+    fi
     """
 
     stub:

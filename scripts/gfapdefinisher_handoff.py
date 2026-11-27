@@ -400,6 +400,12 @@ def run_finishing(args, out):
         delivery = out / "assembly"
         package(assembly, delivery, chromosomes, args.telomere.upper(), 3, args.recipe, plan,
                 reviewed_base=reviewed if assembly != reviewed else None)
+        if (mitochondrial := delivery / "mitochondrial.fasta").is_file():
+            edit_plan = json.loads(edit_plan_path.read_text())
+            edit_plan["combined_assembly_sha256"] = edit_plan["delivery_sha256"]
+            edit_plan["delivery_sha256"] = sha256(delivery / "assembly.fasta")
+            edit_plan["mitochondrial_fasta_sha256"] = sha256(mitochondrial)
+            edit_plan_path.write_text(json.dumps(edit_plan, sort_keys=True, indent=2) + "\n")
         report_delivery(delivery, candidates, placements, config, args.recipe, evidence / "curated_end_review.tsv")
         inputs = dict(curated=args.curated, gfa=args.gfa, raw_gfa=args.raw_gfa, recipe=args.recipe,
                       tiara=args.tiara, barrnap=args.barrnap, ont_paf=ont_paf,

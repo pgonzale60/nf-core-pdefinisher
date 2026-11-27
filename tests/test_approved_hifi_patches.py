@@ -99,3 +99,11 @@ def test_reviewed_nuclear_recipe_and_gap_patch_retain_other_reference_records(tm
     assert layout["objects"]["scaffold_MT"]["parts"][0]["source"] == "reference"
     assert layout["reviewed_fasta_sha256"] == sha256(reviewed)
     assert layout["base_fasta_sha256"] == sha256(base)
+    delivery = tmp_path / "delivery"
+    assert dict(read_fasta(delivery / "assembly.fasta")) == {"I": sequence.replace("NNNN", patch)}
+    assert dict(read_fasta(delivery / "mitochondrial.fasta")) == {"scaffold_MT": mt_sequence}
+    assert "scaffold_MT" not in (delivery / "assembly.agp").read_text()
+    packaged = json.loads((delivery / "assembly_plan.json").read_text())
+    assert set(packaged["objects"]) == {"I"}
+    assert set(packaged["mitochondrial_objects"]) == {"scaffold_MT"}
+    assert packaged["fasta_sha256"] == sha256(delivery / "assembly.fasta")

@@ -191,6 +191,7 @@ workflow PDEFINISHER {
     curated_fasta              = AUTOMATED_PDE_CURATION.out.curated_fasta.mix(GFAPDEFINISHER.out.curated_fasta)
     curated_agp                = AUTOMATED_PDE_CURATION.out.curated_agp.mix(GFAPDEFINISHER.out.curated_agp)
     components_fasta           = AUTOMATED_PDE_CURATION.out.components_fasta.mix(GFAPDEFINISHER.out.components_fasta)
+    mitochondrial_fasta        = GFAPDEFINISHER.out.mitochondrial_fasta
     graph_evidence             = GFAPDEFINISHER.out.evidence
     segregated_fastas          = AUTOMATED_PDE_CURATION.out.segregated_fastas
     curation_audit             = AUTOMATED_PDE_CURATION.out.curation_audit

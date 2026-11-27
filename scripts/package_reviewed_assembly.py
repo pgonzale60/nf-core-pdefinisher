@@ -13,6 +13,7 @@ from pathlib import Path
 
 
 GAP = re.compile("N+", re.IGNORECASE)
+MITOCHONDRIAL_IDS = {"chrmt", "chrm", "mt", "scaffold_mt", "mitochondrion", "mitochondria"}
 
 
 def read_fasta(path):
@@ -185,6 +186,39 @@ def validate_layout(fasta, out):
             raise ValueError("AGP or component FASTA has extra rows")
 
 
+def split_mitochondrial_fasta(fasta, staging, chromosomes):
+    """Preserve original FASTA record bytes when splitting recognized mitochondrial IDs."""
+    nuclear_path = staging / "assembly.fasta"
+    mito_path = staging / "mitochondrial.fasta"
+    mitochondrial_names = set()
+    opener = gzip.open if fasta.suffix == ".gz" else open
+    with opener(fasta, "rb") as source, nuclear_path.open("wb") as nuclear, mito_path.open("wb") as mito:
+        destination = nuclear
+        for line in source:
+            if line.startswith(b">"):
+                header = line[1:].split()
+                if not header:
+                    raise ValueError(f"Missing FASTA record ID in {fasta}")
+                name = header[0].decode("ascii")
+                if name not in chromosomes and name.casefold() in MITOCHONDRIAL_IDS:
+                    if name in mitochondrial_names:
+                        raise ValueError(f"Duplicate mitochondrial FASTA record: {name}")
+                    mitochondrial_names.add(name)
+                    destination = mito
+                else:
+                    destination = nuclear
+            destination.write(line)
+    if mitochondrial_names:
+        mitochondrial_records = dict(read_fasta(mito_path))
+        if any(not re.fullmatch("[ACGTRYSWKMBDHVNacgtryswkmbdhvn]+", seq) for seq in mitochondrial_records.values()):
+            raise ValueError("Empty or invalid mitochondrial FASTA record")
+    else:
+        if fasta.suffix == ".gz":
+            nuclear_path.unlink()
+        mito_path.unlink()
+    return mitochondrial_names
+
+
 def package(fasta, outdir, chromosomes, motif, min_repeats, reviewed_recipe=None, assembly_plan=None, reviewed_base=None):
     if outdir.exists():
         raise FileExistsError(outdir)
@@ -210,19 +244,34 @@ def package(fasta, outdir, chromosomes, motif, min_repeats, reviewed_recipe=None
     with tempfile.TemporaryDirectory(dir=outdir.parent) as temp:
         staging = Path(temp) / "package"
         staging.mkdir()
-        name = "assembly.fasta.gz" if fasta.suffix == ".gz" else "assembly.fasta"
-        staged_fasta = staging / name
-        shutil.copyfile(fasta, staged_fasta)
-        if sha256(staged_fasta) != original_digest:
-            raise ValueError("FASTA changed during packaging")
+        mitochondrial_names = split_mitochondrial_fasta(fasta, staging, chromosomes)
+        if mitochondrial_names:
+            staged_fasta = staging / "assembly.fasta"
+            if plan:
+                plan["mitochondrial_objects"] = {
+                    record: plan["objects"].pop(record) for record in sorted(mitochondrial_names)
+                }
+                plan["combined_fasta_sha256"] = original_digest
+                plan["fasta_sha256"] = sha256(staged_fasta)
+                plan["mitochondrial_fasta_sha256"] = sha256(staging / "mitochondrial.fasta")
+        else:
+            name = "assembly.fasta.gz" if fasta.suffix == ".gz" else "assembly.fasta"
+            staged_fasta = staging / name
+            if fasta.suffix == ".gz":
+                shutil.copyfile(fasta, staged_fasta)
+            if sha256(staged_fasta) != original_digest:
+                raise ValueError("FASTA changed during packaging")
         write_layout(staged_fasta, staging, chromosomes, motif, min_repeats, plan["objects"] if plan else None)
         validate_layout(staged_fasta, staging)
         if reviewed_recipe:
             shutil.copyfile(reviewed_recipe, staging / "reviewed_recipe.json")
         if assembly_plan:
-            shutil.copyfile(assembly_plan, staging / "assembly_plan.json")
+            if mitochondrial_names:
+                (staging / "assembly_plan.json").write_text(json.dumps(plan, indent=2) + "\n")
+            else:
+                shutil.copyfile(assembly_plan, staging / "assembly_plan.json")
         metadata = {
-            "input_fasta": name if plan else str(fasta.resolve()),
+            "input_fasta": staged_fasta.name if plan else str(fasta.resolve()),
             "chromosomes": sorted(chromosomes),
             "telomere_repeat": motif,
             "min_telomere_repeats": min_repeats,
@@ -230,6 +279,9 @@ def package(fasta, outdir, chromosomes, motif, min_repeats, reviewed_recipe=None
             "gap_coordinates": "zero-based half-open",
             "checksums_sha256": {item.name: sha256(item) for item in sorted(staging.iterdir())},
         }
+        if mitochondrial_names:
+            metadata["mitochondrial_records"] = sorted(mitochondrial_names)
+            metadata["combined_fasta_sha256"] = original_digest
         (staging / "manifest.json").write_text(json.dumps(metadata, indent=2) + "\n")
         staging.rename(outdir)
 
