@@ -91,6 +91,27 @@ def proposal(source, identifier, kind, targets, evidence):
     return {"id": f"{source}:{identifier}", "source": source, "kind": kind, "targets": targets, "evidence": evidence}
 
 
+def catalog_candidates(row):
+    """Tie the catalog's positional evidence columns to their candidate ports."""
+    endings = row["candidate_endings"].split(";") if row["candidate_endings"] else []
+    groups = []
+    for name in ("candidate_families", "candidate_molecules"):
+        cells = row[name].split(";") if row.get(name) else [""] * len(endings)
+        if len(cells) != len(endings):
+            raise ValueError(f"{row['end_id']}: {name} does not match the candidate ends")
+        groups.append(cells)
+    candidates = []
+    for ending, families, molecules in zip(endings, *groups, strict=True):
+        port, _, tags = ending.partition("[")
+        candidates.append({
+            "port": port,
+            "evidence_tags": list(filter(None, tags.removesuffix("]").split(","))),
+            "family_ids": families.split(",") if families else [],
+            "reported_molecule_ids": molecules.split(",") if molecules else [],
+        })
+    return candidates
+
+
 def graph_proposals(lengths, candidate_rows):
     proposals = []
     for row in candidate_rows:
@@ -106,6 +127,7 @@ def graph_proposals(lengths, candidate_rows):
         proposals.append(proposal("graph", row["end_id"], "graph_end_candidate", list(locations.values()), {
             "graph_category": row["category"], "horizon_port": row["horizon_port"],
             "competing_graph_ends": row["candidate_endings"], "family_unitig_matches": row["family_unitig_matches"],
+            "candidate_ends": catalog_candidates(row),
             "certain_ports": row.get("certain_ports", ""), "certain_joins": row.get("certain_joins", ""),
             "reference_alignments": alignments,
         }))

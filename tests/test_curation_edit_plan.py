@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from curation_edit_plan import decide
+from curation_edit_plan import catalog_candidates, decide
 from package_reviewed_assembly import sha256
 
 
@@ -23,7 +23,7 @@ def test_graph_and_bam_proposals_share_a_curated_coordinate_plan(tmp_path):
         "t1\tTRANSFER_AND_STITCH_CONTIG\tII\t2\t3\t3\t6\tI\t0\t5_prime_terminus\n"
     )
     candidates = [{"end_id": "S:5p", "curated_end_candidates": "I:5p:+:0:2:50;II:5p:+:0:2:0",
-                   "category": "shared", "horizon_port": "u+", "candidate_endings": "v-,w+",
+                   "category": "shared", "horizon_port": "u+", "candidate_endings": "v-;w+",
                    "family_unitig_matches": "u:C000001"}]
     plan = tmp_path / "plan.json"
     assert decide(reference, candidates, [blueprint, transfers], None, None, plan) == reference
@@ -49,3 +49,20 @@ def test_graph_and_bam_proposals_share_a_curated_coordinate_plan(tmp_path):
     recipe.write_text(json.dumps({"expected_sha256": sha256(reviewed)}))
     with pytest.raises(ValueError, match="omits curated records: II"):
         decide(reference, candidates, [blueprint], reviewed, recipe, plan)
+
+
+def test_native_catalog_evidence_keeps_candidate_order_and_empty_positions():
+    row = {
+        "end_id": "S:5p",
+        "candidate_endings": "A+[reads:1,family:C1];B-[graph];C+[family:C2]",
+        "candidate_families": "C1;;C2",
+        "candidate_molecules": "r1,r2;;r2",
+    }
+    assert catalog_candidates(row) == [
+        {"port": "A+", "family_ids": ["C1"], "reported_molecule_ids": ["r1", "r2"],
+         "evidence_tags": ["reads:1", "family:C1"]},
+        {"port": "B-", "family_ids": [], "reported_molecule_ids": [], "evidence_tags": ["graph"]},
+        {"port": "C+", "family_ids": ["C2"], "reported_molecule_ids": ["r2"], "evidence_tags": ["family:C2"]},
+    ]
+    with pytest.raises(ValueError, match="candidate_families does not match"):
+        catalog_candidates({**row, "candidate_families": "C1;C2"})
