@@ -102,6 +102,24 @@ The workflow applies approved patches after any reviewed graph replay. A patch m
 
 The graph evidence bundle includes `curated_end_review.tsv`, `graph_end_proposals.tsv`, and `family_placements.tsv`. `sequence_gaps.tsv` records both linkage and missing sequence. For an anchored rDNA array the flanking connection is supported, while the sequence and copy order within the array remain unresolved. `unresolved_joins.tsv` records gaps with unresolved or unassessed linkage, including tandem repeats with competing distal placements.
 
+## Audit chromosome ends on a curated assembly
+
+`scripts/audit_chromosome_ends.py` takes a curated FASTA, a matching indexed long-read
+BAM, and SatelliteProfiler arrays and family monomers. Use `--help` for the required
+chromosome names, telomere motif, and optional DELFIES and graph inputs. The script
+requires Python with pysam and reports in the input assembly's coordinates.
+
+`ends.tsv` lists physical tip tracts, read support, gaps in the end window, and
+places to review. `end_repeat_links.tsv` gives the replicated diagnostic sequence
+footprint at each end. `repeat_families.tsv` counts ends with anchored molecules
+for the families in the supplied panel. A footprint measures bases observed on a
+read and provides a lower bound. `unplaced_ending_candidates.tsv` reports capped
+assembly or graph fragments sharing a repeat family. Candidate fragments may be
+compatible with several ends. The evidence tables retain read or fragment IDs so
+the underlying sequence can be inspected.
+
+The audit writes reports only. The assembly, alignments, and graph remain inputs.
+
 ## Credits
 
 `nf-core/pdefinisher` was originally written by **Pablo M. Gonzalez de la Rosa**.

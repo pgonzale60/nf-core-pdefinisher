@@ -14,14 +14,14 @@
                     [
                         "EXTRACTTELOMERICREADS",
                         "samtools",
-                        ""
+                        "1.21"
                     ]
                 ],
                 "2": [
                     [
                         "EXTRACTTELOMERICREADS",
-                        "seqkit",
-                        "v0.13.2"
+                        "bbmap",
+                        "39.08"
                     ]
                 ],
                 "reads": [
@@ -32,26 +32,26 @@
                         "test_sample.telomeric_reads.fastq.gz:md5,68b329da9893e34099c7d8ad5cb9c940"
                     ]
                 ],
+                "versions_bbmap": [
+                    [
+                        "EXTRACTTELOMERICREADS",
+                        "bbmap",
+                        "39.08"
+                    ]
+                ],
                 "versions_samtools": [
                     [
                         "EXTRACTTELOMERICREADS",
                         "samtools",
-                        ""
-                    ]
-                ],
-                "versions_seqkit": [
-                    [
-                        "EXTRACTTELOMERICREADS",
-                        "seqkit",
-                        "v0.13.2"
+                        "1.21"
                     ]
                 ]
             }
         ],
-        "timestamp": "2026-09-16T11:22:19.839163321",
+        "timestamp": "2026-11-28T00:10:35.794616",
         "meta": {
             "nf-test": "0.9.5",
-            "nextflow": "26.04.0"
+            "nextflow": "26.04.6"
         }
     }
 }
