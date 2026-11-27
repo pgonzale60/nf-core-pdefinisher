@@ -137,23 +137,21 @@ def report_candidates(catalog, placements, curated_paf, config, out):
 
 
 def report_delivery(delivery, candidates, recipe, out):
-    plan_path = delivery / "assembly_plan.json"
-    plan = json.loads(plan_path.read_text())["objects"] if recipe else {}
+    gaps = defaultdict(list)
+    for gap in rows(delivery / "sequence_gaps.tsv"):
+        gaps[gap["object"]].append(gap)
     records = []
     for end in rows(delivery / "ends.tsv"):
         chrom, side = end["chromosome"], end["side"]
-        parts = plan.get(chrom, {}).get("parts", [])
-        gap = next((p for p in (parts if side == "5p" else reversed(parts)) if "gap" in p), None)
-        if gap:
-            tip_to_gap = gap["start"] if side == "5p" else parts[-1]["end"] - gap["end"]
+        chrom_gaps = gaps[chrom]
+        gap = (chrom_gaps[0] if side == "5p" else chrom_gaps[-1]) if chrom_gaps else None
         records.append({
             **end,
-            "distal_cap_assignment": "reviewed" if recipe else "unverified",
-            "chromosome_continuity": (
-                ("unknown_joins" if gap else "gapless_in_reviewed_layout") if recipe else "unverified"
-            ),
-            "nearest_unknown_join": f"{gap['start']}-{gap['end']}" if gap else "",
-            "tip_to_unknown_join_bp": tip_to_gap if gap else "",
+            "distal_cap_in_layout": "reviewed" if recipe else "unverified",
+            "chromosome_sequence": "contains_placeholders" if gap else "gapless_in_layout",
+            "nearest_sequence_gap": f"{gap['start']}-{gap['end']}" if gap else "",
+            "nearest_gap_class": gap["gap_class"] if gap else "",
+            "nearest_gap_linkage": gap["linkage_status"] if gap else "",
             "graph_end_candidates": ",".join(sorted(set(candidates[chrom, side]))),
         })
     write_rows(out, list(records[0]), records)
@@ -175,7 +173,7 @@ def source_records(path, ids):
         return records
 
 
-def trace_recipe(recipe_path, fasta, sources, evidence_sources, out):
+def trace_recipe(recipe_path, fasta, sources, evidence_sources, out, finish_agp=None):
     """Bind reviewed recipe slices to the exact FASTA emitted by gfapdefinisher."""
     recipe = json.loads(recipe_path.read_text())
     required = defaultdict(set)
@@ -187,16 +185,27 @@ def trace_recipe(recipe_path, fasta, sources, evidence_sources, out):
     result = dict(read_fasta(fasta))
     objects = {}
     gap_bp = recipe["gap_bp"]
+    rdna_intervals = set()
+    if finish_agp:
+        with finish_agp.open() as handle:
+            for line in handle:
+                if line.startswith("#"):
+                    continue
+                columns = line.rstrip("\n").split("\t")
+                if columns[4] in ("N", "U") and columns[6:9] == ["repeat", "yes", "rna_tangle"]:
+                    rdna_intervals.add((columns[0], int(columns[1]) - 1, int(columns[2])))
     for chrom in recipe["chromosomes"]:
         name = chrom["name"]
         pieces = []
         parts = []
         offset = 0
         for piece in chrom["parts"]:
+            source_length = 0
             if "gap" in piece:
                 seq, start = "N" * gap_bp, 0
             else:
                 seq = sequences[piece["source"]][piece["record"]].upper()
+                source_length = len(seq)
                 if piece.get("strand", "+") == "-":
                     seq = seq.translate(COMPLEMENT)[::-1]
                 start = piece.get("start", 0)
@@ -207,7 +216,14 @@ def trace_recipe(recipe_path, fasta, sources, evidence_sources, out):
                 if left > pos:
                     offset = append_source(parts, pieces, piece, seq[pos:left], start + pos, offset)
                 if not (parts and "gap" in parts[-1] and left == 0):
-                    parts.append(dict(start=offset, end=offset + gap_bp, gap=piece.get("gap", "source_gap")))
+                    kind = piece.get("gap", "source_gap")
+                    if piece.get("source") == "finish":
+                        a, b = start + left, start + right
+                        if piece.get("strand") == "-":
+                            a, b = source_length - b, source_length - a
+                        if (piece["record"], a, b) in rdna_intervals:
+                            kind = "rdna"
+                    parts.append(dict(start=offset, end=offset + gap_bp, gap=kind))
                     pieces.append("N" * gap_bp)
                     offset += gap_bp
                 pos = right
@@ -278,7 +294,9 @@ def run_pilot(args, out):
                        hifi_reads=args.hifi_reads, out=assembly)
             sources = dict(primary=args.gfa, raw=args.raw_gfa, finish=scaffolds,
                            reference=args.curated, ont=args.ont_reads, hifi=args.hifi_reads)
-            trace_recipe(args.recipe, assembly, {**sources, **graphs}, sources, plan)
+            finish_agp = graph / "scaffolds.agp"
+            trace_recipe(args.recipe, assembly, {**sources, **graphs}, dict(sources, finish_agp=finish_agp),
+                         plan, finish_agp)
         chromosomes = set(args.chromosomes.split(","))
         delivery = out / "assembly"
         package(assembly, delivery, chromosomes, args.telomere.upper(), 3, args.recipe, plan)

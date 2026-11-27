@@ -96,6 +96,7 @@ def write_layout(fasta, out, chromosomes, motif, min_repeats, plan=None):
         (out / "assembly.agp").open("w") as agp,
         (out / "components.fasta").open("w") as components,
         (out / "ends.tsv").open("w") as ends,
+        (out / "sequence_gaps.tsv").open("w") as gaps,
         (out / "unresolved_joins.tsv").open("w") as joins,
     ):
         agp.write("##agp-version 2.1\n")
@@ -103,9 +104,13 @@ def write_layout(fasta, out, chromosomes, motif, min_repeats, plan=None):
         if plan is not None:
             agp.write("# Source intervals are recorded in assembly_plan.json.\n")
         end_rows = csv.writer(ends, delimiter="\t", lineterminator="\n")
+        gap_rows = csv.writer(gaps, delimiter="\t", lineterminator="\n")
         join_rows = csv.writer(joins, delimiter="\t", lineterminator="\n")
         end_rows.writerow(("chromosome", "side", "canonical_repeat_bp", "physical_tip_status"))
-        join_rows.writerow(("object", "start", "end", "placeholder_bp", "placement", "agp_part"))
+        gap_header = ("object", "start", "end", "placeholder_bp", "placement", "agp_part",
+                      "gap_class", "linkage_status", "sequence_status")
+        gap_rows.writerow(gap_header)
+        join_rows.writerow(gap_header)
 
         for record_number, (name, seq) in enumerate(read_fasta(fasta), 1):
             if name in seen or not seq or not re.fullmatch("[ACGTRYSWKMBDHVNacgtryswkmbdhvn]+", seq):
@@ -129,7 +134,17 @@ def write_layout(fasta, out, chromosomes, motif, min_repeats, plan=None):
                     terminal = start == 0 or stop == len(seq)
                     gap_type = "telomere" if terminal and name in chromosomes else "contig"
                     fields = ("N", length, gap_type, "no", "na")
-                    join_rows.writerow((name, start, stop, length, "terminal" if terminal else "internal", part))
+                    gap_class, linkage, sequence_status = "unclassified", "unassessed", "sequence_unresolved"
+                    if gap == "rdna":
+                        gap_class, linkage, sequence_status = "rdna_array", "flanking_connection_supported", "sequence_and_copy_order_unresolved"
+                        fields = ("N", length, "repeat", "yes", "unspecified")
+                    elif gap == "satellite_port":
+                        gap_class, linkage = "tandem_repeat", "distal_placement_unresolved"
+                    row = (name, start, stop, length, "terminal" if terminal else "internal", part,
+                           gap_class, linkage, sequence_status)
+                    gap_rows.writerow(row)
+                    if gap != "rdna":
+                        join_rows.writerow(row)
                 else:
                     component = f"component_{record_number}_{part}"
                     fields = ("W", component, 1, length, "+")
@@ -207,7 +222,7 @@ def package(fasta, outdir, chromosomes, motif, min_repeats, reviewed_recipe=None
             "telomere_repeat": motif,
             "min_telomere_repeats": min_repeats,
             "agp_provenance": "components are slices of the accepted FASTA",
-            "unresolved_join_coordinates": "zero-based half-open",
+            "gap_coordinates": "zero-based half-open",
             "checksums_sha256": {item.name: sha256(item) for item in sorted(staging.iterdir())},
         }
         (staging / "manifest.json").write_text(json.dumps(metadata, indent=2) + "\n")
