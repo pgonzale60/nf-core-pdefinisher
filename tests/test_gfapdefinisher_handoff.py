@@ -94,3 +94,23 @@ def test_reference_alignment_is_linked_to_its_proximal_scaffold_end(tmp_path):
     assert [row["decision"] for row in gfapdefinisher_handoff.rows(outfile)] == [
         "review_required", "unplaced_graph_end",
     ]
+
+
+def test_large_end_catalog_field_survives_proposal_round_trip(tmp_path):
+    catalog = tmp_path / "end_catalog.tsv"
+    candidate_endings = ",".join(f"utg{i:06d}+" for i in range(15_000))
+    catalog.write_text(
+        "end_id\tobject_id\tside\thorizon_port\tcandidate_endings\n"
+        f"S:5p\tS\t5p\tu+\t{candidate_endings}\n"
+    )
+    paf = tmp_path / "scaffolds.paf"
+    paf.touch()
+    config = {"mapping_min_bp": 100, "mapping_identity": 0.98, "reference_end_window_bp": 20}
+    placements = [{"source": "primary", "record": "utg014999", "cluster_id": "family"}]
+    proposals = tmp_path / "graph_end_proposals.tsv"
+
+    gfapdefinisher_handoff.report_candidates(catalog, placements, paf, config, proposals)
+
+    [proposal] = gfapdefinisher_handoff.rows(proposals)
+    assert proposal["candidate_endings"] == candidate_endings
+    assert proposal["family_unitig_matches"] == "utg014999:family"
