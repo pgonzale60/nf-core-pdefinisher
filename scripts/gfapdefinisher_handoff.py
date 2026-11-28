@@ -8,6 +8,7 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 from collections import defaultdict
 from pathlib import Path
@@ -27,6 +28,8 @@ ARCHIVE_FILES = (
 
 
 def rows(path):
+    # Graph end catalogs and proposals can contain long lists of candidate endings.
+    csv.field_size_limit(sys.maxsize)
     opener = gzip.open if path.suffix == ".gz" else open
     with opener(path, "rt", newline="") as handle:
         yield from csv.DictReader(handle, delimiter="\t")
